@@ -17,22 +17,23 @@
     fetch("model/meta.json").then(r => r.json()), fetch("model/weights.bin").then(r => r.arrayBuffer()), fetch("model/portraits.json").then(r => r.json())]);
   const E = new BanEngine(META, W), H = META.heroes.length, ORDER = META.ban_order, NAMES = META.heroes;
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => SHORT[NAMES[h]] || NAMES[h];
-  const MAPS = META.maps.map((m, i) => ({ i, name: m.name })).sort((a, b) => a.name.localeCompare(b.name));
+  const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
+  const MAPS = META.maps.map((m, i) => ({ i, name: mapName(m.name) })).sort((a, b) => a.name.localeCompare(b.name));
   const TIERS = Object.keys(META.tiers);
 
   // ---------------------------------------------------------------- state (mirrored in the URL hash, so a lobby can be shared)
-  const st = { tier: "Grandmaster 3", map: MAPS.find(m => /Klyntar · Dom/.test(m.name)) ? MAPS.find(m => /Klyntar · Dom/.test(m.name)).i : 0,
-               first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 } };
+  const st = { tier: "Grandmaster 3", map: MAPS.find(m => /Klyntar \(Dom/.test(m.name)) ? MAPS.find(m => /Klyntar \(Dom/.test(m.name)).i : 0,
+               first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 }, model: "value" };
   function readHash() {
     const q = new URLSearchParams(location.hash.slice(1)); if (!q.has("m")) return;
     if (q.get("t") && META.tiers[q.get("t")]) st.tier = q.get("t");
-    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0";
+    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0"; st.model = q.get("x") === "1" ? "sim" : "value";
     const tm = (q.get("u") || "").split(",").map(x => (x === "" || x === "-") ? -1 : +x); for (let i = 0; i < 6; i++) st.team[i] = Number.isInteger(tm[i]) && tm[i] >= 0 && tm[i] < H ? tm[i] : -1;
     st.bans = (q.get("b") || "").split(",").filter(x => x !== "").map(Number).filter(h => h >= 0 && h < H).slice(0, 6);
     st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
   }
   function writeHash() {
-    const q = new URLSearchParams({ t: st.tier, m: st.map, f: st.first ? 1 : 0, u: st.team.map(h => h < 0 ? "-" : h).join(","), b: st.bans.join(",") });
+    const q = new URLSearchParams({ t: st.tier, m: st.map, f: st.first ? 1 : 0, x: st.model === "sim" ? 1 : 0, u: st.team.map(h => h < 0 ? "-" : h).join(","), b: st.bans.join(",") });
     lastHash = "#" + q.toString(); history.replaceState(null, "", lastHash);
   }
   let lastHash = "";
@@ -55,6 +56,8 @@
   $("tierSel").onchange = e => { st.tier = e.target.value; update(); };
   $("mapSel").onchange = e => { st.map = +e.target.value; update(); };
   $("firstBtn").onclick = () => { st.first = true; update(); };
+  $("valueBtn").onclick = () => { st.model = "value"; update(); };
+  $("simBtn").onclick = () => { st.model = "sim"; update(); };
   $("secondBtn").onclick = () => { st.first = false; update(); };
   $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
@@ -84,13 +87,19 @@
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
 
   // ---------------------------------------------------------------- lobby rendering
-  let RES = null, THEIRS = null;
+  let RES = null, THEIRS = null, SIM = null, simId = 0;
+  const worker = new Worker("sim-worker.js");
+  worker.onmessage = ev => {
+    const d = ev.data; if (d.id !== simId) return;
+    if (d.progress !== undefined) { $("busy").textContent = `simulating ${Math.round(100 * d.progress)}%`; return; }
+    SIM = d; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; renderBans(); renderRoster(); renderAdvice();
+  };
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i;
       return `<div class="slot${h < 0 ? " empty" : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? "click, then pick a hero" : esc(NAMES[h]) + ": click to change"}">
         <div class="pic">${h < 0 ? "+" : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
-        <div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}${h >= 0 ? " · " + esc(short(h)) : ""}</div></div>`;
+        <div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : "&nbsp;"}</div></div>`;
     }).join("");
     $("teamSlots").querySelectorAll(".slot").forEach(el => el.onclick = ev => {
       const i = +el.dataset.i;
@@ -110,7 +119,7 @@
       const lab = h !== undefined ? esc(short(h)) : s !== undefined ? "suggested" : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s]) : "click, then pick the banned hero"}">
-        <div class="who">${i + 1} · ${side.toUpperCase()}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
+        <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
       const i = +el.dataset.i;
@@ -190,11 +199,13 @@
 
   // ---------------------------------------------------------------- advice
   function topBans(k) {
-    const V = RES.V; return Array.from(V.keys()).filter(h => !isNaN(V[h])).sort((a, b) => V[b] - V[a]).slice(0, k);
+    const V = st.model === "sim" && SIM ? SIM.V : RES.V; if (st.model === "sim" && !SIM) return [];
+    return Array.from(V.keys()).filter(h => !isNaN(V[h])).sort((a, b) => V[b] - V[a]).slice(0, k);
   }
   function renderAdvice() {
     const e = nextBan(), R = RES; let html = "";
     if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. The charts below show what each team is now likely to open.</p>`;
+    else if (ourTurn() && st.model === "sim") html += simAdvice();
     else if (ourTurn()) {
       const cnt = turnCount(), top = topBans(15), best = top.slice(0, cnt);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
@@ -237,11 +248,29 @@
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
   }
 
+  function simAdvice() {
+    const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
+    if (!SIM) return html + `<p class="small">Simulating: for each candidate, 16 continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.</p>`;
+    const top = topBans(15), best = top.slice(0, cnt);
+    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(SIM.V[h])} ± ${(196 * SIM.se[h]).toFixed(2)}`).join(", ")} points against a typical ban;
+      expected win with a typical ban ${(100 * SIM.base).toFixed(1)}%</span></p>`;
+    html += `<figure>${valueChart(top.slice(0, 12).map(h => ({ h, v: SIM.V[h], se: SIM.se[h] })))}<figcaption>Figure 1. Change in your team's win probability, in points,
+      from banning each hero instead of what a typical team would ban here. Whiskers are 95% intervals over the simulated continuations.
+      The simulator is noisy: rankings inside overlapping whiskers are not reliable.</figcaption></figure>`;
+    html += `<table><tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th class="r">± 95%</th><th class="r">Win if banned</th></tr>` +
+      top.map((h, k) => `<tr class="pick" data-h="${h}"><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td><td>${esc(NAMES[h])}</td>
+        <td class="r">${pp(SIM.V[h])}</td><td class="r">${(196 * SIM.se[h]).toFixed(2)}</td><td class="r">${(100 * SIM.win[h]).toFixed(1)}%</td></tr>`).join("") + `</table>
+      <p class="small">The simulator draws stand-in players near your rank, keeps your hero and (usually) your teammates' hovers, samples the rest of the ban phase,
+      re-drafts both teams with the pick model and scores every pairing with the outcome model. It needs no lineup network, but it is slower and noisier than the ban value model.</p>`;
+    return html;
+  }
+
   // ---------------------------------------------------------------- update loop
   let pending = 0;
   function update(recompute = true) {
     writeHash();
     $("firstBtn").classList.toggle("on", st.first); $("secondBtn").classList.toggle("on", !st.first);
+    $("valueBtn").classList.toggle("on", st.model === "value"); $("simBtn").classList.toggle("on", st.model === "sim");
     $("tierSel").value = st.tier; $("mapSel").value = String(st.map);
     if (st.active.kind === "ban" && nextBan() >= 6) st.active = { kind: "ban" };
     renderTeam(); renderTurnHint();
@@ -250,8 +279,12 @@
     setTimeout(() => {
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
-      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null;
-      renderBans(); renderRoster(); renderAdvice(); $("mainEl").classList.remove("busy");
+      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = null;
+      if (st.model === "sim" && ourTurn()) {
+        simId++; $("busy").textContent = "simulating 0%";
+        worker.postMessage({ id: simId, st: Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 }) });
+      } else $("mainEl").classList.remove("busy");
+      renderBans(); renderRoster(); renderAdvice();
     }, 15);
   }
 
@@ -277,7 +310,7 @@
     $("method").innerHTML = `<h2>Method</h2>
       <p>In ranked you rarely know who the other team is. A ban works by taking a hero away from both teams, so what matters is how likely each team is to open it,
       how much losing it costs whoever would have played it, and whether it would have been banned anyway. For every legal ban <i>x</i>, the value in win probability is</p>
-      <p class="formula">V(<i>x</i>) = (1 − <i>P</i><sub>later</sub>(<i>x</i>)) · [ <i>P</i><sub>them</sub>(<i>x</i>) · <i>R</i><sub>them</sub>(<i>x</i>) − <i>P</i><sub>us</sub>(<i>x</i>) · <i>R</i><sub>us</sub>(<i>x</i>) ] + reply(<i>x</i>)</p>
+      <p class="formula">V(<i>x</i>) = (1 − <i>P</i><sub>later</sub>(<i>x</i>)) × [ <i>P</i><sub>them</sub>(<i>x</i>) × <i>R</i><sub>them</sub>(<i>x</i>) − <i>P</i><sub>us</sub>(<i>x</i>) × <i>R</i><sub>us</sub>(<i>x</i>) ] + reply(<i>x</i>)</p>
       <ul>
         <li><b><i>P</i><sub>them</sub>, <i>P</i><sub>us</sub></b>: a masked team-lineup network (two hidden layers of 512, an ensemble of four) that sees only what a lobby shows: the bans so far and who made them,
           the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden.</li>
@@ -298,8 +331,8 @@
         <tr><td>Win probability a typical team's three bans leave on the table, by the model's own values</td><td class="r">${v.bans.mean_regret_pp.toFixed(2)} pts</td></tr>
         <tr><td>Do teams whose real bans scored higher win more? Slope of winning on ban value (1 = right size)</td><td class="r">${v.bans.slope.toFixed(2)} ± ${(1.96 * v.bans.slope_se).toFixed(2)}</td></tr></table>
       <p class="small">The last line is inconclusive: real teams' bans differ by fractions of a point, and 27k coin-flip outcomes can only detect a slope of about ±${v.bans.detectable_slope_80pct.toFixed(1)}.
-      Each piece of the model is checked separately instead. Bans reveal only a little about a team you can't see; your teammates' hovers reveal much more. The whole lever is about
-      one point of win probability per game, so treat the ranking as a well-informed nudge, not a guarantee.</p>
+      Each piece of the model is checked separately instead. Bans reveal only a little about a team you can't see; your teammates' hovers reveal much more. A good ban is worth about
+      one point of win probability per game, and candidates within about 0.1 points of each other are effectively tied.</p>
       <h2>Limits</h2>
       <ul class="small">
         <li>Fitted on PC ranked Season 10 matches from 11 to 21 September 2026, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
@@ -310,7 +343,6 @@
       </ul>`;
   }
 
-  $("status").textContent = `Ban value model (${META.source.replace(/^ban_value_model_|\.json$/g, "")}) · 56 heroes, 16 maps · lineup networks ×${META.weights.models.length} ·
-    loaded in ${Math.round(performance.now() - t0)} ms · runs entirely in your browser`;
+  $("status").textContent = "Fitted on 243,143 PC ranked matches from Season 10 (11 to 21 September 2026).";
   renderMethod(); update();
 })();

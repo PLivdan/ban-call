@@ -1,0 +1,15 @@
+const fs = require("fs"); const { SimEngine } = require("../sim.js"); const { BanEngine } = require("../engine.js");
+const M = JSON.parse(fs.readFileSync("model/sim.json")); const S = new SimEngine(M);
+const meta = JSON.parse(fs.readFileSync("model/meta.json")); const buf = fs.readFileSync("model/weights.bin");
+const E = new BanEngine(meta, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length));
+const IX = Object.fromEntries(M.heroes.map((h, i) => [h, i]));
+const hov6 = [IX["Hela"], IX["Ultron"], IX["Magneto"], -1, IX["Invisible Woman"], -1];
+const st = { firstUs: false, bans: [IX["Devil Dinosaur"]], m: 11, r0: 4550, hov6, rev: hov6.filter(h => h >= 0), cnt: 2 };
+let t0 = Date.now(); const r = S.values(st); const ms = Date.now() - t0; const v = E.values(st);
+const top = a => Array.from(a.keys()).filter(h => !isNaN(a[h])).sort((x, y) => a[y] - a[x]);
+console.log(`simulator ${ms} ms; baseline win ${(100 * r.base).toFixed(1)}%`);
+console.log("sim top:", top(r.V).slice(0, 8).map(h => `${M.heroes[h]} ${(100 * r.V[h]).toFixed(2)}±${(100 * r.se[h]).toFixed(2)}`).join(", "));
+console.log("value top:", top(v.V).slice(0, 8).map(h => `${M.heroes[h]} ${(100 * v.V[h]).toFixed(2)}`).join(", "));
+const ok = top(r.V); const rk = a => { const o = new Map(); top(a).forEach((h, i) => o.set(h, i)); return o; }; const A = rk(r.V), B = rk(v.V);
+const hs = ok.filter(h => B.has(h)); const n = hs.length; let d2 = 0; for (const h of hs) d2 += (A.get(h) - B.get(h)) ** 2;
+console.log(`Spearman sim vs value model over ${n} candidates: ${(1 - 6 * d2 / (n * (n * n - 1))).toFixed(2)}`);
