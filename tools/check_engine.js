@@ -1,7 +1,9 @@
-// Runs the browser engine in Node on scenarios from stdin and prints results as JSON.
+// Runs the browser engine in Node on lobbies from stdin (JSON list) and prints its values as JSON (tools/check_ref.py
+// compares them with the numpy reference, tools/engine_ref.py).
 const fs = require("fs"); const { BanEngine } = require("../engine.js");
 const meta = JSON.parse(fs.readFileSync("model/meta.json")); const buf = fs.readFileSync("model/weights.bin");
-const E = new BanEngine(meta, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length));
-const sc = JSON.parse(fs.readFileSync(0)); const t0 = Date.now();
-const out = sc.map(s => { const r = E.values(s); return { V: Array.from(r.V), se: Array.from(r.se), Pt: Array.from(r.Pt), Pu: Array.from(r.Pu), PL: Array.from(r.PL), reply: Array.from(r.reply) }; });
-console.error(`${sc.length} scenarios in ${Date.now() - t0} ms`); console.log(JSON.stringify(out));
+const sc = JSON.parse(fs.readFileSync(0)), opt = sc.opt || {}; const E = new BanEngine(meta, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length), opt); const t0 = Date.now();
+const A = a => Array.from(a, v => (v === undefined || Number.isNaN(v)) ? null : v);
+const out = sc.lobbies.map(s => { const r = E.values(s);
+  return { V: A(r.V || []), se: A(r.se || []), Pu: A(r.Pu), Pt: A(r.Pt), PuRaw: A(r.PuRaw), PL: A(r.PL || []), pairs: (r.pairs || []).map(p => ({ a: p.a, b: p.b, V: p.V })) }; });
+console.error(`${sc.lobbies.length} lobbies in ${Date.now() - t0} ms`); console.log(JSON.stringify(out));
