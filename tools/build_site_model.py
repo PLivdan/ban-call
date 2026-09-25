@@ -19,7 +19,9 @@ meta.update(source=os.path.basename(src), weights=dict(file="weights.bin", dtype
             ALTC=R(M["ALTC"], 4), ALTS=R(M["ALTS"], 4), MC=R(M["MC"]), MS=R(M["MS"]), alt=R(M["alt"], 3),
             ban={k: (R(v) if isinstance(v, list) else v) for k, v in M["ban"].items()})
 if "check" in M: meta["check"] = M["check"]                           # lobbies scored in the notebook (tools/check_notebook.js)
-for k in ("engine", "check_ns", "notebook"):                           # export v6+ (notebook v7): engine settings the fixtures were made with
+# export v6+ (notebook v7): the engine settings the fixtures were made with; v7+ (notebook v7.1): joint-removal terms and the selection
+for k in ("engine", "check_ns", "notebook", "selection"):
     if k in M: meta[k] = M[k]
+if M.get("pair_removal") is not None: meta["pair_removal"] = R(M["pair_removal"])
 json.dump(meta, open("model/meta.json", "w"), separators=(",", ":"))
 print(f"model/meta.json {os.path.getsize('model/meta.json') / 1e6:.2f} MB, model/weights.bin {os.path.getsize('model/weights.bin') / 1e6:.2f} MB ({off:,} float16)")

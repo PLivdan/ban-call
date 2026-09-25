@@ -1,0 +1,1 @@
+impossible own-ban histories: 0/576; effective sample size of 64 weighted histories: median 62.1, min 56.4 (9 lobbies)

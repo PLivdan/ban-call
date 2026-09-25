@@ -509,7 +509,8 @@
       <p>to your team: how likely each team is to open it, times what losing it costs that team. The rest of the ban phase is simulated ${fmt(E.NS)} times, one ban at a time, from a ban model
       that reacts to every ban before it. The value of banning <i>x</i> is the average total of w over the simulated bans when you ban <i>x</i>, minus the same average when you ban as a
       typical team would. Every candidate faces the same random draws, so their differences are not noise from resampling. A hero that would go anyway, and the other team's replies,
-      are already in the simulated bans, so nothing is added on top. On a two-ban turn the best pairs are scored together in the same way.</p>
+      are already in the simulated bans, so nothing is added on top. On a two-ban turn the best pairs are scored together in the same way.${META.pair_removal ? ` When a hero
+      and its players' usual replacement are both banned, the cost of losing the hero includes losing the replacement too (for example a main and its backup).` : ""}</p>
       <ul>
         <li><b><i>P</i><sub>them</sub>, <i>P</i><sub>us</sub></b>: a masked team-lineup network (two hidden layers of 512, an ensemble of four) that sees only what a lobby shows: the bans so far and who made them,
           the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden. The other team's side uses public information only.

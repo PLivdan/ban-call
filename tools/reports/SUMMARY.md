@@ -1,4 +1,4 @@
-# v7 verification summary (2026-09-25, model 20260925_1608, the v6 notebook's fit)
+# v7 / v7.1 verification summary (2026-09-25, model 20260925_1608, the v6 notebook's fit)
 
 Phase 1 of the v7 plan: inference corrections on the site, using the existing weights. Everything here is
 **computational** (the code does what it claims, with the fitted models taken as given). None of it is evidence that
@@ -44,3 +44,14 @@ The notebook's crash-check export, built into site files, passes `check_notebook
 - **Predictive improvement:** not measured here. The weights are v6's. Notebook v7 measures it on chronological
   windows.
 - **Real win-rate improvement:** not measured anywhere. See `ban-solver/docs/HOVER_DATA_SPEC.md`.
+
+## v7.1 engine changes (after the second review)
+| Check | Result |
+|---|---|
+| Own-ban averaging used impossible histories (a friendly ban on a hero the other team bans later) | reproduced on the v7 engine (3/200 on this model; the reviewer's synthetic test: 42/200); v7.1: 0/576 (`check_histories.txt`) |
+| Importance weights (how likely the other team's actual bans are under each history) | effective sample size median 62 of 64, min 56 |
+| Parity with the joint-removal terms and ban model B present (synthetic tables) | `engine.js` = numpy reference to 0 at five decimals (`check_ref.txt`) |
+| Zero-valued extensions reproduce the plain engine | exactly |
+| Synthetic joint-removal terms (half-normal, sd 0.4 pp) move values / pair values by up to | 0.27 / 0.50 points (the real terms come from the v7.1 run) |
+| Notebook v7.1 crash-check export, built into site files, `check_notebook.js` | 0.0000 pp, pairs included, with ban model B and joint-removal terms |
+| `check_v7.js` rerun with v7.1 | all pass; stability 57/60 top bans, largest deviation 2.95 simulation SEs over 600 values |
