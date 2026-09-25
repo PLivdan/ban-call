@@ -94,7 +94,7 @@
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
 
   // ---------------------------------------------------------------- lobby rendering
-  let RES = null, THEIRS = null;
+  let RES = null, RES2 = null, THEIRS = null;
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i;
@@ -112,15 +112,15 @@
   const top2 = P => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 2).map(h => ({ h, p: P[h] }));
   function renderBans() {
     const e = nextBan(), cnt = turnCount();
-    const sug = ourTurn() && RES ? topBans(cnt) : [];
+    const sug = ourTurn() && RES ? suggested(cnt) : [];
     $("banSlots").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
-      const s = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined;
+      const sg = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined, s = sg ? sg.h : undefined, wait = sg === null;
       const f = h === undefined && !ours(i) && FC && FC.top[i] && FC.top[i].length ? FC.top[i] : null;   // their likeliest ban in this box, given their earlier boxes as shown
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
-                : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : (i + 1);
-      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>`
+                : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : wait ? "…" : (i + 1);
+      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : wait ? `<span class="alt">simulating</span>`
                 : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}${f[1] ? `<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : ""}` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
@@ -284,6 +284,18 @@
   function niceStep(span, n = 5) { const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 
   // ---------------------------------------------------------------- advice
+  function suggested(cnt) {                          // our suggested ban(s) this turn: the best, then on a two-ban turn the best once the first is in (null while that is still simulating)
+    const h1 = topBans(1)[0]; if (h1 === undefined) return [];
+    const S1 = st.model === "sim" ? SIM : RES, out = [{ h: h1, V: S1.V[h1], se: S1.se[h1] }];
+    if (cnt === 2) {
+      const S2 = st.model === "sim" ? SIM2 : RES2;
+      if (S2 === "failed") return out;
+      if (!S2 || S2.prelim) { out.push(null); return out; }
+      const h2 = Array.from(S2.V.keys()).filter(h => h !== h1 && !isNaN(S2.V[h])).sort((a, b) => S2.V[b] - S2.V[a])[0];
+      out.push({ h: h2, V: S2.V[h2], se: S2.se[h2] });
+    }
+    return out;
+  }
   function topBans(k) {
     if (st.model === "sim" && (!SIM || SIM.prelim)) return [];             // nothing from the simulator until every run is in
     const V = st.model === "sim" ? SIM.V : RES.V;
@@ -295,10 +307,10 @@
     if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. The figure below shows what each team is now likely to open.</p>`;
     else if (ourTurn() && st.model === "sim") html += simAdvice(F);
     else if (ourTurn()) {
-      const cnt = turnCount(), top = topBans(15), best = top.slice(0, cnt);
+      const cnt = turnCount(), top = topBans(15), sug = suggested(cnt).filter(Boolean), best = sug.map(x => x.h);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
-      html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")}
-        <span class="small">&nbsp;${best.map(h => `${pp(R.V[h])} ± ${(196 * R.se[h]).toFixed(2)}`).join(", ")} points of win probability${cnt === 2 ? " (the two values add)" : ""}</span></p>`;
+      html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" then ")}
+        <span class="small">&nbsp;${sug.map(x => `${pp(x.V)} ± ${(196 * x.se).toFixed(2)}`).join(", ")} points of win probability${cnt === 2 ? ` (the second is the best ban once ${esc(NAMES[best[0]])} is in)` : ""}</span></p>`;
       html += rankTable(top, R.V, R.se, [
         { th: "They open", td: h => pct(R.Pt[h]) }, { th: "You open", td: h => pct(R.Pu[h]) }, { th: "Cost to lose", td: h => (100 * R.R[h]).toFixed(1) },
         { th: "Banned later", td: h => pct(R.PL[h]) }, { th: "Their reply", td: h => pp(R.reply[h]) }],
@@ -329,7 +341,7 @@
     $("adviceBody").innerHTML = html;
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
     const mf = $("methodFig"); if (mf) mf.textContent = `Figure ${fig + 1}.`;
-    if (RUN && !RUN.finished && st.model === "sim") progress();
+    if (RUN && !RUN.finished && !RUN.second && st.model === "sim") progress();
   }
 
   function simAdvice(F) {
@@ -338,8 +350,9 @@
     if (RUN && RUN.failed) return html + `<p class="small">The simulator stopped with an error in this browser. Reload the page to try again. The ban value model still works.</p>`;
     if (!SIM || SIM.prelim) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
       The ${TOP2} best then get ${st.runs - FIRST[st.runs]} more, for ${st.runs} runs each.</p>`;
-    const S = SIM, top = topBans(15), best = top.slice(0, cnt);
-    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban.
+    const S = SIM, top = topBans(15), sug = suggested(cnt), best = sug.filter(Boolean).map(x => x.h);
+    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" then ")}${sug[1] === null ? `, then <i>simulating the second ban with ${esc(NAMES[best[0]])} in</i>` : ""}
+      <span class="small">&nbsp;${sug.filter(Boolean).map(x => `${pp(x.V)} ± ${(196 * x.se).toFixed(2)}`).join(", ")} points against a typical ban${cnt === 2 && sug[1] ? ` (the second is the best ban once ${esc(NAMES[best[0]])} is in)` : ""}.
       Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
     html += `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
@@ -365,18 +378,22 @@
   const RUNS = [16, 32, 64], FIRST = { 16: 6, 32: 8, 64: 12 };   // continuations for the top bans, and for every ban in stage 1
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
-  let pool = [], RUN = null, SIM = null, simId = 0;
+  let pool = [], RUN = null, SIM = null, SIM2 = null, simId = 0;
   function newWorker() { const w = new Worker("sim-worker.js?v=4"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
-  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = RUN.failed = true; $("mainEl").classList.remove("busy"); renderAdvice(); }
+  function simFail() {
+    if (!RUN || RUN.finished) return; RUN.finished = true;
+    if (RUN.second) { SIM2 = "failed"; renderBans(); renderAdvice(); return; }   // keep the first ban's results
+    RUN.failed = true; $("mainEl").classList.remove("busy"); renderAdvice();
+  }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
-  function startSim(s) {
+  function startSim(s, second = false) {
     ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
     const prot = new Set(s.hov6.filter(h => h >= 0)), cands = [];
     for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
     const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
     RUN = { id: ++simId, st: s, cands, top2, L1, L2, NR, ticks: 0, total: NR + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
-            vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false };
+            vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false, second };
     const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
     chunks(range(0, NR), pool.length).forEach((b, k) => { jobs[k].base = b; load[k] = b.length; });   // the typical-ban baseline, split across workers
     for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
@@ -384,7 +401,7 @@
   }
   function onSim(d) {
     const R = RUN; if (!R || d.id !== R.id || R.finished) return;
-    if (!d.done) { R.ticks += d.tick || 0; progress(); return; }
+    if (!d.done) { R.ticks += d.tick || 0; if (!R.second) progress(); return; }
     for (const h in d.vals) {
       Object.assign(R.vals[h] || (R.vals[h] = {}), d.vals[h]);
       const c = R.cs[h] || (R.cs[h] = { u: new Float64Array(H), o: new Float64Array(H), n: 0 }), n = Object.keys(d.vals[h]).length;
@@ -392,14 +409,19 @@
     }
     if (d.baseCnt) { const n = Object.keys(d.base).length; Object.assign(R.base, d.base); for (let x = 0; x < H; x++) { R.bcs.u[x] += d.baseCnt.u[x] * n; R.bcs.o[x] += d.baseCnt.o[x] * n; } R.bcs.n += n; }
     if (--R.pending > 0) return;
-    SIM = summarize(R);
+    const S = summarize(R); if (R.second) SIM2 = S; else SIM = S;
     if (R.stage === 1 && R.top2 > 0 && R.L2.length) {       // stage 2: more continuations for the leaders, spread over the workers
-      R.stage = 2; SIM.prelim = true; let k = 0;
+      R.stage = 2; S.prelim = true; let k = 0;
       const parts = chunks(R.L2, Math.max(1, Math.round(pool.length * 2 / R.top2)));
-      R.cands.slice().sort((a, b) => SIM.V[b] - SIM.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
+      R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
       return;
-    } else { R.finished = true; SIM.ms = performance.now() - R.t0; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
+    }
+    R.finished = true; S.ms = performance.now() - R.t0;
+    if (!R.second) { $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
     renderBans(); renderRoster(); renderAdvice();
+    if (!R.second && R.st.pair) {                           // two-ban turn: simulate our second ban with the first one in, as the page would after it is entered
+      const h1 = topBans(1)[0]; if (h1 !== undefined) startSim(Object.assign({}, R.st, { bans: R.st.bans.concat([h1]), pair: false }), true);
+    }
   }
   function progress() {
     const f = Math.min(1, RUN.ticks / RUN.total), el = $("simProg");
@@ -435,9 +457,11 @@
     setTimeout(() => {
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
-      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = null;
+      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = SIM2 = null;
+      RES2 = null;
+      if (ourTurn() && s.cnt === 2) { const h1 = topBans(1)[0]; if (h1 !== undefined) RES2 = E.values(Object.assign({}, s, { bans: s.bans.concat([h1]), cnt: 1 })); }
       FC = nextBan() < 6 ? forecastChain(s) : null;
-      if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 })); }
+      if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1, pair: s.cnt === 2 })); }
       else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
       renderBans(); renderRoster(); renderAdvice();
     }, 15);
@@ -495,7 +519,7 @@
         <li>Ranks map to scores at about 100 points per division (Grandmaster 3 ≈ 4,550). The exact tier boundaries are approximate.</li>
         <li>Hovers are not in the data. The model treats a shown hero as that player's likely pick and assumes a hover sticks about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
-        <li>Values are first order. A ban that reshapes a whole composition is only approximated, and on a two-ban turn the two values are simply added.</li>
+        <li>Values are first order. A ban that reshapes a whole composition is only approximated, and on a two-ban turn the second suggestion is the best ban once the first is in, not a search over every pair.</li>
       </ul>`;
   }
 
