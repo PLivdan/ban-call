@@ -16,6 +16,9 @@ so far.
   1.8M real opening picks.
 - **P_later and the reply:** from a ban model fitted on every Season 10 ban.
 
+A second model, the re-draft simulator (`sim.js`, run in Web Workers by `sim-worker.js`), values each ban by simulating the rest
+of the ban phase and re-drafting both teams with stand-in players (16, 32 or 64 runs per top ban). Its tables are in `model/sim.json`.
+
 The models are fitted in the ban-solver notebook (Colab). This repo only serves them.
 
 ## Files
