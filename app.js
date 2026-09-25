@@ -29,17 +29,17 @@
 
   // ---------------------------------------------------------------- state (mirrored in the URL hash, so a lobby can be shared)
   const st = { tier: "Grandmaster 3", map: MAPS.find(m => /Klyntar \(Dom/.test(m.name)) ? MAPS.find(m => /Klyntar \(Dom/.test(m.name)).i : 0,
-               first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 }, model: "value" };
+               first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 }, model: "value", runs: 16 };
   function readHash() {
     const q = new URLSearchParams(location.hash.slice(1)); if (!q.has("m")) return;
     if (q.get("t") && META.tiers[q.get("t")]) st.tier = q.get("t");
-    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0"; st.model = q.get("x") === "1" ? "sim" : "value";
+    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0"; st.model = q.get("x") === "1" ? "sim" : "value"; st.runs = [16, 32, 64].includes(+q.get("n")) ? +q.get("n") : 16;
     const tm = (q.get("u") || "").split(",").map(x => (x === "" || x === "-") ? -1 : +x); for (let i = 0; i < 6; i++) st.team[i] = Number.isInteger(tm[i]) && tm[i] >= 0 && tm[i] < H ? tm[i] : -1;
     st.bans = (q.get("b") || "").split(",").filter(x => x !== "").map(Number).filter(h => h >= 0 && h < H).slice(0, 6);
     st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
   }
   function writeHash() {
-    const q = new URLSearchParams({ t: st.tier, m: st.map, f: st.first ? 1 : 0, x: st.model === "sim" ? 1 : 0, u: st.team.map(h => h < 0 ? "-" : h).join(","), b: st.bans.join(",") });
+    const q = new URLSearchParams({ t: st.tier, m: st.map, f: st.first ? 1 : 0, x: st.model === "sim" ? 1 : 0, n: st.runs, u: st.team.map(h => h < 0 ? "-" : h).join(","), b: st.bans.join(",") });
     lastHash = "#" + q.toString(); history.replaceState(null, "", lastHash);
   }
   let lastHash = "";
@@ -64,6 +64,7 @@
   $("firstBtn").onclick = () => { st.first = true; update(); };
   $("valueBtn").onclick = () => { st.model = "value"; update(); };
   $("simBtn").onclick = () => { st.model = "sim"; update(); };
+  document.querySelectorAll("#runsCtl button").forEach(b => b.onclick = () => { st.runs = +b.dataset.n; update(); });
   $("secondBtn").onclick = () => { st.first = false; update(); };
   $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
@@ -322,8 +323,9 @@
   function simAdvice(F) {
     const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
     const bar = `<div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
-    if (!SIM) return html + bar + `<p class="small">Every legal ban gets 6 simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
-      The 12 best then get 10 more.</p>`;
+    if (RUN && RUN.failed) return html + `<p class="small">The simulator stopped with an error in this browser. Reload the page to try again. The ban value model still works.</p>`;
+    if (!SIM) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
+      The ${TOP2} best then get ${st.runs - FIRST[st.runs]} more, for ${st.runs} runs each.</p>`;
     const S = SIM, top = topBans(15), best = top.slice(0, cnt);
     html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban.
       Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
@@ -348,21 +350,23 @@
 
   // ---------------------------------------------------------------- re-draft simulator: a pool of workers, two stages, a progress bar
   const NW = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12;
-  const L1 = [0, 1, 2, 3, 4, 5], L2 = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15], LB = L1.concat(L2);
+  const RUNS = [16, 32, 64], FIRST = { 16: 6, 32: 8, 64: 12 };   // continuations for the top bans, and for every ban in stage 1
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
+  const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   let pool = [], RUN = null, SIM = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("sim-worker.js?v=3"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
-  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; $("mainEl").classList.remove("busy"); const el = $("simMsg"); if (el) el.textContent = "The simulator could not start in this browser. The ban value model still works."; }
+  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = RUN.failed = true; $("mainEl").classList.remove("busy"); renderAdvice(); }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
   function startSim(s) {
     ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
     const prot = new Set(s.hov6.filter(h => h >= 0)), cands = [];
     for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
-    const top2 = Math.min(TOP2, cands.length);
-    RUN = { id: ++simId, st: s, cands, top2, ticks: 0, total: LB.length + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
-            vals: {}, cs: {}, base: {}, baseCnt: null, t0: performance.now(), finished: false };
+    const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
+    RUN = { id: ++simId, st: s, cands, top2, L1, L2, NR, ticks: 0, total: NR + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
+            vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false };
     const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
-    jobs[0].base = LB; load[0] = LB.length;
+    chunks(range(0, NR), pool.length).forEach((b, k) => { jobs[k].base = b; load[k] = b.length; });   // the typical-ban baseline, split across workers
     for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
     jobs.forEach((j, k) => send(k, j.cands, L1, j.base));
   }
@@ -374,12 +378,13 @@
       const c = R.cs[h] || (R.cs[h] = { u: new Float64Array(H), o: new Float64Array(H), n: 0 }), n = Object.keys(d.vals[h]).length;
       for (let x = 0; x < H; x++) { c.u[x] += d.cnt[h].u[x] * n; c.o[x] += d.cnt[h].o[x] * n; } c.n += n;
     }
-    if (d.baseCnt) { Object.assign(R.base, d.base); R.baseCnt = d.baseCnt; }
+    if (d.baseCnt) { const n = Object.keys(d.base).length; Object.assign(R.base, d.base); for (let x = 0; x < H; x++) { R.bcs.u[x] += d.baseCnt.u[x] * n; R.bcs.o[x] += d.baseCnt.o[x] * n; } R.bcs.n += n; }
     if (--R.pending > 0) return;
     SIM = summarize(R);
-    if (R.stage === 1 && R.top2 > 0) {                      // stage 2: more continuations for the leaders
-      R.stage = 2; SIM.prelim = true;
-      R.cands.slice().sort((a, b) => SIM.V[b] - SIM.V[a]).slice(0, R.top2).forEach((h, i) => send(i % pool.length, [h], L2, []));
+    if (R.stage === 1 && R.top2 > 0 && R.L2.length) {       // stage 2: more continuations for the leaders, spread over the workers
+      R.stage = 2; SIM.prelim = true; let k = 0;
+      const parts = chunks(R.L2, Math.max(1, Math.round(pool.length * 2 / R.top2)));
+      R.cands.slice().sort((a, b) => SIM.V[b] - SIM.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
     } else { R.finished = true; SIM.ms = performance.now() - R.t0; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
     renderBans(); renderRoster(); renderAdvice();
   }
@@ -398,7 +403,7 @@
       se[h] = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1)));
       co[h] = R.cs[h].o.map(x => x / R.cs[h].n); cu[h] = R.cs[h].u.map(x => x / R.cs[h].n);
     }
-    return { V, se, win, n, base: bm, co, cu, baseCo: R.baseCnt.o, baseCu: R.baseCnt.u, total: R.total };
+    return { V, se, win, n, base: bm, co, cu, baseCo: R.bcs.o.map(x => x / R.bcs.n), baseCu: R.bcs.u.map(x => x / R.bcs.n), total: R.total };
   }
 
   // ---------------------------------------------------------------- update loop
@@ -407,6 +412,8 @@
     writeHash();
     $("firstBtn").classList.toggle("on", st.first); $("secondBtn").classList.toggle("on", !st.first);
     $("valueBtn").classList.toggle("on", st.model === "value"); $("simBtn").classList.toggle("on", st.model === "sim");
+    $("runsCtl").style.display = st.model === "sim" ? "" : "none";
+    document.querySelectorAll("#runsCtl button").forEach(b => b.classList.toggle("on", +b.dataset.n === st.runs));
     $("tierSel").value = st.tier; $("mapSel").value = String(st.map);
     if (st.active.kind === "ban" && nextBan() >= 6) st.active = { kind: "ban" };
     renderTeam(); renderTurnHint();
