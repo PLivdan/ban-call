@@ -274,7 +274,8 @@
 
   // ---------------------------------------------------------------- advice
   function topBans(k) {
-    const V = st.model === "sim" && SIM ? SIM.V : RES.V; if (st.model === "sim" && !SIM) return [];
+    if (st.model === "sim" && (!SIM || SIM.prelim)) return [];             // nothing from the simulator until every run is in
+    const V = st.model === "sim" ? SIM.V : RES.V;
     return Array.from(V.keys()).filter(h => !isNaN(V[h])).sort((a, b) => V[b] - V[a]).slice(0, k);
   }
   function renderAdvice() {
@@ -324,13 +325,12 @@
     const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
     const bar = `<div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
     if (RUN && RUN.failed) return html + `<p class="small">The simulator stopped with an error in this browser. Reload the page to try again. The ban value model still works.</p>`;
-    if (!SIM) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
+    if (!SIM || SIM.prelim) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
       The ${TOP2} best then get ${st.runs - FIRST[st.runs]} more, for ${st.runs} runs each.</p>`;
     const S = SIM, top = topBans(15), best = top.slice(0, cnt);
     html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban.
       Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
-    html += S.prelim ? bar + `<p class="small"><b>Preliminary.</b> Every ban has had its first ${FIRST[st.runs]} runs. The ${TOP2} leaders are now getting
-      ${st.runs - FIRST[st.runs]} more each, so their values and order can still change. Bans outside the top ${TOP2} are final.</p>` : `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
+    html += `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
     html += rankTable(top, S.V, S.se, [
       { th: "Win if banned", td: h => (100 * S.win[h]).toFixed(1) + "%" }, { th: "They draft it", td: h => pct(S.baseCo[h]) },
@@ -386,6 +386,7 @@
       R.stage = 2; SIM.prelim = true; let k = 0;
       const parts = chunks(R.L2, Math.max(1, Math.round(pool.length * 2 / R.top2)));
       R.cands.slice().sort((a, b) => SIM.V[b] - SIM.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
+      return;
     } else { R.finished = true; SIM.ms = performance.now() - R.t0; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
     renderBans(); renderRoster(); renderAdvice();
   }
