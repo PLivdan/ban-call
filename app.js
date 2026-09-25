@@ -109,17 +109,14 @@
       update(false);
     });
   }
-  const topK = (P, k) => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, k).map(h => ({ h, p: P[h] })), top2 = P => topK(P, 2);
+  const top2 = P => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 2).map(h => ({ h, p: P[h] }));
   function renderBans() {
     const e = nextBan(), cnt = turnCount();
-    const sug = ourTurn() && RES ? topBans(cnt) : [], FB = [], seen = new Set();
-    for (let i = e; i < 6; i++) if (!ours(i) && FC && FC.top[i]) {        // forecast of their ban in each box (exact for the next one), skipping heroes an earlier box already shows
-      const L = (i === e && THEIRS ? topK(THEIRS, 8) : FC.top[i]).filter(r => !seen.has(r.h)); if (L.length) { FB[i] = L.slice(0, 2); seen.add(L[0].h); }
-    }
+    const sug = ourTurn() && RES ? topBans(cnt) : [];
     $("banSlots").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
       const s = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined;
-      const f = h === undefined && FB[i] ? FB[i] : null;
+      const f = h === undefined && !ours(i) && FC && FC.top[i] && FC.top[i].length ? FC.top[i] : null;   // their likeliest ban in this box, given their earlier boxes as shown
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
                 : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : (i + 1);
@@ -127,7 +124,7 @@
                 : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}${f[1] ? `<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : ""}` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
-          : f ? (i === e ? `their likeliest ban here. Click if they banned ${esc(NAMES[f[0].h])}` : "their likeliest ban here among heroes not shown in an earlier box") : "click, then pick the banned hero"}">
+          : f ? (i === e ? `their likeliest ban here. Click if they banned ${esc(NAMES[f[0].h])}` : "their likeliest ban here if their earlier boxes go as shown") : "click, then pick the banned hero"}">
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
@@ -185,7 +182,7 @@
   // ---------------------------------------------------------------- their bans: a forecast for each remaining box, and the ban model's reasons
   let FC = null;
   function rngF(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-  function forecast(s, NS = 1500) {                  // simulate the rest of the ban phase, each ban drawn given the ones before it
+  function forecast(s, NS = 1500, fix = []) {        // simulate the rest of the ban phase, each ban drawn given the ones before it (fix[ep]: ban held at that hero)
     const e = s.bans.length, bd = E.band(s.r0), BU = new Uint8Array(H), BT = new Uint8Array(H), prot = new Uint8Array(H), rnd = rngF(7);
     s.bans.forEach((h, i) => (ours(i) ? BU : BT)[h] = 1); for (const h of s.rev) prot[h] = 1;
     const cnt = Array.from({ length: 6 }, () => new Float64Array(H));
@@ -194,11 +191,22 @@
       for (let ep = e; ep < 6; ep++) {
         const o = ours(ep), u = E.banUtil(ep, o ? RES.Pu : RES.Pt, o ? bu : bt, o ? bt : bu, s.m, bd), mask = new Uint8Array(H);
         for (let h = 0; h < H; h++) mask[h] = bu[h] || bt[h] || (o && prot[h]) ? 1 : 0;
-        const p = BanEngine.softmaxMasked(u, mask); let t = rnd(), h = 0; for (; h < H - 1; h++) { if (!mask[h] && (t -= p[h]) <= 0) break; }
+        let h = 0;
+        if (fix[ep] !== undefined) h = fix[ep];
+        else { const p = BanEngine.softmaxMasked(u, mask); let t = rnd(); for (; h < H - 1; h++) { if (!mask[h] && (t -= p[h]) <= 0) break; } }
         (o ? bu : bt)[h] = 1; cnt[ep][h] += 1 / NS;
       }
     }
-    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 8).map(h => ({ h, p: c[h] }))) };
+    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 2).map(h => ({ h, p: c[h] }))) };
+  }
+  function forecastChain(s) {                       // their likeliest ban in each of their boxes, given that their earlier boxes went as shown
+    const e = s.bans.length, top = [], fix = [];
+    for (let i = e; i < 6; i++) {
+      if (ours(i)) continue;
+      const L = i === e && THEIRS ? top2(THEIRS) : forecast(s, 1500, fix).top[i];
+      top[i] = L; if (L && L.length) fix[i] = L[0].h;
+    }
+    return { top };
   }
   function whySplit(s, P) {                            // the ban model's utility for their next ban, split into its terms, against an average legal hero
     const B = META.ban, C = META.C, e = s.bans.length, bd = E.band(s.r0), m = s.m, BU = new Uint8Array(H), BT = new Uint8Array(H);
@@ -428,7 +436,7 @@
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
       RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = null;
-      FC = nextBan() < 6 ? forecast(s) : null;
+      FC = nextBan() < 6 ? forecastChain(s) : null;
       if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 })); }
       else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
       renderBans(); renderRoster(); renderAdvice();
