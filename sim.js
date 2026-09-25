@@ -1,7 +1,10 @@
 /* Re-draft simulator: a port of the notebook's Part A `Solver` (sections 7 and 10).
    For each candidate ban it samples the rest of the ban phase from the ban model, re-drafts both teams with the pick model
    (stand-in players drawn from real players near your rank; your hero and hovers kept), and scores the drafts with the
-   outcome model. Random numbers are shared across candidates so their differences are not noise from resampling. */
+   outcome model. Random numbers are shared across candidates so their differences are not noise from resampling.
+   v7: our own bans are interventions. They remove heroes from both drafts, and the other team's picks react to them, but
+   they no longer tilt our own draft through the "teams that ban b open h" map (that map describes who bans b, which a
+   ban we choose does not change). A candidate can be a pair of heroes, for two-ban turns. */
 (function (root) {
   "use strict";
   function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -14,7 +17,8 @@
   class SimEngine {
     constructor(M, opt = {}) {
       this.M = M; const H = this.H = M.heroes.length; this.role = M.roles; this.ORDER = M.ban_order;
-      this.MU = opt.MU || 32; this.K = opt.K || 64; this.LOOK = opt.LOOK || 4; this.SW = 2; this._key = null;
+      this.MU = opt.MU || 32; this.K = opt.K || 64; this.LOOK = opt.LOOK || 4; this.SW = 2; this.seed = opt.seed || 12345; this._cache = new Map();
+      this.DRAWS = opt.DRAWS || 1;                                 // independent stand-in draws; run j uses draw j % DRAWS
       const P = M.players, n = P.n; this.n = n; this.rank = P.rank; this.main = P.main; this.SH = new Float32Array(n * H);
       this.v4 = !!P.pb;                                            // notebook v6 export: per-player hero vectors precomputed
       if (this.v4) {                                               // PB: pick-model history utility, PH: outcome player x hero term
@@ -37,13 +41,14 @@
       else for (let h = 0; h < H; h++) u[h] = k.d[h] + k.dm[m][h] + k.da[h] * a + k.db[bd][h] + k.psi * this.LC[o + h] + k.psi10 * this.LC10[o + h] + k.om * this.DOT[o + h];
       return u;
     }
-    setup(st) {                                                   // stand-ins, fixed random numbers and per-lineup constants for one lobby
-      const key = JSON.stringify([st.firstUs, st.m, st.r0, st.hov6, st.bans, this.MU, this.K, this.LOOK]);
-      if (key === this._key) return this._S;
-      this._key = key; return (this._S = this.setupNew(st));
+    setup(st, g = 0) {                                            // stand-ins, fixed random numbers and per-lineup constants for one lobby (draw g)
+      const key = JSON.stringify([st.firstUs, st.m, st.r0, st.hov6, st.bans, this.MU, this.K, this.LOOK, g]);
+      if (this._cache.has(key)) return this._cache.get(key);
+      if (this._cache.size >= 2 * this.DRAWS) this._cache.clear();
+      const S = this.setupNew(st, g); this._cache.set(key, S); return S;
     }
-    setupNew(st) {
-      const { firstUs, m, r0 } = st, H = this.H, a0 = firstUs ? 1 : -1, bd = this.band(r0), R = rng(12345);
+    setupNew(st, g = 0) {
+      const { firstUs, m, r0 } = st, H = this.H, a0 = firstUs ? 1 : -1, bd = this.band(r0), R = rng(this.seed + 7919 * g);
       let pool = []; for (let p = 0; p < this.n; p++) if (Math.abs(this.rank[p] - r0) < 150) pool.push(p);
       if (pool.length < 50) pool = Array.from(this.rank.keys()).sort((x, y) => Math.abs(this.rank[x] - r0) - Math.abs(this.rank[y] - r0)).slice(0, 500);
       const hov = st.hov6.slice();                                 // slot 0 = your hero (always kept), 1-5 = hovers or -1
@@ -99,7 +104,10 @@
     }
     scoreMask(S, legal, BU, BT) {
       const H = this.H, W = this.M.pick, tu = new Float32Array(H), to = new Float32Array(H);
-      for (let b = 0; b < H; b++) { if (BU[b]) for (let h = 0; h < H; h++) { tu[h] += W.Wo[b][h]; to[h] += W.Wp[b][h]; } if (BT[b]) for (let h = 0; h < H; h++) { to[h] += W.Wo[b][h]; tu[h] += W.Wp[b][h]; } }
+      for (let b = 0; b < H; b++) {                              // their picks react to every ban; ours react to theirs only
+        if (BU[b]) for (let h = 0; h < H; h++) to[h] += W.Wp[b][h];
+        if (BT[b]) for (let h = 0; h < H; h++) { to[h] += W.Wo[b][h]; tu[h] += W.Wp[b][h]; }
+      }
       const commit = this.M.commit;
       const pu = S.U.map((L, u) => this.draft(L, legal, S.hov.map((h, j) => (h >= 0 && legal[h] && (j === 0 || S.cu[u][j] < commit)) ? h : -1), tu));
       const po = S.O.map(L => this.draft(L, legal, [-1, -1, -1, -1, -1, -1], to));
@@ -141,25 +149,27 @@
       return { legal, BU, BT };
     }
     /* Evaluate candidate bans on the scenario indices `looks` (and the typical-ban baseline on `baseLooks`), so the work
-       can be split across workers; every worker builds the same stand-ins and random numbers from the same seed. */
+       can be split across workers; every worker builds the same stand-ins and random numbers from the same seed. Run j uses
+       stand-in draw j % DRAWS, so with several draws the paired interval covers the choice of stand-ins too, not only the
+       continuations. */
     evaluate(st, cands, looks, baseLooks, tick) {
-      const S = this.setup(st), H = this.H, out = { vals: {}, cnt: {}, base: {}, baseCnt: null };
+      const H = this.H, out = { vals: {}, cnt: {}, base: {}, baseCnt: null };
       const acc = () => ({ u: new Float32Array(H), o: new Float32Array(H) });
       const run = (cand, js, store, cstore) => {
         for (const j of js) {
-          const f = this.future(S, st.bans, cand, j), r = this.scoreMask(S, f.legal, f.BU, f.BT); store[j] = r.p;
+          const S = this.setup(st, j % this.DRAWS), f = this.future(S, st.bans, cand, j), r = this.scoreMask(S, f.legal, f.BU, f.BT); store[j] = r.p;
           for (let h = 0; h < H; h++) { cstore.u[h] += r.cu[h] / js.length; cstore.o[h] += r.co[h] / js.length; }
           if (tick) tick();
         }
       };
       if (baseLooks.length) { out.baseCnt = acc(); run([], baseLooks, out.base, out.baseCnt); }
-      for (const h of cands) { out.vals[h] = {}; out.cnt[h] = acc(); run([h], looks, out.vals[h], out.cnt[h]); }
+      for (const h of cands) { const k = String(h); out.vals[k] = {}; out.cnt[k] = acc(); run(Array.isArray(h) ? h : [h], looks, out.vals[k], out.cnt[k]); }
       return out;
     }
     values(st, onProgress) {
-      const S = this.setup(st), H = this.H, bans = st.bans, prot = S.prot;
+      const H = this.H, bans = st.bans, prot = this.setup(st).prot;
       const cands = []; for (let h = 0; h < H; h++) if (!bans.includes(h) && !prot.has(h)) cands.push(h);
-      const run = cand => { const v = []; for (let j = 0; j < this.LOOK; j++) { const f = this.future(S, bans, cand, j); v.push(this.scoreMask(S, f.legal, f.BU, f.BT).p); } return v; };
+      const run = cand => { const v = []; for (let j = 0; j < this.LOOK; j++) { const S = this.setup(st, j % this.DRAWS), f = this.future(S, bans, cand, j); v.push(this.scoreMask(S, f.legal, f.BU, f.BT).p); } return v; };
       const base = run([]); const bm = base.reduce((a, b) => a + b) / base.length;
       const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), win = new Float64Array(H).fill(NaN);
       cands.forEach((h, k) => {
