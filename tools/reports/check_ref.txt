@@ -1,18 +1,18 @@
 model as served:
-1 bans, 4 shown, cnt 2: lineups max |diff| 1.9e-07, values 0.00000 pp, pairs 0.00000 pp
-0 bans, 1 shown, cnt 1: lineups max |diff| 1.7e-07, values 0.00000 pp
-3 bans, 1 shown, cnt 2: lineups max |diff| 1.2e-07, values 0.00000 pp, pairs 0.00000 pp
-4 bans, 1 shown, cnt 1: lineups max |diff| 1.2e-07, values 0.00000 pp
-5 bans, 0 shown, cnt 1: lineups max |diff| 1.4e-07, values 0.00000 pp
-1 bans, 6 shown, cnt 2: lineups max |diff| 1.5e-07, values 0.00000 pp, pairs 0.00000 pp
+1 bans, 4 shown, cnt 2: lineups max |diff| 1.9e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
+0 bans, 1 shown, cnt 1: lineups max |diff| 1.7e-07, values 0.00000 pp, se 0.00000 pp
+3 bans, 1 shown, cnt 2: lineups max |diff| 1.2e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
+4 bans, 1 shown, cnt 1: lineups max |diff| 1.2e-07, values 0.00000 pp, se 0.00000 pp
+5 bans, 0 shown, cnt 1: lineups max |diff| 1.4e-07, values 0.00000 pp, se 0.00000 pp
+1 bans, 6 shown, cnt 2: lineups max |diff| 1.5e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
 6 bans, 2 shown, cnt 1: lineups max |diff| 1.7e-07
 with joint-removal terms and the richer ban model:
-1 bans, 4 shown, cnt 2: lineups max |diff| 1.9e-07, values 0.00000 pp, pairs 0.00000 pp
-0 bans, 1 shown, cnt 1: lineups max |diff| 1.7e-07, values 0.00000 pp
-3 bans, 1 shown, cnt 2: lineups max |diff| 1.2e-07, values 0.00000 pp, pairs 0.00000 pp
-4 bans, 1 shown, cnt 1: lineups max |diff| 1.2e-07, values 0.00000 pp
-5 bans, 0 shown, cnt 1: lineups max |diff| 1.4e-07, values 0.00000 pp
-1 bans, 6 shown, cnt 2: lineups max |diff| 1.5e-07, values 0.00000 pp, pairs 0.00000 pp
+1 bans, 4 shown, cnt 2: lineups max |diff| 1.9e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
+0 bans, 1 shown, cnt 1: lineups max |diff| 1.7e-07, values 0.00000 pp, se 0.00000 pp
+3 bans, 1 shown, cnt 2: lineups max |diff| 1.2e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
+4 bans, 1 shown, cnt 1: lineups max |diff| 1.2e-07, values 0.00000 pp, se 0.00000 pp
+5 bans, 0 shown, cnt 1: lineups max |diff| 1.4e-07, values 0.00000 pp, se 0.00000 pp
+1 bans, 6 shown, cnt 2: lineups max |diff| 1.5e-07, values 0.00000 pp, se 0.00000 pp, pairs (value and se) 0.00000 pp
 6 bans, 2 shown, cnt 1: lineups max |diff| 1.7e-07
 notebook embeds tools/engine_ref.py verbatim: True
 all reference checks passed

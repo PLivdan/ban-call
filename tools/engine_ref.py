@@ -1,5 +1,5 @@
 # >>> value engine v7 (canonical numpy implementation; the notebook embeds this block verbatim, engine.js mirrors it)
-"""Ban value engine v7.1 in numpy: the reference for the site's engine.js and the notebook's Part B.
+"""Ban value engine v7.2 in numpy: the reference for the site's engine.js and the notebook's Part B.
 
 A ban's value is a rollout comparison against a typical ban with the same budget:
   value(x) = E[W(bans from now on | we ban x)] - E[W(bans from now on | we ban as a typical team)]
@@ -196,21 +196,23 @@ class Model:
                 Wn = Wn + (dpt[:, seq] * ex[None]).sum(2)
             return Wn, seq
         Wb, sb = Wof([]); PLb = np.zeros(H); np.add.at(PLb, sb.ravel(), 1. / NS)
-        def compare(Wx, x=None):
+        def compare(Wx, xs=()):
+            """Value against the typical bans; model spread (networks, removal-cost bootstrap of every hero we ban) and
+            simulation error (rollouts, own-ban averaging of every hero we ban)."""
             Vn = (Wx - Wb).mean(1); V = Vn.mean(); vm = ((Vn - V) ** 2).mean()
             d = (Wx - Wb).mean(0); mc = np.sqrt(max(0., (d ** 2).mean() - d.mean() ** 2) / max(1, NS - 1))
-            rs = 0. if x is None else (1 - PLb[x]) * (L["pt"][x] - L["pu"][x]) * Rsd[x]
-            so = 0. if x is None else (1 - PLb[x]) * (R0[x] + adjS[x]) * L["se_pu"][x]
-            return V, np.sqrt(vm + rs ** 2), np.sqrt(mc ** 2 + so ** 2)
+            rs2 = sum(((1 - PLb[x]) * (L["pt"][x] - L["pu"][x]) * Rsd[x]) ** 2 for x in xs)
+            so2 = sum(((1 - PLb[x]) * (R0[x] + adjS[x]) * L["se_pu"][x]) ** 2 for x in xs)
+            return V, np.sqrt(vm + rs2), np.sqrt(mc ** 2 + so2)
         V, seM, seS = (np.full(H, np.nan) for _ in range(3)); cand = (c0["legal"] > 0) & ~rv
-        for x in np.nonzero(cand)[0]: V[x], seM[x], seS[x] = compare(Wof([int(x)])[0], int(x))
+        for x in np.nonzero(cand)[0]: V[x], seM[x], seS[x] = compare(Wof([int(x)])[0], [int(x)])
         direct = np.where(cand, (1 - PLb) * wm, np.nan)
         out.update(V=V, se=np.sqrt(seM ** 2 + seS ** 2), se_model=seM, se_mc=seS, direct=direct, other=V - direct, R=R0 + adjC, Rus=R0 + adjS, PL=PLb, w=wm, _rc=rc, _pre=pre)
         if cnt == 2:
             sl = [int(h) for h in np.argsort(-np.where(cand, V, -np.inf))[:short or s.SHORT]]; pairs = []
             for i in range(len(sl)):
                 for j in range(i + 1, len(sl)):
-                    v_, a_, b_ = compare(Wof([sl[i], sl[j]])[0]); pairs.append(dict(a=sl[i], b=sl[j], V=v_, se_model=a_, se_mc=b_, se=np.hypot(a_, b_)))
+                    v_, a_, b_ = compare(Wof([sl[i], sl[j]])[0], [sl[i], sl[j]]); pairs.append(dict(a=sl[i], b=sl[j], V=v_, se_model=a_, se_mc=b_, se=np.hypot(a_, b_)))
             out.update(pairs=sorted(pairs, key=lambda p: -p["V"]), shortlist=sl)
         return out
     def their_next_ban(s, first_us, bans, m, r0, pt=None):

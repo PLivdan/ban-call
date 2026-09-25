@@ -1,4 +1,4 @@
-/* Ban value engine, v7.1 (a port of the notebook's Part B; tools/engine_ref.py is the canonical numpy version and states
+/* Ban value engine, v7.2 (a port of the notebook's Part B; tools/engine_ref.py is the canonical numpy version and states
    the assumptions behind treating our own bans as interventions).
    A ban's value is a rollout comparison against a typical ban with the same budget:
      value(x) = E[ W(bans from now on | we ban x) ] − E[ W(bans from now on | we ban as a typical team) ]
@@ -264,20 +264,20 @@
         return Wn;
       };
       const PLb = new Float64Array(H), Wb = Wof([], seq => { for (const y of seq) PLb[y] += 1 / NS; });
-      const compare = (Wx, x) => {                     // value against the typical bans, its model spread and its rollout error
+      const compare = (Wx, xs) => {                    // value against the typical bans, its model spread and its simulation error (all heroes banned now)
         const Vn = Wx.map((a, k) => { let t = 0; for (let s = 0; s < NS; s++) t += a[s] - Wb[k][s]; return t / NS; });
         const V = Vn.reduce((p, q) => p + q, 0) / NN, vm = Vn.reduce((p, q) => p + (q - V) ** 2, 0) / NN;
         let m1 = 0, m2 = 0; for (let s = 0; s < NS; s++) { let d = 0; for (let k = 0; k < NN; k++) d += (Wx[k][s] - Wb[k][s]) / NN; m1 += d; m2 += d * d; }
         m1 /= NS; const mc = Math.sqrt(Math.max(0, m2 / NS - m1 * m1) / Math.max(1, NS - 1));
-        const rs = x === undefined ? 0 : (1 - PLb[x]) * (L.pt[x] - L.pu[x]) * Rsd[x];
-        const so = x === undefined ? 0 : (1 - PLb[x]) * (R0[x] + adjS[x]) * L.sePu[x];   // error of averaging our lineup over typical own bans
-        return { V, seModel: Math.sqrt(vm + rs * rs), seMC: Math.sqrt(mc * mc + so * so) };
+        let rs2 = 0, so2 = 0;
+        for (const x of xs) { rs2 += ((1 - PLb[x]) * (L.pt[x] - L.pu[x]) * Rsd[x]) ** 2; so2 += ((1 - PLb[x]) * (R0[x] + adjS[x]) * L.sePu[x]) ** 2; }   // so: averaging our lineup over typical own bans
+        return { V, seModel: Math.sqrt(vm + rs2), seMC: Math.sqrt(mc * mc + so2) };
       };
       const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), seModel = new Float64Array(H).fill(NaN), seMC = new Float64Array(H).fill(NaN);
       const direct = new Float64Array(H).fill(NaN), other = new Float64Array(H).fill(NaN), cand = new Uint8Array(H);
       for (let x = 0; x < H; x++) {
         if (!c0.legal[x] || c.rv[x]) continue;
-        cand[x] = 1; const r = compare(Wof([x]), x);
+        cand[x] = 1; const r = compare(Wof([x]), [x]);
         V[x] = r.V; seModel[x] = r.seModel; seMC[x] = r.seMC; se[x] = Math.sqrt(r.seModel ** 2 + r.seMC ** 2);
         direct[x] = (1 - PLb[x]) * wm[x]; other[x] = V[x] - direct[x];
       }
@@ -285,7 +285,7 @@
       if (cnt === 2) {                                 // two bans now: score the shortlist's pairs jointly, never by adding two values
         const sl = Array.from(V.keys()).filter(h => cand[h]).sort((a, b) => V[b] - V[a]).slice(0, st.short || this.SHORT), pairs = [];
         for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) {
-          const a = sl[i], b = sl[j], r = compare(Wof([a, b]));
+          const a = sl[i], b = sl[j], r = compare(Wof([a, b]), [a, b]);
           pairs.push({ a, b, V: r.V, seModel: r.seModel, seMC: r.seMC, se: Math.sqrt(r.seModel ** 2 + r.seMC ** 2) });
         }
         out.pairs = pairs.sort((p, q) => q.V - p.V); out.shortlist = sl;

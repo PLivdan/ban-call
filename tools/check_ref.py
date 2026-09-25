@@ -32,9 +32,10 @@ for label, Mx, mpath in (("model as served", M, None), ("with joint-removal term
       msg = f"{len(lb['bans'])} bans, {len(lb['rev'])} shown, cnt {lb['cnt']}: lineups max |diff| {dP:.1e}"
       if dP > 1e-5: bad += 1
       if "V" in r:
-          dV = np.nanmax(np.abs(f(j["V"]) - r["V"])); msg += f", values {100 * dV:.5f} pp"; bad += dV > 2e-6
+          dV = np.nanmax(np.abs(f(j["V"]) - r["V"])); dS = np.nanmax(np.abs(f(j["se"]) - r["se"])); msg += f", values {100 * dV:.5f} pp, se {100 * dS:.5f} pp"; bad += dV > 2e-6 or dS > 2e-6
           if r.get("pairs"):
-              jp = {(p["a"], p["b"]): p["V"] for p in j["pairs"]}; dp = max(abs(jp[(p["a"], p["b"])] - p["V"]) for p in r["pairs"]); msg += f", pairs {100 * dp:.5f} pp"; bad += dp > 2e-6
+              jp = {(p["a"], p["b"]): p for p in j["pairs"]}; dp = max(max(abs(jp[(p["a"], p["b"])]["V"] - p["V"]), abs(jp[(p["a"], p["b"])]["se"] - p["se"])) for p in r["pairs"])
+              msg += f", pairs (value and se) {100 * dp:.5f} pp"; bad += dp > 2e-6
       print(msg)
 nb = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/personal/ban-solver/notebooks/01_ban_solver_real.py")
 blk = lambda t: t[t.index("# >>> value engine v7"):t.index("# <<< value engine v7")]

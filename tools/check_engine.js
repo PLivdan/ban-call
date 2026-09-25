@@ -7,5 +7,5 @@ const meta = JSON.parse(fs.readFileSync(sc.meta || "model/meta.json")); const bu
 const E = new BanEngine(meta, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length), opt); const t0 = Date.now();
 const A = a => Array.from(a, v => (v === undefined || Number.isNaN(v)) ? null : v);
 const out = sc.lobbies.map(s => { const r = E.values(s);
-  return { V: A(r.V || []), se: A(r.se || []), Pu: A(r.Pu), Pt: A(r.Pt), PuRaw: A(r.PuRaw), PL: A(r.PL || []), pairs: (r.pairs || []).map(p => ({ a: p.a, b: p.b, V: p.V })) }; });
+  return { V: A(r.V || []), se: A(r.se || []), Pu: A(r.Pu), Pt: A(r.Pt), PuRaw: A(r.PuRaw), PL: A(r.PL || []), pairs: (r.pairs || []).map(p => ({ a: p.a, b: p.b, V: p.V, se: p.se })) }; });
 console.error(`${sc.lobbies.length} lobbies in ${Date.now() - t0} ms`); console.log(JSON.stringify(out));

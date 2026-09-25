@@ -1,4 +1,4 @@
-v7 engine checks on model ban_value_model_20260925_1608.json (60 lobbies per section, NS = 512 rollouts)
+v7 engine checks on model ban_value_model_20260925_1608.json (30 lobbies per section, NS = 512 rollouts)
 
 1. Lineup probabilities
   after all six bans, 0 of our heroes fixed: expected heroes ours 6.000 (raw 6.107), theirs 6.000 (raw 6.050)
@@ -11,42 +11,40 @@ v7 engine checks on model ban_value_model_20260925_1608.json (60 lobbies per sec
   mid ban phase (4 bans, 3 shown): our "if available" probabilities add to 6.08 (not forced to 6, by design)
 
 2. Rollouts of the rest of the ban phase
-  30,720 rollouts checked: every one has exactly the remaining number of distinct, legal bans
-  v6 later(): 1 later positions imply 1.00 distinct bans on average (17 lobbies)
-  v6 later(): 3 later positions imply 2.87 distinct bans on average (19 lobbies)
-  v6 later(): 5 later positions imply 4.60 distinct bans on average (10 lobbies)
+  15,360 rollouts checked: every one has exactly the remaining number of distinct, legal bans
+  v6 later(): 1 later positions imply 1.00 distinct bans on average (7 lobbies)
+  v6 later(): 3 later positions imply 2.87 distinct bans on average (11 lobbies)
+  v6 later(): 5 later positions imply 4.60 distinct bans on average (3 lobbies)
   v7 rollout: 1 positions from the start of our turn give 1.00 distinct bans
   v7 rollout: 3 positions from the start of our turn give 3.00 distinct bans
   v7 rollout: 5 positions from the start of our turn give 5.00 distinct bans
   v7 rollout: 6 positions from the start of our turn give 6.00 distinct bans
 
 3. Information boundaries
-  swapping our own last ban for another hero (36 lobbies): our lineup moves by at most 0.0e+0 (v6-style conditioning: 17.2 points)
+  swapping our own last ban for another hero (21 lobbies): our lineup moves by at most 0.0e+0 (v6-style conditioning: 10.2 points)
   adding or removing our hovers changes the other team's lineup and next-ban chances by at most 0.0e+0
 
 4. Stability across random draws (NS = 512)
-  two independent sets of draws agree on the top ban in 57/60 lobbies, top-3 overlap 93%, rank correlation 0.979
-  largest difference in a top-10 value, in simulation standard errors (rollouts and the own-ban average): 2.95 (over 600 values; about 3.5 is expected for the largest of 600 normal draws)
-  best pair agrees in 18/18 two-ban lobbies
+  two independent sets of draws agree on the top ban in 28/30 lobbies, top-3 overlap 96%, rank correlation 0.981
+  largest difference in a top-10 value, in simulation standard errors (rollouts and the own-ban average): 2.40 (over 300 values; about 3.5 is expected for the largest of 600 normal draws)
+  best pair agrees in 12/13 two-ban lobbies
 
 5. What changed against the v6 engine
-  same top ban in 46/60 lobbies; rank correlation of all values 0.953
+  same top ban in 24/30 lobbies; rank correlation of all values 0.940
   v6 values are against leaving the hero open, v7 values against a typical ban, so the levels differ by design; the ranking is what compares.
-   - 5 bans, 3 shown, one ban: v6 Loki (+0.67), v7 Rogue (+0.78; v6 had it 2th)
-   - 1 bans, 4 shown, two-ban turn: v6 Gambit (+0.90), v7 Invisible Woman (+0.80; v6 had it 2th)
-   - 5 bans, 1 shown, one ban: v6 Scarlet Witch (+0.48), v7 Jubilee (+0.47; v6 had it 3th)
-   - 3 bans, 1 shown, two-ban turn: v6 Doctor Strange (+0.51), v7 Jubilee (+0.45; v6 had it 2th)
-   - 5 bans, 6 shown, one ban: v6 Devil Dinosaur (+1.46), v7 Gorr The God Butcher (+1.23; v6 had it 2th)
-   - 2 bans, 1 shown, one ban: v6 Emma Frost (+0.24), v7 Ultron (+0.32; v6 had it 3th)
-   - 0 bans, 5 shown, one ban: v6 Gambit (+1.29), v7 Rocket Raccoon (+0.81; v6 had it 2th)
-   - 4 bans, 1 shown, one ban: v6 Peni Parker (+0.69), v7 Rocket Raccoon (+0.60; v6 had it 2th)
+   - 2 bans, 6 shown, one ban: v6 Devil Dinosaur (+0.79), v7 Rocket Raccoon (+1.26; v6 had it 48th)
+   - 0 bans, 6 shown, one ban: v6 Scarlet Witch (+1.15), v7 Rocket Raccoon (+0.91; v6 had it 3th)
+   - 2 bans, 6 shown, one ban: v6 Doctor Strange (+0.99), v7 Scarlet Witch (+0.99; v6 had it 4th)
+   - 1 bans, 1 shown, two-ban turn: v6 Rocket Raccoon (+0.25), v7 Jubilee (+0.33; v6 had it 2th)
+   - 1 bans, 5 shown, two-ban turn: v6 Devil Dinosaur (+0.67), v7 Rocket Raccoon (+0.45; v6 had it 3th)
+   - 4 bans, 1 shown, one ban: v6 Rocket Raccoon (+0.43), v7 Gambit (+0.45; v6 had it 3th)
 
 6. Pairs on two-ban turns
-  20 two-ban lobbies. The best pair is simply the two best single bans in 16/20.
-  Searching every pair instead of the top-10 shortlist finds the same best pair in 20/20 (largest value missed: 0.000 points).
-  After entering the pair's first ban, the page's next suggestion is the pair's partner in 20/20.
+  12 two-ban lobbies. The best pair is simply the two best single bans in 10/12.
+  Searching every pair instead of the top-10 shortlist finds the same best pair in 12/12 (largest value missed: 0.000 points).
+  After entering the pair's first ban, the page's next suggestion is the pair's partner in 12/12.
 
 7. Latency (Node, one thread)
-  one-ban turns: median 56 ms, 90th percentile 71 ms (19); two-ban turns with pairs: median 69 ms, 90th 80 ms (11)
+  one-ban turns: median 107 ms, 90th percentile 145 ms (22); two-ban turns with pairs: median 148 ms, 90th 173 ms (8)
 
 all v7 engine checks passed
