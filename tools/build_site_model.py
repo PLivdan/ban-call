@@ -18,5 +18,6 @@ meta.update(source=os.path.basename(src), weights=dict(file="weights.bin", dtype
             removal_cost=R(M["removal_cost"]), removal_cost_sd=R(M["removal_cost_boot_sd"]), C=R(M["C"], 4), S=R(M["S"], 4),
             ALTC=R(M["ALTC"], 4), ALTS=R(M["ALTS"], 4), MC=R(M["MC"]), MS=R(M["MS"]), alt=R(M["alt"], 3),
             ban={k: (R(v) if isinstance(v, list) else v) for k, v in M["ban"].items()})
+if "check" in M: meta["check"] = M["check"]                           # lobbies scored in the notebook (tools/check_notebook.js)
 json.dump(meta, open("model/meta.json", "w"), separators=(",", ":"))
 print(f"model/meta.json {os.path.getsize('model/meta.json') / 1e6:.2f} MB, model/weights.bin {os.path.getsize('model/weights.bin') / 1e6:.2f} MB ({off:,} float16)")

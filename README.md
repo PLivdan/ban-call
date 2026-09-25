@@ -32,7 +32,10 @@ The models are fitted in the ban-solver notebook (Colab). This repo only serves 
 
 ## Update the model
     python tools/build_site_model.py ~/Downloads/ban_value_model_<stamp>.json
+    cp ~/Downloads/ban_model_<stamp>.json model/sim.json
+    node tools/check_notebook.js          # the site's engines against lobbies the notebook scored (exports from v6 on)
     git add model && git commit -m "Model <stamp>" && git push
+If `sim.js` or `sim-worker.js` change, bump the `sim-worker.js?v=N` tag in `app.js` so browsers drop the cached worker.
 
 ## Run locally
     python -m http.server 8765    # then open http://127.0.0.1:8765

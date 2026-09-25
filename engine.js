@@ -14,6 +14,7 @@
   class BanEngine {
     constructor(meta, buffer) {
       this.m = meta; this.H = meta.heroes.length; this.NM = meta.maps.length; this.NB = meta.bands.length + 1;
+      this.RE = (meta.feature_layout && meta.feature_layout.rank_edges) || meta.bands; this.NRF = this.RE.length + 1;   // rank one-hot for the lineup network (v5: 9 bins)
       this.ORDER = meta.ban_order; this.role = meta.roles;
       const u16 = new Uint16Array(buffer), all = new Float32Array(u16.length);
       for (let i = 0; i < u16.length; i++) all[i] = f16(u16[i]);
@@ -25,11 +26,12 @@
       this.FD = this.nets[0].W1_shape[0]; this.HID = this.nets[0].W1_shape[1];
     }
     band(r0) { let b = 0; for (const t of this.m.bands) if (r0 > t) b++; return b; }
-    // ---- features: [revealed | own bans | other bans | map | band | side | stage | revealed role counts]
+    rankFeat(r0) { let b = 0; for (const t of this.RE) if (r0 > t) b++; return b; }
+    // ---- features: [revealed | own bans | other bans | map | rank bin | side | stage | revealed role counts]
     features(rev, own, opp, m, bd, side, stage) {
       const H = this.H, x = new Float32Array(this.FD);
       for (const h of rev) x[h] = 1; for (const h of own) x[H + h] = 1; for (const h of opp) x[2 * H + h] = 1;
-      let o = 3 * H; x[o + m] = 1; o += this.NM; x[o + bd] = 1; o += this.NB; x[o] = side; o += 1; x[o + stage] = 1; o += 7;
+      let o = 3 * H; x[o + m] = 1; o += this.NM; x[o + bd] = 1; o += this.NRF; x[o] = side; o += 1; x[o + stage] = 1; o += 7;
       for (const h of rev) x[o + this.role[h]] += 1;
       return x;
     }
@@ -88,8 +90,9 @@
       const rv = new Uint8Array(H); for (const h of rev) rv[h] = 1;
       const ownU = [], ownT = []; for (let h = 0; h < H; h++) { if (BU[h]) ownU.push(h); if (BT[h]) ownT.push(h); }
       const banned = ownU.concat(ownT);
-      const PuE = this.probs(this.features(rev, ownU, ownT, m, bd, sideUs, e), rev, banned);
-      const PtE = this.probs(this.features([], ownT, ownU, m, bd, 1 - sideUs, e), [], banned);
+      const rf = this.rankFeat(r0);
+      const PuE = this.probs(this.features(rev, ownU, ownT, m, rf, sideUs, e), rev, banned);
+      const PtE = this.probs(this.features([], ownT, ownU, m, rf, 1 - sideUs, e), [], banned);
       const mean = A => { const o = new Float64Array(H); for (const a of A) for (let h = 0; h < H; h++) o[h] += a[h] / A.length; return o; };
       const pu = mean(PuE), pt = mean(PtE), revL = rev.length;
       const adjC = new Float64Array(H), adjS = new Float64Array(H), R0 = new Float64Array(H), Rsd = new Float64Array(H);
@@ -130,7 +133,7 @@
       const { firstUs, bans, m, r0 } = st, H = this.H, e = bans.length, bd = this.band(r0);
       const BU = new Uint8Array(H), BT = new Uint8Array(H); bans.forEach((h, i) => { ((this.ORDER[i] === 0) === firstUs ? BU : BT)[h] = 1; });
       const ownU = [], ownT = []; for (let h = 0; h < H; h++) { if (BU[h]) ownU.push(h); if (BT[h]) ownT.push(h); }
-      const Pt = this.probs(this.features([], ownT, ownU, m, bd, firstUs ? 1 : 0, e), [], ownU.concat(ownT));
+      const Pt = this.probs(this.features([], ownT, ownU, m, this.rankFeat(r0), firstUs ? 1 : 0, e), [], ownU.concat(ownT));
       const pt = new Float64Array(H); for (const a of Pt) for (let h = 0; h < H; h++) pt[h] += a[h] / Pt.length;
       const u = this.banUtil(e, pt, BT, BU, m, bd), mask = new Uint8Array(H); for (let h = 0; h < H; h++) mask[h] = BU[h] || BT[h];
       return BanEngine.softmaxMasked(u, mask);
