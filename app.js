@@ -459,8 +459,9 @@
         <li><b><i>P</i><sub>them</sub>, <i>P</i><sub>us</sub></b>: a masked team-lineup network (two hidden layers of 512, an ensemble of four) that sees only what a lobby shows: the bans so far and who made them,
           the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden.</li>
         <li><b><i>R</i></b>: the cost of losing a hero, computed with a fitted outcome model on 1.8 million real opening picks. Each player is moved to their next choice (from a pick model) and the change
-          in the team's win probability is recorded. That includes the hero, map, side, rank, compositions, teammates and matchups, and the player's familiarity with both heroes.
-          Losing a main costs far more for a player with a narrow pool. In the raw data, a team whose one-trick has their main banned wins 7.5 points less often.</li>
+          in the team's win probability is recorded. That includes the hero, map, side, rank, compositions, teammates and matchups, and the player's playtime, recent picks and skill on both heroes.
+          Losing a main costs far more for a player with a narrow pool, and less if they have a backup in the same role. In the raw data, a team whose one-trick (70% or more of their
+          playtime on one hero) has that hero banned wins 9.7 points less often. The model gives 9.4.</li>
         <li><b><i>P</i><sub>later</sub> and the reply</b>: a ban model fitted on every Season 10 ban. Teams avoid banning their own players' heroes, ban heroes that beat what they play, and react to earlier bans.
           It gives the chance a hero goes later anyway, and how your ban changes theirs.</li>
       </ul>
