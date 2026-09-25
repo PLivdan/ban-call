@@ -329,7 +329,8 @@
     const S = SIM, top = topBans(15), best = top.slice(0, cnt);
     html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban.
       Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
-    html += S.prelim ? bar : `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
+    html += S.prelim ? bar + `<p class="small"><b>Preliminary.</b> Every ban has had its first ${FIRST[st.runs]} runs. The ${TOP2} leaders are now getting
+      ${st.runs - FIRST[st.runs]} more each, so their values and order can still change. Bans outside the top ${TOP2} are final.</p>` : `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
     html += rankTable(top, S.V, S.se, [
       { th: "Win if banned", td: h => (100 * S.win[h]).toFixed(1) + "%" }, { th: "They draft it", td: h => pct(S.baseCo[h]) },
