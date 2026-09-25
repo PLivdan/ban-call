@@ -108,23 +108,29 @@
       update(false);
     });
   }
+  const top2 = P => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 2).map(h => ({ h, p: P[h] }));
   function renderBans() {
     const e = nextBan(), cnt = turnCount();
     const sug = ourTurn() && RES ? topBans(cnt) : [];
     $("banSlots").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
       const s = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined;
+      const f = h === undefined && !ours(i) && FC && FC.top[i] ? (i === e && THEIRS ? top2(THEIRS) : FC.top[i]) : null;   // forecast of their ban in this box (exact for the next one)
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
-                : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">` : (i + 1);
-      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : "";
-      return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}" data-i="${i}"
-        title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s]) : "click, then pick the banned hero"}">
+                : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
+                : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : (i + 1);
+      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>`
+                : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : "";
+      return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
+        title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
+          : f ? `their likeliest ban here${i === e ? ". Click if they banned " + esc(NAMES[f[0].h]) : ""}` : "click, then pick the banned hero"}">
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
       const i = +el.dataset.i;
       if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; }
       else if (el.classList.contains("sug")) { const s = topBans(turnCount())[i - nextBan()]; st.active = { kind: "ban" }; if (i === nextBan()) return place(s); }
+      else if (el.classList.contains("fc") && i === nextBan()) { st.active = { kind: "ban" }; return place((THEIRS ? top2(THEIRS) : FC.top[i])[0].h); }
       else st.active = { kind: "ban" };
       update();
     });
@@ -172,6 +178,43 @@
   });
 
   // ---------------------------------------------------------------- figures (inline SVG, drawn from the model output)
+  // ---------------------------------------------------------------- their bans: a forecast for each remaining box, and the ban model's reasons
+  let FC = null;
+  function rngF(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function forecast(s, NS = 1500) {                  // simulate the rest of the ban phase, each ban drawn given the ones before it
+    const e = s.bans.length, bd = E.band(s.r0), BU = new Uint8Array(H), BT = new Uint8Array(H), prot = new Uint8Array(H), rnd = rngF(7);
+    s.bans.forEach((h, i) => (ours(i) ? BU : BT)[h] = 1); for (const h of s.rev) prot[h] = 1;
+    const cnt = Array.from({ length: 6 }, () => new Float64Array(H));
+    for (let n = 0; n < NS; n++) {
+      const bu = BU.slice(), bt = BT.slice();
+      for (let ep = e; ep < 6; ep++) {
+        const o = ours(ep), u = E.banUtil(ep, o ? RES.Pu : RES.Pt, o ? bu : bt, o ? bt : bu, s.m, bd), mask = new Uint8Array(H);
+        for (let h = 0; h < H; h++) mask[h] = bu[h] || bt[h] || (o && prot[h]) ? 1 : 0;
+        const p = BanEngine.softmaxMasked(u, mask); let t = rnd(), h = 0; for (; h < H - 1; h++) { if (!mask[h] && (t -= p[h]) <= 0) break; }
+        (o ? bu : bt)[h] = 1; cnt[ep][h] += 1 / NS;
+      }
+    }
+    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 2).map(h => ({ h, p: c[h] }))) };
+  }
+  function whySplit(s, P) {                            // the ban model's utility for their next ban, split into its terms, against an average legal hero
+    const B = META.ban, C = META.C, e = s.bans.length, bd = E.band(s.r0), m = s.m, BU = new Uint8Array(H), BT = new Uint8Array(H);
+    s.bans.forEach((h, i) => (ours(i) ? BU : BT)[h] = 1);
+    const parts = h => { let cr = 0, ro = 0; for (let j = 0; j < H; j++) cr += C[h][j] * RES.Pt[j]; for (let i = 0; i < H; i++) { if (BT[i]) ro += B.Ro[i][h]; if (BU[i]) ro += B.Rt[i][h]; }
+      return [B.a[h] + B.am[m][h] + B.ab[bd][h] + B.ae[e][h], -B.lam * RES.Pt[h], B.gam * cr, ro]; };
+    const legal = []; for (let h = 0; h < H; h++) if (!BU[h] && !BT[h]) legal.push(h);
+    const all = legal.map(parts), mean = [0, 1, 2, 3].map(k => all.reduce((a, p) => a + p[k], 0) / all.length);
+    const rs = Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 8).map(h => ({ h, c: parts(h).map((v, k) => v - mean[k]) }));
+    const sum = (r, sg) => r.c.filter(v => sg * v > 0).reduce((a, b) => a + b, 0), lo = Math.min(0, ...rs.map(r => sum(r, -1))), hi = Math.max(...rs.map(r => sum(r, 1)));
+    const key = [["popular on this map and rank", "them", 1], ["they protect it", "faint", .7], ["it beats what they play", "them", .5], ["reaction to the bans so far", "us", .6]];
+    const Lw = labW(rs.map(r => NAMES[r.h]), 11.5) + 10, val = Math.ceil(tw("100%", 10.5)) + 8, rowH = 19, X = v => Lw + (v - lo) / (hi - lo || 1) * 320;
+    let g = rs.map((r, k) => { let p = 0, n = 0; const segs = r.c.map((v, j) => { const a = v >= 0 ? p : n; if (v >= 0) p += v; else n += v;
+        return `<rect x="${X(Math.min(a, a + v))}" y="0" width="${Math.abs(X(a + v) - X(a))}" height="11" class="${key[j][1]}" opacity="${key[j][2]}"/>`; }).join("");
+      return `<g transform="translate(0 ${k * rowH + 4})"><text x="${Lw - 6}" y="10" font-size="11.5" text-anchor="end">${esc(NAMES[r.h])}</text>${segs}<text x="${X(p) + 4}" y="10" font-size="10.5" class="faint">${pct(P[r.h])}</text></g>`; }).join("");
+    let kx = Lw; const ly = rs.length * rowH + 24;
+    g += `<line class="axis" x1="${X(0)}" x2="${X(0)}" y1="0" y2="${rs.length * rowH + 4}"/>` + key.map(([t, c, o]) => { const q = `<rect x="${kx}" y="${ly - 9}" width="10" height="10" class="${c}" opacity="${o}"/><text x="${kx + 14}" y="${ly}" font-size="11">${t}</text>`; kx += 26 + tw(t, 11); return q; }).join("");
+    const Wd = Math.max(Lw + 320 + val, kx + 10);
+    return `<svg viewBox="0 0 ${Wd} ${rs.length * rowH + 32}" width="${Wd}">${g}</svg>`;
+  }
   function rankTable(top, V, se, cols, cap) {        // the ranking: one row per ban, with its 95% interval drawn in the row
     const lo = Math.min(0, ...top.map(h => V[h] - 1.96 * se[h])), hi = Math.max(0, ...top.map(h => V[h] + 1.96 * se[h])), CW = 190, X = v => 6 + (v - lo) / (hi - lo || 1) * (CW - 12);
     const step = niceStep(hi - lo, 3); let ticks = "";
@@ -258,9 +301,11 @@
         The first two parts are discounted by the chance the hero is banned later anyway. The parts use the average of the four networks, so they can differ slightly from the value on the right.</figcaption></figure>`;
     } else {
       const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 10);
-      html += `<h2>Their ban #${e + 1}</h2><p class="big">Most likely: ${top.slice(0, 3).map(h => `<b>${esc(NAMES[h])}</b> ${pct(THEIRS[h])}`).join(", ")}</p>
-        <figure>${probChart(top.map(h => ({ h, p: THEIRS[h] })), "them", 420)}<figcaption>${F()} What a typical team in their position bans next, from the ban model (map, rank, ban order, the heroes the team plays and fears, and the bans so far).
-        Enter what they actually ban in the ban phase.</figcaption></figure>`;
+      const s = { firstUs: st.first, bans: st.bans.slice(), m: st.map, r0: META.tiers[st.tier] };
+      html += `<h2>Their ban #${e + 1}: most likely ${esc(NAMES[top[0]])} (${pct(THEIRS[top[0]])})</h2><p class="big">Then ${top.slice(1, 4).map(h => `<b>${esc(NAMES[h])}</b> ${pct(THEIRS[h])}`).join(", ")}</p>
+        <figure>${whySplit(s, THEIRS)}<figcaption>${F()} Why a typical team in their position would ban each hero next: the ban model's reasons, measured against an average hero
+        (log-odds, so only the lengths relative to each other matter). The percentage is the chance of ban #${e + 1}. They cannot see your hovers.
+        Enter what they actually ban in the ban phase, or click the faded box if they banned the likeliest hero.</figcaption></figure>`;
     }
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(R.Pt.keys()).filter(h => !bans.has(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 10);
@@ -371,6 +416,7 @@
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
       RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = null;
+      FC = nextBan() < 6 ? forecast(s) : null;
       if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 })); }
       else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
       renderBans(); renderRoster(); renderAdvice();
