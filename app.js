@@ -10,13 +10,19 @@
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const pp = (x, d = 2) => (x >= 0 ? "+" : "−") + Math.abs(100 * x).toFixed(d);
   const pct = x => (100 * x).toFixed(0) + "%";
+  const fmt = n => n.toLocaleString("en-US");
+  // text widths for chart labels, so every label fits its figure
+  const FONT = '"Archivo Narrow", "Arial Narrow", Arial, sans-serif', ctx2d = document.createElement("canvas").getContext("2d");
+  const tw = (s, px) => { ctx2d.font = `${px}px ${FONT}`; return ctx2d.measureText(String(s)).width; };
+  const labW = (arr, px) => Math.ceil(Math.max(0, ...arr.map(s => tw(s, px)))) + 4;
+  try { await Promise.race([document.fonts.load('12px "Archivo Narrow"'), new Promise(r => setTimeout(r, 1500))]); } catch (e) {}
 
   // ---------------------------------------------------------------- load
   const t0 = performance.now();
   const [META, W, PORT] = await Promise.all([
     fetch("model/meta.json").then(r => r.json()), fetch("model/weights.bin").then(r => r.arrayBuffer()), fetch("model/portraits.json").then(r => r.json())]);
   const E = new BanEngine(META, W), H = META.heroes.length, ORDER = META.ban_order, NAMES = META.heroes;
-  const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => SHORT[NAMES[h]] || NAMES[h];
+  const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const MAPS = META.maps.map((m, i) => ({ i, name: mapName(m.name) })).sort((a, b) => a.name.localeCompare(b.name));
   const TIERS = Object.keys(META.tiers);
@@ -87,13 +93,7 @@
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
 
   // ---------------------------------------------------------------- lobby rendering
-  let RES = null, THEIRS = null, SIM = null, simId = 0;
-  const worker = new Worker("sim-worker.js");
-  worker.onmessage = ev => {
-    const d = ev.data; if (d.id !== simId) return;
-    if (d.progress !== undefined) { $("busy").textContent = `simulating ${Math.round(100 * d.progress)}%`; return; }
-    SIM = d; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; renderBans(); renderRoster(); renderAdvice();
-  };
+  let RES = null, THEIRS = null;
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i;
@@ -116,7 +116,7 @@
       const s = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined;
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">` : (i + 1);
-      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? "suggested" : "";
+      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s]) : "click, then pick the banned hero"}">
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
@@ -145,14 +145,14 @@
       const hs = NAMES.map((n, h) => h).filter(h => META.roles[h] === r).sort((a, b) => NAMES[a].localeCompare(NAMES[b]));
       return `<h3>${ROLE_NAMES[r]}</h3><div class="grid">` + hs.map(h => {
         const cls = ["tile"]; if (bans.has(h)) cls.push("banned"); if (team.has(h)) cls.push("ours");
-        if (q && !NAMES[h].toLowerCase().includes(q) && !short(h).toLowerCase().includes(q)) cls.push("dim");
+        if (q && !NAMES[h].toLowerCase().includes(q) && !(SHORT[NAMES[h]] || "").toLowerCase().includes(q)) cls.push("dim");
         return `<div class="${cls.join(" ")}" data-h="${h}" title="${esc(NAMES[h])}">${rank.has(h) ? `<span class="rk">${rank.get(h)}</span>` : ""}<img src="${img(h)}" alt="" loading="lazy"><span class="nm">${esc(short(h))}</span></div>`;
       }).join("") + "</div>";
     }).join("");
     $("roster").querySelectorAll(".tile").forEach(el => el.onclick = () => { if (!el.classList.contains("banned")) place(+el.dataset.h); });
   }
   const searchMatches = () => { const q = $("search").value.trim().toLowerCase(); if (!q) return [];
-    const b = bannedSet(); return NAMES.map((n, h) => h).filter(h => !b.has(h) && (NAMES[h].toLowerCase().includes(q) || short(h).toLowerCase().includes(q)))
+    const b = bannedSet(); return NAMES.map((n, h) => h).filter(h => !b.has(h) && (NAMES[h].toLowerCase().includes(q) || (SHORT[NAMES[h]] || "").toLowerCase().includes(q)))
       .sort((a, b2) => ((NAMES[a].toLowerCase().startsWith(q) ? 0 : 1) - (NAMES[b2].toLowerCase().startsWith(q) ? 0 : 1)) || NAMES[a].length - NAMES[b2].length); };
   function renderMatches() {
     const m = searchMatches().slice(0, 4);
@@ -173,7 +173,7 @@
 
   // ---------------------------------------------------------------- figures (inline SVG, drawn from the model output)
   function valueChart(rows) {                          // rows: {h, v, se}
-    const W = 600, L = 118, R = 64, rowH = 18, top = 16, hgt = top + rows.length * rowH + 22;
+    const L = labW(rows.map(r => NAMES[r.h]), 11.5) + 8, R = Math.ceil(tw("+0.00", 11)) + 12, W = Math.max(600, L + R + 380), rowH = 18, top = 16, hgt = top + rows.length * rowH + 22;
     let lo = Math.min(0, ...rows.map(r => r.v - 2 * r.se)), hi = Math.max(0, ...rows.map(r => r.v + 2 * r.se)); const pad = (hi - lo) * .04; lo -= pad; hi += pad;
     const X = v => L + (v - lo) / (hi - lo) * (W - L - R);
     const step = niceStep(hi - lo); let g = "";
@@ -188,13 +188,23 @@
     return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}">${g}<line class="axis" x1="${X(0)}" x2="${X(0)}" y1="${top - 4}" y2="${hgt - 20}"/>${bars}</svg>`;
   }
   function probChart(rows, cls, W = 290) {             // rows: {h, p}
-    const L = 96, R = 34, rowH = 16, hgt = rows.length * rowH + 4, mx = Math.max(.05, ...rows.map(r => r.p));
+    const L = labW(rows.map(r => NAMES[r.h]), 11) + 7, R = Math.ceil(tw("100%", 10.5)) + 8; W = Math.max(W, L + R + 150); const rowH = 16, hgt = rows.length * rowH + 4, mx = Math.max(.05, ...rows.map(r => r.p));
     return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}">` + rows.map((r, k) => {
       const y = k * rowH, w = r.p / mx * (W - L - R);
       return `<text x="${L - 5}" y="${y + 12}" font-size="11" text-anchor="end">${esc(short(r.h))}</text><rect x="${L}" y="${y + 3}" width="${w}" height="10" class="${cls}"/>
         <text x="${L + w + 4}" y="${y + 12}" font-size="10.5" class="faint">${pct(r.p)}</text>`;
     }).join("") + "</svg>";
   }
+  function shiftChart(rows, cls) {                     // rows: {h, d}; change in the share of simulated drafts with each hero
+    const L = labW(rows.map(r => NAMES[r.h]), 11) + 7, lab = Math.ceil(tw("−00", 10.5)) + 6, plot = 170, W = L + plot + 2 * lab, rowH = 16, hgt = rows.length * rowH + 4;
+    const mx = Math.max(.02, ...rows.map(r => Math.abs(r.d))), c = L + lab + plot / 2, X = d => c + d / mx * plot / 2;
+    return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}"><line class="axis" x1="${c}" x2="${c}" y1="0" y2="${hgt}"/>` + rows.map((r, k) => {
+      const y = k * rowH, x0 = Math.min(c, X(r.d)), w = Math.abs(X(r.d) - c);
+      return `<text x="${L - 5}" y="${y + 12}" font-size="11" text-anchor="end">${esc(NAMES[r.h])}</text><rect x="${x0}" y="${y + 3}" width="${Math.max(.5, w)}" height="10" class="${r.d >= 0 ? cls : "faint"}"/>
+        <text x="${r.d >= 0 ? X(r.d) + 4 : X(r.d) - 4}" y="${y + 12}" font-size="10.5" class="faint" text-anchor="${r.d >= 0 ? "start" : "end"}">${(r.d >= 0 ? "+" : "−") + Math.abs(100 * r.d).toFixed(0)}</text>`;
+    }).join("") + "</svg>";
+  }
+  const colFig = (svg, cap) => `<figure style="width:${+/width="(\d+(?:\.\d+)?)"/.exec(svg)[1]}px;max-width:100%">${svg}<figcaption>${cap}</figcaption></figure>`;
   function niceStep(span) { const raw = span / 5, p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 
   // ---------------------------------------------------------------- advice
@@ -240,29 +250,97 @@
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(R.Pt.keys()).filter(h => !bans.has(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 10);
     const us = Array.from(R.Pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => R.Pu[b] - R.Pu[a]).slice(0, 10);
+    const fn = ourTurn() && st.model === "sim" && SIM ? 4 : 2;
     html += `<h2>What the lobby tells us</h2><div class="cols">
-      <figure>${probChart(them.map(h => ({ h, p: R.Pt[h] })), "them")}<figcaption>Figure 2. Heroes the other team is likely to open, given the bans so far.
-      Teams protect their own heroes and ban what beats them, so their bans shift this.</figcaption></figure>
-      <figure>${probChart(us.map(h => ({ h, p: R.Pu[h] })), "us")}<figcaption>Figure 3. Heroes your team is likely to fill in around the heroes shown.</figcaption></figure></div>`;
+      ${colFig(probChart(them.map(h => ({ h, p: R.Pt[h] })), "them"), `Figure ${fn}. Heroes the other team is likely to open, given the bans so far.
+      Teams protect their own heroes and ban what beats them, so their bans shift this.`)}
+      ${colFig(probChart(us.map(h => ({ h, p: R.Pu[h] })), "us"), `Figure ${fn + 1}. Heroes your team is likely to fill in around the heroes shown.`)}</div>`;
     $("adviceBody").innerHTML = html;
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
+    if (RUN && !RUN.finished && st.model === "sim") progress();
   }
 
   function simAdvice() {
     const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
-    if (!SIM) return html + `<p class="small">Simulating: for each candidate, 16 continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.</p>`;
-    const top = topBans(15), best = top.slice(0, cnt);
-    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(SIM.V[h])} ± ${(196 * SIM.se[h]).toFixed(2)}`).join(", ")} points against a typical ban;
-      expected win with a typical ban ${(100 * SIM.base).toFixed(1)}%</span></p>`;
-    html += `<figure>${valueChart(top.slice(0, 12).map(h => ({ h, v: SIM.V[h], se: SIM.se[h] })))}<figcaption>Figure 1. Change in your team's win probability, in points,
-      from banning each hero instead of what a typical team would ban here. Whiskers are 95% intervals over the simulated continuations.
-      The simulator is noisy: rankings inside overlapping whiskers are not reliable.</figcaption></figure>`;
-    html += `<table><tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th class="r">± 95%</th><th class="r">Win if banned</th></tr>` +
-      top.map((h, k) => `<tr class="pick" data-h="${h}"><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td><td>${esc(NAMES[h])}</td>
-        <td class="r">${pp(SIM.V[h])}</td><td class="r">${(196 * SIM.se[h]).toFixed(2)}</td><td class="r">${(100 * SIM.win[h]).toFixed(1)}%</td></tr>`).join("") + `</table>
-      <p class="small">The simulator draws stand-in players near your rank, keeps your hero and (usually) your teammates' hovers, samples the rest of the ban phase,
-      re-drafts both teams with the pick model and scores every pairing with the outcome model. It needs no lineup network, but it is slower and noisier than the ban value model.</p>`;
+    const bar = `<div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
+    if (!SIM) return html + bar + `<p class="small">Every legal ban gets 6 simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs;
+      the 12 best then get 10 more.</p>`;
+    const S = SIM, top = topBans(15), best = top.slice(0, cnt);
+    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban;
+      expected win with a typical ban ${(100 * S.base).toFixed(1)}%</span></p>`;
+    html += S.prelim ? bar : `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
+    html += `<figure>${valueChart(top.slice(0, 12).map(h => ({ h, v: S.V[h], se: S.se[h] })))}<figcaption>Figure 1. Change in your team's win probability, in points,
+      from banning each hero instead of what a typical team would ban here. Whiskers are 95% intervals over the simulated continuations, paired so every ban faces the same
+      stand-ins and random draws. Rankings inside overlapping whiskers are not reliable.</figcaption></figure>`;
+    const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
+    html += `<div style="overflow-x:auto"><table><tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th class="r">± 95%</th><th class="r">Win if banned</th><th class="r">They draft it</th><th>They switch to</th><th class="r">Runs</th></tr>` +
+      top.map((h, k) => `<tr class="pick" data-h="${h}" title="click to ban ${esc(NAMES[h])}"><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td><td>${esc(NAMES[h])}</td>
+        <td class="r">${pp(S.V[h])}</td><td class="r">${(196 * S.se[h]).toFixed(2)}</td><td class="r">${(100 * S.win[h]).toFixed(1)}%</td>
+        <td class="r">${pct(S.baseCo[h])}</td><td>${repl(h)}</td><td class="r">${S.n[h]}</td></tr>`).join("") + `</table></div>
+      <p class="small">They draft it: share of the other team's simulated drafts that include the hero after a typical ban. They switch to: the hero whose share of their drafts rises most
+      when you ban it, in points. Runs: simulated continuations of the ban phase behind the value. Click a row to ban it.</p>`;
+    const h = best[0], dO = [], dU = [];
+    for (let x = 0; x < H; x++) { dO.push({ h: x, d: S.co[h][x] - S.baseCo[x] }); dU.push({ h: x, d: S.cu[h][x] - S.baseCu[x] }); }
+    const big = a => a.filter(r => Math.abs(r.d) >= .005).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 10).sort((a, b) => b.d - a.d);
+    html += `<h2>What banning ${esc(NAMES[h])} changes</h2><div class="cols">
+      ${colFig(shiftChart(big(dO), "them"), "Figure 2. The other team's simulated drafts: change in the share that include each hero, in points, against a typical ban.")}
+      ${colFig(shiftChart(big(dU), "us"), "Figure 3. Your team's simulated drafts, the same comparison.")}</div>`;
     return html;
+  }
+
+  // ---------------------------------------------------------------- re-draft simulator: a pool of workers, two stages, a progress bar
+  const NW = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12;
+  const L1 = [0, 1, 2, 3, 4, 5], L2 = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15], LB = L1.concat(L2);
+  let pool = [], RUN = null, SIM = null, simId = 0;
+  function newWorker() { const w = new Worker("sim-worker.js"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
+  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; $("mainEl").classList.remove("busy"); const el = $("simMsg"); if (el) el.textContent = "The simulator could not start in this browser; the ban value model still works."; }
+  function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
+  function startSim(s) {
+    ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
+    const prot = new Set(s.hov6.filter(h => h >= 0)), cands = [];
+    for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
+    const top2 = Math.min(TOP2, cands.length);
+    RUN = { id: ++simId, st: s, cands, top2, ticks: 0, total: LB.length + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
+            vals: {}, cs: {}, base: {}, baseCnt: null, t0: performance.now(), finished: false };
+    const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
+    jobs[0].base = LB; load[0] = LB.length;
+    for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
+    jobs.forEach((j, k) => send(k, j.cands, L1, j.base));
+  }
+  function onSim(d) {
+    const R = RUN; if (!R || d.id !== R.id || R.finished) return;
+    if (!d.done) { R.ticks += d.tick || 0; progress(); return; }
+    for (const h in d.vals) {
+      Object.assign(R.vals[h] || (R.vals[h] = {}), d.vals[h]);
+      const c = R.cs[h] || (R.cs[h] = { u: new Float64Array(H), o: new Float64Array(H), n: 0 }), n = Object.keys(d.vals[h]).length;
+      for (let x = 0; x < H; x++) { c.u[x] += d.cnt[h].u[x] * n; c.o[x] += d.cnt[h].o[x] * n; } c.n += n;
+    }
+    if (d.baseCnt) { Object.assign(R.base, d.base); R.baseCnt = d.baseCnt; }
+    if (--R.pending > 0) return;
+    SIM = summarize(R);
+    if (R.stage === 1 && R.top2 > 0) {                      // stage 2: more continuations for the leaders
+      R.stage = 2; SIM.prelim = true;
+      R.cands.slice().sort((a, b) => SIM.V[b] - SIM.V[a]).slice(0, R.top2).forEach((h, i) => send(i % pool.length, [h], L2, []));
+    } else { R.finished = true; SIM.ms = performance.now() - R.t0; $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
+    renderBans(); renderRoster(); renderAdvice();
+  }
+  function progress() {
+    const f = Math.min(1, RUN.ticks / RUN.total), el = $("simProg");
+    if (el) el.style.width = (100 * f).toFixed(1) + "%";
+    const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ban phases simulated`;
+    $("busy").textContent = `simulating ${Math.round(100 * f)}%`;
+  }
+  function summarize(R) {
+    const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), win = new Float64Array(H).fill(NaN), n = new Int32Array(H), co = {}, cu = {};
+    const bj = Object.keys(R.base), bm = bj.reduce((a, j) => a + R.base[j], 0) / bj.length;
+    for (const h of R.cands) {
+      const v = R.vals[h]; if (!v) continue; const js = Object.keys(v), d = js.map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
+      V[h] = m; n[h] = d.length; win[h] = js.reduce((a, j) => a + v[j], 0) / js.length;
+      se[h] = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1)));
+      co[h] = R.cs[h].o.map(x => x / R.cs[h].n); cu[h] = R.cs[h].u.map(x => x / R.cs[h].n);
+    }
+    return { V, se, win, n, base: bm, co, cu, baseCo: R.baseCnt.o, baseCu: R.baseCnt.u, total: R.total };
   }
 
   // ---------------------------------------------------------------- update loop
@@ -280,10 +358,8 @@
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
       RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = null;
-      if (st.model === "sim" && ourTurn()) {
-        simId++; $("busy").textContent = "simulating 0%";
-        worker.postMessage({ id: simId, st: Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 }) });
-      } else $("mainEl").classList.remove("busy");
+      if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1 })); }
+      else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
       renderBans(); renderRoster(); renderAdvice();
     }, 15);
   }
@@ -298,7 +374,7 @@
     const all = NAMES.map((n, h) => ({ h, c: avg(h) })); const lo = Math.min(...all.flatMap(r => r.c)), hi = Math.max(...all.flatMap(r => r.c));
     const panel = r => {
       const rows = all.filter(x => META.roles[x.h] === r).sort((a, b) => b.c.reduce((s, t) => s + t) - a.c.reduce((s, t) => s + t));
-      const W = 300, L = 92, rowH = 13, top = 18, hgt = top + rows.length * rowH + 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 10);
+      const L = labW(rows.map(x => NAMES[x.h]), 10.5) + 7, W = L + 210, rowH = 13, top = 18, hgt = top + rows.length * rowH + 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 10);
       let g = `<text x="${L}" y="11" font-size="11.5" font-weight="600">${ROLE_NAMES[r]}</text>`;
       for (let t = Math.ceil(lo * 50) / 50; t <= hi; t += .02) g += `<line class="grid" x1="${X(t)}" x2="${X(t)}" y1="${top - 3}" y2="${hgt - 20}"/><text x="${X(t)}" y="${hgt - 7}" font-size="9.5" text-anchor="middle" class="faint">${(100 * t).toFixed(0)}</text>`;
       g += `<line class="axis" x1="${X(0)}" x2="${X(0)}" y1="${top - 3}" y2="${hgt - 20}"/>`;
@@ -345,4 +421,5 @@
 
   $("status").textContent = "Fitted on 243,143 PC ranked matches from Season 10 (11 to 21 September 2026).";
   renderMethod(); update();
+  document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES) renderAdvice(); });
 })();

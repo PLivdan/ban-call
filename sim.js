@@ -14,7 +14,7 @@
   class SimEngine {
     constructor(M, opt = {}) {
       this.M = M; const H = this.H = M.heroes.length; this.role = M.roles; this.ORDER = M.ban_order;
-      this.MU = opt.MU || 32; this.K = opt.K || 64; this.LOOK = opt.LOOK || 4; this.SW = 2;
+      this.MU = opt.MU || 32; this.K = opt.K || 64; this.LOOK = opt.LOOK || 4; this.SW = 2; this._key = null;
       const P = M.players, n = P.n, lc = b64bytes(P.lc), lc10 = b64bytes(P.lc10), dot = new Int8Array(b64bytes(P.dot).buffer), fm = new Int8Array(b64bytes(P.form).buffer);
       this.n = n; this.rank = P.rank; this.main = P.main; this.ms = P.main_share;
       this.LC = new Float32Array(n * H); this.LC10 = new Float32Array(n * H); this.DOT = new Float32Array(n * H); this.FORM = new Float32Array(n * H); this.SH = new Float32Array(n * H);
@@ -30,6 +30,11 @@
       return u;
     }
     setup(st) {                                                   // stand-ins, fixed random numbers and per-lineup constants for one lobby
+      const key = JSON.stringify([st.firstUs, st.m, st.r0, st.hov6, st.bans, this.MU, this.K, this.LOOK]);
+      if (key === this._key) return this._S;
+      this._key = key; return (this._S = this.setupNew(st));
+    }
+    setupNew(st) {
       const { firstUs, m, r0 } = st, H = this.H, a0 = firstUs ? 1 : -1, bd = this.band(r0), R = rng(12345);
       let pool = []; for (let p = 0; p < this.n; p++) if (Math.abs(this.rank[p] - r0) < 150) pool.push(p);
       if (pool.length < 50) pool = Array.from(this.rank.keys()).sort((x, y) => Math.abs(this.rank[x] - r0) - Math.abs(this.rank[y] - r0)).slice(0, 500);
@@ -94,7 +99,10 @@
         let x = au[u] - ao[k]; for (const a of pu[u]) { const Ca = C[a]; for (const b of po[k]) x += Ca[b]; }
         tot += 1 / (1 + Math.exp(-x));
       }
-      return tot / (pu.length * po.length);
+      const cu = new Float32Array(H), co = new Float32Array(H);          // how often each hero appears in the simulated drafts
+      for (const pk of pu) for (const h of pk) cu[h] += 1 / pu.length;
+      for (const pk of po) for (const h of pk) co[h] += 1 / po.length;
+      return { p: tot / (pu.length * po.length), cu, co };
     }
     future(S, bans, cand, j) {                                    // rest of the ban phase for scenario j (the notebook's `masks`)
       const H = this.H, b = this.M.ban, first = S.st.firstUs, BU = new Uint8Array(H), BT = new Uint8Array(H);
@@ -114,10 +122,26 @@
       const legal = new Uint8Array(H); for (let h = 0; h < H; h++) legal[h] = BU[h] || BT[h] ? 0 : 1;
       return { legal, BU, BT };
     }
+    /* Evaluate candidate bans on the scenario indices `looks` (and the typical-ban baseline on `baseLooks`), so the work
+       can be split across workers; every worker builds the same stand-ins and random numbers from the same seed. */
+    evaluate(st, cands, looks, baseLooks, tick) {
+      const S = this.setup(st), H = this.H, out = { vals: {}, cnt: {}, base: {}, baseCnt: null };
+      const acc = () => ({ u: new Float32Array(H), o: new Float32Array(H) });
+      const run = (cand, js, store, cstore) => {
+        for (const j of js) {
+          const f = this.future(S, st.bans, cand, j), r = this.scoreMask(S, f.legal, f.BU, f.BT); store[j] = r.p;
+          for (let h = 0; h < H; h++) { cstore.u[h] += r.cu[h] / js.length; cstore.o[h] += r.co[h] / js.length; }
+          if (tick) tick();
+        }
+      };
+      if (baseLooks.length) { out.baseCnt = acc(); run([], baseLooks, out.base, out.baseCnt); }
+      for (const h of cands) { out.vals[h] = {}; out.cnt[h] = acc(); run([h], looks, out.vals[h], out.cnt[h]); }
+      return out;
+    }
     values(st, onProgress) {
       const S = this.setup(st), H = this.H, bans = st.bans, prot = S.prot;
       const cands = []; for (let h = 0; h < H; h++) if (!bans.includes(h) && !prot.has(h)) cands.push(h);
-      const run = cand => { const v = []; for (let j = 0; j < this.LOOK; j++) { const f = this.future(S, bans, cand, j); v.push(this.scoreMask(S, f.legal, f.BU, f.BT)); } return v; };
+      const run = cand => { const v = []; for (let j = 0; j < this.LOOK; j++) { const f = this.future(S, bans, cand, j); v.push(this.scoreMask(S, f.legal, f.BU, f.BT).p); } return v; };
       const base = run([]); const bm = base.reduce((a, b) => a + b) / base.length;
       const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), win = new Float64Array(H).fill(NaN);
       cands.forEach((h, k) => {

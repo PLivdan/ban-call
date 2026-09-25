@@ -61,13 +61,14 @@
   .ctrl { margin: 8px 0 2px 0; } .ctrl > span { margin-right: 14px; white-space: nowrap; }
   /* slots: your team and the ban phase */
   .slots { display: flex; gap: 6px; flex-wrap: wrap; }
-  .slot { width: 62px; text-align: center; cursor: pointer; user-select: none; }
+  .slot { width: 66px; text-align: center; cursor: pointer; user-select: none; }
   .slot .pic { width: 58px; height: 58px; border: 1px solid var(--hair); background: var(--active);
                display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative; }
   .slot .pic img { width: 58px; height: 58px; display: block; }
   .slot.empty .pic { border-style: dashed; color: var(--faint); font-size: 18px; }
   .slot.active .pic { outline: 2px solid var(--blue); outline-offset: 1px; }
-  .slot .lab { font-size: 10.5px; color: var(--faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot .lab { font-size: 10.5px; color: var(--faint); margin-top: 1px; line-height: 1.12; overflow-wrap: anywhere; }
+  .slot .lab + .lab { color: var(--ink); min-height: 24px; }
   .slot .who { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
   .slot.us .who { color: var(--blue); } .slot.them .who { color: var(--red); }
   .slot.us .pic { border-top: 3px solid var(--blue); } .slot.them .pic { border-top: 3px solid var(--red); }
@@ -76,16 +77,16 @@
   .slot.sug .pic { border-style: dashed; border-color: var(--blue); }
   .slot.sug .pic img { opacity: .45; }
   /* roster */
-  .grid { display: flex; flex-wrap: wrap; gap: 2px 3px; }
-  .tile { width: 50px; text-align: center; cursor: pointer; font-size: 9.5px; line-height: 1.1; position: relative; user-select: none; }
+  .grid { display: flex; flex-wrap: wrap; gap: 5px 3px; align-items: flex-start; }
+  .tile { width: 56px; text-align: center; cursor: pointer; font-size: 9.5px; line-height: 1.1; position: relative; user-select: none; }
   .tile img { width: 46px; height: 46px; display: block; margin: 0 auto; border: 1px solid var(--hair); background: var(--active); }
   .tile:hover img { border-color: var(--ink); }
-  .tile .nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+  .tile .nm { display: block; color: var(--faint); margin-top: 1px; overflow-wrap: anywhere; }
   .tile.banned img { filter: grayscale(1); opacity: .3; }
   .tile.banned::after { content: "✕"; position: absolute; top: 9px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
   .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
   .tile.dim { opacity: .25; }
-  .tile .rk { position: absolute; top: 0; left: 2px; background: var(--red); color: #fff; font-size: 9.5px;
+  .tile .rk { position: absolute; top: 0; left: 5px; background: var(--red); color: #fff; font-size: 9.5px;
               font-weight: 600; padding: 0 3px; }
   #search { width: 190px; }
   #matches a { color: var(--blue); text-decoration: none; } #matches a:hover { text-decoration: underline; }
@@ -97,9 +98,11 @@
   td img.mini { width: 20px; height: 20px; vertical-align: middle; border: 1px solid var(--hair); }
   .bar { display: inline-block; height: 7px; background: var(--blue); vertical-align: baseline; }
   .cols { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-  .cols > figure { flex: 0 1 300px; margin-top: 4px; }
+  .cols > figure { flex: 0 1 auto; margin-top: 4px; min-width: 0; }
   .eq td { border-bottom: none; padding: 0 8px 0 0; }
   .eq td.op { color: var(--faint); }
+  .prog { height: 3px; background: var(--hair); max-width: 600px; margin: 6px 0 2px 0; }
+  .prog > span { display: block; height: 3px; width: 0; background: var(--blue); transition: width .1s linear; }
   #busy { visibility: hidden; } main.busy #busy { visibility: visible; }
   .method p, .method li { max-width: 760px; }
   .method ul { padding-left: 18px; margin: 4px 0; }
