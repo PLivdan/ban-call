@@ -1,0 +1,16 @@
+lobby 1 (4 bans, 3 shown), 64 runs, 1 stand-in draw(s) per seed:
+  seed 1: Magneto 0.75 ± 0.21, Black Cat 0.73 ± 0.27, Ultron 0.65 ± 0.16
+  seed 2: Gorr The God Butcher 1.23 ± 0.30, Jubilee 0.90 ± 0.19, The Hood 0.81 ± 0.30
+  seed 3: Ultron 1.20 ± 0.39, Hulk 1.13 ± 0.42, Thor 1.07 ± 0.40
+lobby 2 (4 bans, 2 shown), 64 runs, 1 stand-in draw(s) per seed:
+  seed 1: Peni Parker 1.22 ± 0.22, Devil Dinosaur 1.01 ± 0.26, Daredevil 0.45 ± 0.23
+  seed 2: Luna Snow 1.43 ± 0.31, Magneto 0.80 ± 0.36, Devil Dinosaur 0.71 ± 0.25
+  seed 3: Gorr The God Butcher 1.06 ± 0.22, Peni Parker 0.80 ± 0.23, Namor 0.54 ± 0.21
+lobby 3 (1 bans, 3 shown), 64 runs, 1 stand-in draw(s) per seed:
+  seed 1: Rocket Raccoon 2.07 ± 0.27, Invisible Woman 1.13 ± 0.29, Gambit 0.86 ± 0.33
+  seed 2: Invisible Woman 1.22 ± 0.33, Jubilee 0.88 ± 0.30, Rocket Raccoon 0.75 ± 0.34
+  seed 3: Invisible Woman 1.15 ± 0.39, Rocket Raccoon 1.12 ± 0.30, Thor 0.88 ± 0.31
+lobby 4 (1 bans, 2 shown), 64 runs, 1 stand-in draw(s) per seed:
+  seed 1: Rocket Raccoon 2.22 ± 0.48, Thor 1.46 ± 0.45, Gorr The God Butcher 1.19 ± 0.47
+  seed 2: Invisible Woman 1.19 ± 0.44, Hulk 0.99 ± 0.42, Ultron 0.96 ± 0.37
+  seed 3: Jubilee 1.27 ± 0.27, Rocket Raccoon 1.12 ± 0.30, Ultron 0.88 ± 0.36

@@ -1,4 +1,4 @@
-"""Build the site's model files from the notebook export (Part B, ban_value_model_*.json):
+"""Build the site's model files from the notebook export (Part B, ban_value_model_*.json; export v5 from notebook v6, v6 from v7):
   model/meta.json    small tables (heroes, maps, tiers, removal costs, matchups, ban model, validation)
   model/weights.bin  the lineup networks as float16, one after another (offsets and shapes in meta.json)
 Usage: python tools/build_site_model.py <ban_value_model_*.json>"""
@@ -19,5 +19,7 @@ meta.update(source=os.path.basename(src), weights=dict(file="weights.bin", dtype
             ALTC=R(M["ALTC"], 4), ALTS=R(M["ALTS"], 4), MC=R(M["MC"]), MS=R(M["MS"]), alt=R(M["alt"], 3),
             ban={k: (R(v) if isinstance(v, list) else v) for k, v in M["ban"].items()})
 if "check" in M: meta["check"] = M["check"]                           # lobbies scored in the notebook (tools/check_notebook.js)
+for k in ("engine", "check_ns", "notebook"):                           # export v6+ (notebook v7): engine settings the fixtures were made with
+    if k in M: meta[k] = M[k]
 json.dump(meta, open("model/meta.json", "w"), separators=(",", ":"))
 print(f"model/meta.json {os.path.getsize('model/meta.json') / 1e6:.2f} MB, model/weights.bin {os.path.getsize('model/weights.bin') / 1e6:.2f} MB ({off:,} float16)")

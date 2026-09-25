@@ -1,0 +1,16 @@
+lobby 1 (4 bans, 3 shown), 64 runs, 4 stand-in draw(s) per seed:
+  seed 1: Black Cat 1.12 ± 0.47, Hulk 0.96 ± 0.47, Peni Parker 0.90 ± 0.40
+  seed 2: Jubilee 1.07 ± 0.36, Gorr The God Butcher 1.01 ± 0.31, Hulk 0.87 ± 0.37
+  seed 3: Ultron 1.24 ± 0.40, Hulk 1.14 ± 0.42, Jubilee 0.82 ± 0.45
+lobby 2 (4 bans, 2 shown), 64 runs, 4 stand-in draw(s) per seed:
+  seed 1: Gorr The God Butcher 0.91 ± 0.39, Peni Parker 0.83 ± 0.25, Devil Dinosaur 0.44 ± 0.28
+  seed 2: Gorr The God Butcher 0.44 ± 0.21, Devil Dinosaur 0.44 ± 0.22, Rocket Raccoon 0.34 ± 0.19
+  seed 3: Gorr The God Butcher 1.23 ± 0.28, Scarlet Witch 0.54 ± 0.26, Rocket Raccoon 0.29 ± 0.36
+lobby 3 (1 bans, 3 shown), 64 runs, 4 stand-in draw(s) per seed:
+  seed 1: Rocket Raccoon 1.31 ± 0.37, Invisible Woman 1.09 ± 0.31, Gambit 0.78 ± 0.38
+  seed 2: Rocket Raccoon 0.75 ± 0.37, Gambit 0.63 ± 0.24, Invisible Woman 0.58 ± 0.31
+  seed 3: Rocket Raccoon 0.88 ± 0.29, Invisible Woman 0.87 ± 0.33, Gambit 0.73 ± 0.30
+lobby 4 (1 bans, 2 shown), 64 runs, 4 stand-in draw(s) per seed:
+  seed 1: Rocket Raccoon 1.11 ± 0.43, Namor 0.86 ± 0.47, Jeff The Land Shark 0.70 ± 0.43
+  seed 2: Hulk 0.85 ± 0.40, Thor 0.70 ± 0.41, Ultron 0.65 ± 0.34
+  seed 3: Rocket Raccoon 0.58 ± 0.28, Doctor Strange 0.56 ± 0.30, Jubilee 0.46 ± 0.32

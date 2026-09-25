@@ -1,0 +1,33 @@
+v7 simulator checks (8 lobbies per section, 16 runs per ban, 48 of our lineups x 96 of theirs)
+
+1. Ban-phase legality in the simulated continuations
+  96 continuations: each ends with exactly six distinct bans, none of them a hero we show
+
+2. Our bans as interventions: v6 simulator against v7 (single bans)
+  0 bans, 2 shown: v6 Magneto +1.49, v7 Gorr The God Butcher +1.34 (v6 had it 4th)
+  4 bans, 1 shown: v6 Devil Dinosaur +1.72, v7 Namor +1.00 (v6 had it 2th)
+  5 bans, 4 shown: v6 The Punisher +1.82, v7 Rocket Raccoon +1.22 (v6 had it 3th)
+  0 bans, 2 shown: v6 Rocket Raccoon +0.88, v7 Scarlet Witch +0.64 (v6 had it 2th)
+  3 bans, 3 shown: v6 Ultron +1.63, v7 Ultron +1.66
+  4 bans, 4 shown: v6 Magneto +1.43, v7 Magneto +1.80
+  4 bans, 1 shown: v6 Rocket Raccoon +1.71, v7 Namor +1.53 (v6 had it 2th)
+  3 bans, 4 shown: v6 Devil Dinosaur +0.91, v7 Devil Dinosaur +1.34
+  same top ban in 3/8; 1.9 s per lobby for all single bans on one thread
+
+3. Two-ban turns: pairs scored jointly, a shortlist of 10 against 20
+  3 bans, 2 shown: best of 45 Gorr The God Butcher + Devil Dinosaur +2.40 ± 0.49; best of 190 Gorr The God Butcher + Devil Dinosaur +2.40 ± 0.49; top two singles Gorr The God Butcher + Devil Dinosaur
+  1 bans, 1 shown: best of 45 Devil Dinosaur + Namor +1.63 ± 0.69; best of 190 Devil Dinosaur + Namor +1.63 ± 0.69; top two singles Deadpool (Strategist) + Peni Parker
+  1 bans, 4 shown: best of 45 Rocket Raccoon + Gambit +1.77 ± 0.67; best of 190 Rocket Raccoon + Gambit +1.77 ± 0.67; top two singles Rocket Raccoon + Magneto
+  1 bans, 3 shown: best of 45 Gorr The God Butcher + Magneto +2.62 ± 0.43; best of 190 Gorr The God Butcher + Magneto +2.62 ± 0.43; top two singles Gorr The God Butcher + Magneto
+  shortlist of 20 finds the same best pair in 4/4 (largest value missed 0.00 points); the best pair is the two best singles in 2/4
+  45 pairs x 16 runs: 1.7 s per lobby on one thread (the site splits this over its workers)
+
+4. Stability: a different random seed (other stand-ins and draws)
+  seed 12345: Magneto +0.88 ± 0.25; seed 777: Rocket Raccoon +0.91 ± 0.46
+  seed 12345: Hela +1.35 ± 0.35; seed 777: Invisible Woman +1.23 ± 0.33
+  seed 12345: Gorr The God Butcher +2.24 ± 0.56; seed 777: Jeff The Land Shark +1.39 ± 0.56
+  seed 12345: Emma Frost +1.42 ± 0.34; seed 777: Rocket Raccoon +0.80 ± 0.36
+  same top ban in 0/4, top-3 overlap 42%. The simulator's intervals cover its own draws, not a change of stand-ins, so seed-to-seed differences are larger.
+
+all simulator checks passed
+exit 0

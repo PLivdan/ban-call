@@ -21,7 +21,8 @@
   const t0 = performance.now();
   const [META, W, PORT] = await Promise.all([
     fetch("model/meta.json").then(r => r.json()), fetch("model/weights.bin").then(r => r.arrayBuffer()), fetch("model/portraits.json").then(r => r.json())]);
-  const E = new BanEngine(META, W), H = META.heroes.length, ORDER = META.ban_order, NAMES = META.heroes;
+  const EO = META.engine ? { NS: META.engine.ns, NOWN: META.engine.nown, SHORT: META.engine.short } : {};   // export v6+: the settings the notebook used
+  const E = new BanEngine(META, W, EO), H = META.heroes.length, ORDER = META.ban_order, NAMES = META.heroes;
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const MAPS = META.maps.map((m, i) => ({ i, name: mapName(m.name) })).sort((a, b) => a.name.localeCompare(b.name));
@@ -94,7 +95,7 @@
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
 
   // ---------------------------------------------------------------- lobby rendering
-  let RES = null, RES2 = null, THEIRS = null;
+  let RES = null, THEIRS = null;
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i;
@@ -120,7 +121,7 @@
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
                 : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : wait ? "…" : (i + 1);
-      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : wait ? `<span class="alt">simulating</span>`
+      const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : wait ? `<span class="alt">scoring pairs</span>`
                 : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}${f[1] ? `<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : ""}` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
@@ -130,7 +131,7 @@
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
       const i = +el.dataset.i;
       if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; }
-      else if (el.classList.contains("sug")) { const s = topBans(turnCount())[i - nextBan()]; st.active = { kind: "ban" }; if (i === nextBan()) return place(s); }
+      else if (el.classList.contains("sug")) { const s = suggested(turnCount())[i - nextBan()]; st.active = { kind: "ban" }; if (i === nextBan() && s) return place(s.h); }
       else if (el.classList.contains("fc") && i === nextBan()) { st.active = { kind: "ban" }; return place((THEIRS ? top2(THEIRS) : FC.top[i])[0].h); }
       else st.active = { kind: "ban" };
       update();
@@ -181,29 +182,11 @@
   // ---------------------------------------------------------------- figures (inline SVG, drawn from the model output)
   // ---------------------------------------------------------------- their bans: a forecast for each remaining box, and the ban model's reasons
   let FC = null;
-  function rngF(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-  function forecast(s, NS = 1500, fix = []) {        // simulate the rest of the ban phase, each ban drawn given the ones before it (fix[ep]: ban held at that hero)
-    const e = s.bans.length, bd = E.band(s.r0), BU = new Uint8Array(H), BT = new Uint8Array(H), prot = new Uint8Array(H), rnd = rngF(7);
-    s.bans.forEach((h, i) => (ours(i) ? BU : BT)[h] = 1); for (const h of s.rev) prot[h] = 1;
-    const cnt = Array.from({ length: 6 }, () => new Float64Array(H));
-    for (let n = 0; n < NS; n++) {
-      const bu = BU.slice(), bt = BT.slice();
-      for (let ep = e; ep < 6; ep++) {
-        const o = ours(ep), u = E.banUtil(ep, o ? RES.Pu : RES.Pt, o ? bu : bt, o ? bt : bu, s.m, bd), mask = new Uint8Array(H);
-        for (let h = 0; h < H; h++) mask[h] = bu[h] || bt[h] || (o && prot[h]) ? 1 : 0;
-        let h = 0;
-        if (fix[ep] !== undefined) h = fix[ep];
-        else { const p = BanEngine.softmaxMasked(u, mask); let t = rnd(); for (; h < H - 1; h++) { if (!mask[h] && (t -= p[h]) <= 0) break; } }
-        (o ? bu : bt)[h] = 1; cnt[ep][h] += 1 / NS;
-      }
-    }
-    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 2).map(h => ({ h, p: c[h] }))) };
-  }
-  function forecastChain(s) {                       // their likeliest ban in each of their boxes, given that their earlier boxes went as shown
+  function forecastChain(s) {                       // their likeliest ban in each of their boxes, given that their earlier boxes went as shown (engine rollouts)
     const e = s.bans.length, top = [], fix = [];
     for (let i = e; i < 6; i++) {
       if (ours(i)) continue;
-      const L = i === e && THEIRS ? top2(THEIRS) : forecast(s, 1500, fix).top[i];
+      const L = i === e && THEIRS ? top2(THEIRS) : E.forecast(RES, fix)[i];
       top[i] = L; if (L && L.length) fix[i] = L[0].h;
     }
     return { top };
@@ -251,7 +234,7 @@
                         : `<rect x="${c1}" y="${y + 3}" width="${Math.max(.5, b)}" height="10" class="us"/><text x="${c1 + b + 4}" y="${y + 12}" font-size="10.5" class="faint">${pct(P2[h])}</text>`); }).join("") + "</svg>";
   }
   function splitBars(top, R) {                         // each ban's value split into its parts
-    const rows = top.map(h => { const l = 1 - R.PL[h]; return { h, d: l * R.Pt[h] * R.R[h], s: -l * R.Pu[h] * R.Rus[h], r: R.reply[h] }; });
+    const rows = top.map(h => { const l = 1 - R.PL[h]; return { h, d: l * R.Pt[h] * R.R[h], s: -l * R.Pu[h] * R.Rus[h], r: R.other[h] }; });
     const pos = r => Math.max(r.d, 0) + Math.max(r.s, 0) + Math.max(r.r, 0), neg = r => Math.min(r.d, 0) + Math.min(r.s, 0) + Math.min(r.r, 0);
     const lo = Math.min(0, ...rows.map(neg)), hi = Math.max(...rows.map(pos)), Lw = labW(rows.map(r => NAMES[r.h]), 11.5) + 10, val = Math.ceil(tw("+0.00", 10.5)) + 8, W = Lw + 330 + val, rowH = 19;
     const X = v => Lw + (v - lo) / (hi - lo || 1) * 330, hgt = rows.length * rowH + 42;
@@ -259,7 +242,7 @@
     let g = rows.map((r, k) => { let p = 0, n = 0; const parts = [];
       for (const [v, cls, op] of [[r.d, "us", 1], [r.r, "us", .45], [r.s, "them", .8]]) { if (v >= 0) { parts.push(seg(p, v, cls, op)); p += v; } else { parts.push(seg(n, v, cls, op)); n += v; } }
       return `<g transform="translate(0 ${k * rowH + 4})"><text x="${Lw - 6}" y="10" font-size="11.5" text-anchor="end">${esc(NAMES[r.h])}</text>${parts.join("")}<text x="${X(p) + 4}" y="10" font-size="10.5" class="faint">${pp(R.V[r.h])}</text></g>`; }).join("");
-    const ly = rows.length * rowH + 24, key = [["denies them", "us", 1], ["their reply", "us", .45], ["effect on your team", "them", .8]]; let kx = Lw;
+    const ly = rows.length * rowH + 24, key = [["denies them", "us", 1], ["the rest of the ban phase", "us", .45], ["effect on your team", "them", .8]]; let kx = Lw;
     g += `<line class="axis" x1="${X(0)}" x2="${X(0)}" y1="0" y2="${rows.length * rowH + 4}"/>` + key.map(([t, c, o]) => { const s = `<rect x="${kx}" y="${ly - 9}" width="10" height="10" class="${c}" opacity="${o}"/><text x="${kx + 14}" y="${ly}" font-size="11">${t}</text>`; kx += 26 + tw(t, 11); return s; }).join("");
     return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}">${g}</svg>`;
   }
@@ -284,17 +267,32 @@
   function niceStep(span, n = 5) { const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 
   // ---------------------------------------------------------------- advice
-  function suggested(cnt) {                          // our suggested ban(s) this turn: the best, then on a two-ban turn the best once the first is in (null while that is still simulating)
+  function suggested(cnt) {                          // our suggested ban(s) this turn; on a two-ban turn the best pair, scored jointly (null while the simulator scores pairs)
     const h1 = topBans(1)[0]; if (h1 === undefined) return [];
-    const S1 = st.model === "sim" ? SIM : RES, out = [{ h: h1, V: S1.V[h1], se: S1.se[h1] }];
-    if (cnt === 2) {
-      const S2 = st.model === "sim" ? SIM2 : RES2;
-      if (S2 === "failed") return out;
-      if (!S2 || S2.prelim) { out.push(null); return out; }
-      const h2 = Array.from(S2.V.keys()).filter(h => h !== h1 && !isNaN(S2.V[h])).sort((a, b) => S2.V[b] - S2.V[a])[0];
-      out.push({ h: h2, V: S2.V[h2], se: S2.se[h2] });
-    }
-    return out;
+    const S1 = st.model === "sim" ? SIM : RES, one = { h: h1, V: S1.V[h1], se: S1.se[h1] };
+    if (cnt < 2) return [one];
+    const P = st.model === "sim" ? SIMP : RES.pairs;
+    if (P === "failed") return [one];
+    if (!P || !P.length) return [one, null];
+    const p = P[0], ab = S1.V[p.a] >= S1.V[p.b] ? [p.a, p.b] : [p.b, p.a];
+    return ab.map(h => ({ h, V: p.V, se: p.se, pair: p }));
+  }
+  function headline(sug, cnt, tail = "") {
+    if (!sug.length) return "";
+    const iv = x => `${pp(x.V)} ± ${(196 * x.se).toFixed(2)}`;
+    if (cnt === 2 && sug[1]) return `<p class="big">Ban <b>${esc(NAMES[sug[0].h])}</b> and <b>${esc(NAMES[sug[1].h])}</b>
+      <span class="small">&nbsp;${iv(sug[0])} points together, against two typical bans${tail}</span></p>`;
+    if (cnt === 2) return `<p class="big">Ban <b>${esc(NAMES[sug[0].h])}</b>, then <i>scoring pairs</i>
+      <span class="small">&nbsp;${iv(sug[0])} points for ${esc(NAMES[sug[0].h])} with a typical second ban${tail}</span></p>`;
+    return `<p class="big">Ban <b>${esc(NAMES[sug[0].h])}</b> <span class="small">&nbsp;${iv(sug[0])} points against a typical ban${tail}</span></p>`;
+  }
+  function pairTable(P, nShort) {                     // two-ban turns: the best pairs, each scored as a pair
+    return `<div style="overflow-x:auto"><table style="width:100%"><caption>Table 1. The best pairs for this two-ban turn. The ${nShort} best single bans are paired every way and each pair is
+      scored together, so heroes that replace each other or overlap are not counted twice. Value: change in your team's win probability, in points, against two typical bans.
+      Click a row to ban both.</caption><tr><th>#</th><th>Pair</th><th class="r">Value</th><th class="r">95% interval</th></tr>` +
+      P.slice(0, 8).map((p, k) => `<tr class="pickpair" data-a="${p.a}" data-b="${p.b}" title="Ban ${esc(NAMES[p.a])} and ${esc(NAMES[p.b])}"><td class="num">${k + 1}</td>
+        <td><img class="mini" src="${img(p.a)}" alt=""><img class="mini" src="${img(p.b)}" alt=""> ${esc(NAMES[p.a])} + ${esc(NAMES[p.b])}</td>
+        <td class="r">${pp(p.V)}</td><td class="r">± ${(196 * p.se).toFixed(2)}</td></tr>`).join("") + `</table></div>`;
   }
   function topBans(k) {
     if (st.model === "sim" && (!SIM || SIM.prelim)) return [];             // nothing from the simulator until every run is in
@@ -307,23 +305,24 @@
     if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. The figure below shows what each team is now likely to open.</p>`;
     else if (ourTurn() && st.model === "sim") html += simAdvice(F);
     else if (ourTurn()) {
-      const cnt = turnCount(), top = topBans(15), sug = suggested(cnt).filter(Boolean), best = sug.map(x => x.h);
+      const cnt = turnCount(), top = topBans(15), sug = suggested(cnt).filter(Boolean), best = sug.map(x => x.h), T1 = cnt === 2 ? 2 : 1;
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
-      html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" then ")}
-        <span class="small">&nbsp;${sug.map(x => `${pp(x.V)} ± ${(196 * x.se).toFixed(2)}`).join(", ")} points of win probability${cnt === 2 ? ` (the second is the best ban once ${esc(NAMES[best[0]])} is in)` : ""}</span></p>`;
+      html += headline(sug, cnt);
+      if (cnt === 2 && R.pairs) html += pairTable(R.pairs, R.shortlist.length);
       html += rankTable(top, R.V, R.se, [
         { th: "They open", td: h => pct(R.Pt[h]) }, { th: "You open", td: h => pct(R.Pu[h]) }, { th: "Cost to lose", td: h => (100 * R.R[h]).toFixed(1) },
-        { th: "Banned later", td: h => pct(R.PL[h]) }, { th: "Their reply", td: h => pp(R.reply[h]) }],
-        `Table 1. The fifteen best bans. Value: change in your team's win probability, in points, against leaving the hero open. The dot and whisker show the value and its 95% interval
-        (from the four networks and the bootstrap of removal costs), so overlapping bans are close to tied.`);
+        { th: "Banned anyway", td: h => pct(R.PL[h]) }, { th: "Rest of the phase", td: h => pp(R.other[h]) }],
+        `Table ${T1}. The fifteen best ${cnt === 2 ? "single bans (the other ban of the turn is a typical one)" : "bans"}. Value: change in your team's win probability, in points,
+        from banning the hero instead of what a typical team would ban here. The rest of the ban phase is simulated ${fmt(E.NS)} times, with the same random draws for every ban.
+        The dot and whisker show a 95% interval over the four networks, the removal-cost bootstrap and the simulated ban phases. It takes the fitted models as given.`);
       html += `<p class="small">They open, you open: chance each team opens the hero if it stays available. Cost to lose: points the team that would open it loses without it,
-        averaged over real players who open it at your rank and adjusted for the heroes your team shows. Banned later: chance it is banned later anyway.
-        Their reply: value of how your ban changes the other team's remaining bans. Click a row to ban it.</p>`;
+        averaged over real players who open it at your rank and adjusted for the heroes your team shows. Banned anyway: chance it goes in this ban phase if you ban as a typical team would.
+        Rest of the phase: how the value of the other bans changes, including the typical ban you give up and the other team's replies. Click a row to ban it.</p>`;
       const t8 = top.slice(0, 8);
       html += `<h2>${esc(NAMES[best[0]])} leads mostly by ${(1 - R.PL[best[0]]) * R.Pt[best[0]] * R.R[best[0]] >= R.V[best[0]] * .5 ? "denying them" : "protecting your team"}</h2>
         <figure>${splitBars(t8, R)}<figcaption>${F()} Each ban's value split into its parts, in points: what it takes from the other team (their chance of opening the hero times
-        what losing it costs them), the change in their remaining bans, and the effect on your team (negative when your team would have played it).
-        The first two parts are discounted by the chance the hero is banned later anyway. The parts use the average of the four networks, so they can differ slightly from the value on the right.</figcaption></figure>`;
+        what losing it costs them), the effect on your team (negative when your team would have played it), and the change in the rest of the ban phase. The first two are
+        discounted by the chance the hero goes anyway. The parts use the average of the four networks, so they can differ slightly from the value on the right.</figcaption></figure>`;
     } else {
       const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 10);
       const s = { firstUs: st.first, bans: st.bans.slice(), m: st.map, r0: META.tiers[st.tier] };
@@ -340,8 +339,13 @@
       The ten likeliest for each team, on one list. Where both bars are long, a ban costs both teams. Teams protect their own heroes and ban what beats them, so their bans shift the left side.</figcaption></figure>`;
     $("adviceBody").innerHTML = html;
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
+    $("adviceBody").querySelectorAll("tr.pickpair").forEach(el => el.onclick = () => {
+      if (!ourTurn() || turnCount() < 2) return;
+      for (const h of [+el.dataset.a, +el.dataset.b]) { for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1; st.bans.push(h); }
+      st.active = { kind: "ban" }; update();
+    });
     const mf = $("methodFig"); if (mf) mf.textContent = `Figure ${fig + 1}.`;
-    if (RUN && !RUN.finished && !RUN.second && st.model === "sim") progress();
+    if (RUN && !RUN.finished && !RUN.pairs && st.model === "sim") progress();
   }
 
   function simAdvice(F) {
@@ -351,16 +355,16 @@
     if (!SIM || SIM.prelim) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
       The ${TOP2} best then get ${st.runs - FIRST[st.runs]} more, for ${st.runs} runs each.</p>`;
     const S = SIM, top = topBans(15), sug = suggested(cnt), best = sug.filter(Boolean).map(x => x.h);
-    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" then ")}${sug[1] === null ? `, then <i>simulating the second ban with ${esc(NAMES[best[0]])} in</i>` : ""}
-      <span class="small">&nbsp;${sug.filter(Boolean).map(x => `${pp(x.V)} ± ${(196 * x.se).toFixed(2)}`).join(", ")} points against a typical ban${cnt === 2 && sug[1] ? ` (the second is the best ban once ${esc(NAMES[best[0]])} is in)` : ""}.
-      Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
+    html += headline(sug.filter(Boolean), cnt, `. Your chance of winning after ${cnt === 2 ? "two typical bans" : "a typical ban"}: ${(100 * S.base).toFixed(1)}%`);
+    if (cnt === 2 && Array.isArray(SIMP)) html += pairTable(SIMP, PAIRS);
     html += `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
     html += rankTable(top, S.V, S.se, [
       { th: "Win if banned", td: h => (100 * S.win[h]).toFixed(1) + "%" }, { th: "They draft it", td: h => pct(S.baseCo[h]) },
       { th: "They switch to", td: repl, r: false }, { th: "Runs", td: h => S.n[h] }],
-      `Table 1. The fifteen best bans by simulation. Value: change in your team's win probability, in points, from banning the hero instead of what a typical team would ban here.
-      The dot and whisker show the value and its 95% interval over the simulated continuations, paired so every ban faces the same stand-in players and random draws.`);
+      `Table ${cnt === 2 && Array.isArray(SIMP) ? 2 : 1}. The fifteen best ${cnt === 2 ? "single bans by simulation (the other ban of the turn is a typical one)" : "bans by simulation"}. Value: change in your team's win probability, in points, from banning the hero instead of what a typical team would ban here.
+      The runs are split over four independent draws of stand-in players, and every ban faces the same draws. The dot and whisker show a 95% interval over those runs, so it covers
+      both the stand-ins and the simulated continuations. It takes the fitted models as given.`);
     html += `<p class="small">They draft it: share of the other team's simulated drafts that include the hero after a typical ban. They switch to: the hero whose share of their drafts rises most
       when you ban it, in points. Runs: simulated continuations of the ban phase behind the value. Click a row to ban it.</p>`;
     const h = best[0], dO = [], dU = [];
@@ -378,22 +382,30 @@
   const RUNS = [16, 32, 64], FIRST = { 16: 6, 32: 8, 64: 12 };   // continuations for the top bans, and for every ban in stage 1
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
-  let pool = [], RUN = null, SIM = null, SIM2 = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=4"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  const PAIRS = 10;                                               // two-ban turns: pairs among the best PAIRS single bans
+  let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
+  function newWorker() { const w = new Worker("sim-worker.js?v=7"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
     if (!RUN || RUN.finished) return; RUN.finished = true;
-    if (RUN.second) { SIM2 = "failed"; renderBans(); renderAdvice(); return; }   // keep the first ban's results
+    if (RUN.pairs) { SIMP = "failed"; renderBans(); renderAdvice(); return; }   // keep the single-ban results
     RUN.failed = true; $("mainEl").classList.remove("busy"); renderAdvice();
   }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
-  function startSim(s, second = false) {
+  function startPairs(s, base) {                            // every pair of the shortlist, all runs, against the singles' typical-ban baseline
+    const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
+    const NR = st.runs, looks = range(0, NR);
+    RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, cs: {}, base, t0: performance.now(), finished: false, pairs: true };
+    const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p));
+    jobs.forEach((j, k) => send(k, j, looks, []));
+  }
+  function startSim(s) {
     ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
     const prot = new Set(s.hov6.filter(h => h >= 0)), cands = [];
     for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
     const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
     RUN = { id: ++simId, st: s, cands, top2, L1, L2, NR, ticks: 0, total: NR + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
-            vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false, second };
+            vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false };
     const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
     chunks(range(0, NR), pool.length).forEach((b, k) => { jobs[k].base = b; load[k] = b.length; });   // the typical-ban baseline, split across workers
     for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
@@ -401,7 +413,7 @@
   }
   function onSim(d) {
     const R = RUN; if (!R || d.id !== R.id || R.finished) return;
-    if (!d.done) { R.ticks += d.tick || 0; if (!R.second) progress(); return; }
+    if (!d.done) { R.ticks += d.tick || 0; if (!R.pairs) progress(); return; }
     for (const h in d.vals) {
       Object.assign(R.vals[h] || (R.vals[h] = {}), d.vals[h]);
       const c = R.cs[h] || (R.cs[h] = { u: new Float64Array(H), o: new Float64Array(H), n: 0 }), n = Object.keys(d.vals[h]).length;
@@ -409,7 +421,8 @@
     }
     if (d.baseCnt) { const n = Object.keys(d.base).length; Object.assign(R.base, d.base); for (let x = 0; x < H; x++) { R.bcs.u[x] += d.baseCnt.u[x] * n; R.bcs.o[x] += d.baseCnt.o[x] * n; } R.bcs.n += n; }
     if (--R.pending > 0) return;
-    const S = summarize(R); if (R.second) SIM2 = S; else SIM = S;
+    if (R.pairs) { R.finished = true; SIMP = summarizePairs(R); renderBans(); renderAdvice(); return; }
+    const S = summarize(R); SIM = S;
     if (R.stage === 1 && R.top2 > 0 && R.L2.length) {       // stage 2: more continuations for the leaders, spread over the workers
       R.stage = 2; S.prelim = true; let k = 0;
       const parts = chunks(R.L2, Math.max(1, Math.round(pool.length * 2 / R.top2)));
@@ -417,11 +430,9 @@
       return;
     }
     R.finished = true; S.ms = performance.now() - R.t0;
-    if (!R.second) { $("mainEl").classList.remove("busy"); $("busy").textContent = "computing"; }
+    $("mainEl").classList.remove("busy"); $("busy").textContent = "computing";
     renderBans(); renderRoster(); renderAdvice();
-    if (!R.second && R.st.pair) {                           // two-ban turn: simulate our second ban with the first one in, as the page would after it is entered
-      const h1 = topBans(1)[0]; if (h1 !== undefined) startSim(Object.assign({}, R.st, { bans: R.st.bans.concat([h1]), pair: false }), true);
-    }
+    if (R.st.pair) startPairs(R.st, R.base);                // two-ban turn: score the shortlist's pairs jointly
   }
   function progress() {
     const f = Math.min(1, RUN.ticks / RUN.total), el = $("simProg");
@@ -440,6 +451,14 @@
     }
     return { V, se, win, n, base: bm, co, cu, baseCo: R.bcs.o.map(x => x / R.bcs.n), baseCu: R.bcs.u.map(x => x / R.bcs.n), total: R.total };
   }
+  function summarizePairs(R) {
+    const out = [];
+    for (const p of R.cands) {
+      const k = String(p), v = R.vals[k]; if (!v) continue; const js = Object.keys(v), d = js.map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
+      out.push({ a: p[0], b: p[1], V: m, n: d.length, se: Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1))) });
+    }
+    out.ms = performance.now() - R.t0; return out.sort((x, y) => y.V - x.V);
+  }
 
   // ---------------------------------------------------------------- update loop
   let pending = 0;
@@ -457,9 +476,7 @@
     setTimeout(() => {
       if (my !== pending) return;
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
-      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s) : null; SIM = SIM2 = null;
-      RES2 = null;
-      if (ourTurn() && s.cnt === 2) { const h1 = topBans(1)[0]; if (h1 !== undefined) RES2 = E.values(Object.assign({}, s, { bans: s.bans.concat([h1]), cnt: 1 })); }
+      RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s, RES) : null; SIM = SIMP = null;
       FC = nextBan() < 6 ? forecastChain(s) : null;
       if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1, pair: s.cnt === 2 })); }
       else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
@@ -487,30 +504,37 @@
     const lg = bandLab.map((b, k) => `<svg width="10" height="10" style="display:inline;vertical-align:-1px"><g style="color:var(--ink)">${mark(k, 5, 5)}</g></svg> ${b}`).join(" &nbsp; ");
     const L_ = v.lineup;
     $("method").innerHTML = `<h2>Method</h2>
-      <p>A ban removes a hero from both teams, and in ranked you usually don't know who is on the other side. Its value depends on how likely each team is to open the hero,
-      what losing it costs the team that would have played it, and whether it would be banned later anyway. For every legal ban <i>x</i>, the value in win probability is</p>
-      <p class="formula">V(<i>x</i>) = (1 − <i>P</i><sub>later</sub>(<i>x</i>)) × [ <i>P</i><sub>them</sub>(<i>x</i>) × <i>R</i><sub>them</sub>(<i>x</i>) − <i>P</i><sub>us</sub>(<i>x</i>) × <i>R</i><sub>us</sub>(<i>x</i>) ] + reply(<i>x</i>)</p>
+      <p>A ban removes a hero from both teams, and in ranked you usually don't know who is on the other side. Every hero banned in the rest of the ban phase, by either team, is worth</p>
+      <p class="formula">w(<i>y</i>) = <i>P</i><sub>them</sub>(<i>y</i>) × <i>R</i><sub>them</sub>(<i>y</i>) − <i>P</i><sub>us</sub>(<i>y</i>) × <i>R</i><sub>us</sub>(<i>y</i>)</p>
+      <p>to your team: how likely each team is to open it, times what losing it costs that team. The rest of the ban phase is simulated ${fmt(E.NS)} times, one ban at a time, from a ban model
+      that reacts to every ban before it. The value of banning <i>x</i> is the average total of w over the simulated bans when you ban <i>x</i>, minus the same average when you ban as a
+      typical team would. Every candidate faces the same random draws, so their differences are not noise from resampling. A hero that would go anyway, and the other team's replies,
+      are already in the simulated bans, so nothing is added on top. On a two-ban turn the best pairs are scored together in the same way.</p>
       <ul>
         <li><b><i>P</i><sub>them</sub>, <i>P</i><sub>us</sub></b>: a masked team-lineup network (two hidden layers of 512, an ensemble of four) that sees only what a lobby shows: the bans so far and who made them,
-          the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden.</li>
+          the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden. The other team's side uses public information only.
+          Your own bans are treated as choices, not as clues about your players: your side is averaged over the bans a typical team in your seat would have made.</li>
         <li><b><i>R</i></b>: the cost of losing a hero, computed with a fitted outcome model on 1.8 million real opening picks. Each player is moved to their next choice (from a pick model) and the change
           in the team's win probability is recorded. That includes the hero, map, side, rank, compositions, teammates and matchups, and the player's playtime, recent picks and skill on both heroes.
           Losing a main costs far more for a player with a narrow pool, and less if they have a backup in the same role. In the raw data, a team whose one-trick (70% or more of their
           playtime on one hero) has that hero banned wins 9.7 points less often. The model gives 9.4.</li>
-        <li><b><i>P</i><sub>later</sub> and the reply</b>: a ban model fitted on every Season 10 ban. Teams avoid banning their own players' heroes, ban heroes that beat what they play, and react to earlier bans.
-          It gives the chance a hero goes later anyway, and how your ban changes theirs.</li>
+        <li><b>The simulated bans</b>: a ban model fitted on every Season 10 ban. Teams avoid banning their own players' heroes, ban heroes that beat what they play, and react to earlier bans.
+          It sees your hovers only when it bans for your team.</li>
       </ul>
       <figure><div class="cols">${[0, 1, 2].map(panel).join("")}</div>
         <figcaption><span id="methodFig">Figure 3.</span> Cost to a team of losing each hero, in win-probability points, by average lobby rank (${lg}). Averaged over maps.
         A negative value means the team does better on its next choice, so banning that hero helps whoever planned to play it.</figcaption></figure>
       <h2>Checks on 27,016 later matches</h2>
+      <p class="small">From the notebook run that fitted these models. ${META.version >= 6 ? `The last two lines score real bans with this page's value function, on ${fmt(v.bans.matches)} of those matches
+      (each ban needs its own simulated ban phase).` : `The last two lines score bans with the notebook's earlier value formula (before the simulated ban phase replaced the
+      "banned later" discount and the reply term).`}</p>
       <table><tr><th>Check (matches the model never saw)</th><th class="r">Result</th></tr>
         <tr><td>Predicting the other team's heroes before any ban (cross-entropy, against ${L_["0"].bce_popularity.toFixed(4)} from popularity alone)</td><td class="r">${L_["0"].bce_model.toFixed(4)}</td></tr>
         <tr><td>&hellip; after three bans / after all six</td><td class="r">${L_["3"].bce_model.toFixed(4)} / ${L_["6"].bce_model.toFixed(4)}</td></tr>
         <tr><td>Share of the other team's six heroes in the model's top six guesses, after all six bans</td><td class="r">${pct(L_["6"].top6_recall)}</td></tr>
         <tr><td>Win probability a typical team's three bans leave on the table, by the model's own values</td><td class="r">${v.bans.mean_regret_pp.toFixed(2)} pts</td></tr>
         <tr><td>Do teams whose real bans scored higher win more? Slope of winning on ban value (1 = right size)</td><td class="r">${v.bans.slope.toFixed(2)} ± ${(1.96 * v.bans.slope_se).toFixed(2)}</td></tr></table>
-      <p class="small">The last line is inconclusive. Real teams' bans differ by fractions of a point, and 27k coin-flip outcomes can only detect a slope of about ±${v.bans.detectable_slope_80pct.toFixed(1)}.
+      <p class="small">The last line is inconclusive. Real teams' bans differ by fractions of a point, and ${fmt(v.bans.matches || 27016)} coin-flip outcomes can only detect a slope of about ±${v.bans.detectable_slope_80pct.toFixed(1)}.
       Each piece of the model is checked separately instead. Bans reveal only a little about a team you can't see. Your teammates' hovers reveal much more. A good ban is worth about
       one point of win probability per game, and bans within about 0.1 points of each other are tied.</p>
       <h2>Limits</h2>
@@ -519,7 +543,9 @@
         <li>Ranks map to scores at about 100 points per division (Grandmaster 3 ≈ 4,550). The exact tier boundaries are approximate.</li>
         <li>Hovers are not in the data. The model treats a shown hero as that player's likely pick and assumes a hover sticks about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
-        <li>Values are first order. A ban that reshapes a whole composition is only approximated, and on a two-ban turn the second suggestion is the best ban once the first is in, not a search over every pair.</li>
+        <li>Values are first order in each banned hero. A ban that reshapes a whole composition is only approximated. The re-draft simulator re-drafts both teams and catches more of that.</li>
+        <li>Pairs are searched among the ten best single bans, not every pair.</li>
+        <li>Intervals take the fitted models as given. They do not include the uncertainty from refitting the models on other matches, which is larger.</li>
       </ul>`;
   }
 
