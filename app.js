@@ -109,22 +109,25 @@
       update(false);
     });
   }
-  const top2 = P => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 2).map(h => ({ h, p: P[h] }));
+  const topK = (P, k) => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, k).map(h => ({ h, p: P[h] })), top2 = P => topK(P, 2);
   function renderBans() {
     const e = nextBan(), cnt = turnCount();
-    const sug = ourTurn() && RES ? topBans(cnt) : [];
+    const sug = ourTurn() && RES ? topBans(cnt) : [], FB = [], seen = new Set();
+    for (let i = e; i < 6; i++) if (!ours(i) && FC && FC.top[i]) {        // forecast of their ban in each box (exact for the next one), skipping heroes an earlier box already shows
+      const L = (i === e && THEIRS ? topK(THEIRS, 8) : FC.top[i]).filter(r => !seen.has(r.h)); if (L.length) { FB[i] = L.slice(0, 2); seen.add(L[0].h); }
+    }
     $("banSlots").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
       const s = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined;
-      const f = h === undefined && !ours(i) && FC && FC.top[i] ? (i === e && THEIRS ? top2(THEIRS) : FC.top[i]) : null;   // forecast of their ban in this box (exact for the next one)
+      const f = h === undefined && FB[i] ? FB[i] : null;
       const pic = h !== undefined ? `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x">✕</span>`
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
                 : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : (i + 1);
       const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>`
-                : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : "";
+                : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}${f[1] ? `<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : ""}` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
-          : f ? `their likeliest ban here${i === e ? ". Click if they banned " + esc(NAMES[f[0].h]) : ""}` : "click, then pick the banned hero"}">
+          : f ? (i === e ? `their likeliest ban here. Click if they banned ${esc(NAMES[f[0].h])}` : "their likeliest ban here among heroes not shown in an earlier box") : "click, then pick the banned hero"}">
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
@@ -195,7 +198,7 @@
         (o ? bu : bt)[h] = 1; cnt[ep][h] += 1 / NS;
       }
     }
-    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 2).map(h => ({ h, p: c[h] }))) };
+    return { top: cnt.map((c, ep) => ep < e ? null : Array.from(c.keys()).sort((a, b) => c[b] - c[a]).slice(0, 8).map(h => ({ h, p: c[h] }))) };
   }
   function whySplit(s, P) {                            // the ban model's utility for their next ban, split into its terms, against an average legal hero
     const B = META.ban, C = META.C, e = s.bans.length, bd = E.band(s.r0), m = s.m, BU = new Uint8Array(H), BT = new Uint8Array(H);
