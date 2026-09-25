@@ -119,20 +119,20 @@
   <span>Rank <select id="tierSel"></select></span>
   <span>Map <select id="mapSel"></select></span>
   <span>We ban <button id="firstBtn">first</button><button id="secondBtn">second</button></span>
-  <span>Model <button id="valueBtn" title="Neural lineup model with exact removal costs; fast">Ban value</button><button id="simBtn" title="Full re-draft simulation; slower and noisier">Re-draft simulator</button></span>
+  <span>Model <button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span>
   <span><button id="resetBtn">Reset</button> <button id="linkBtn">Copy link</button> <button id="themeBtn">Dark</button></span>
   <span class="small" id="busy">computing</span>
 </div>
 
 <div class="mainRow">
 <section id="lobby">
-  <h2>Your team <span class="small">&nbsp;you and any teammate hovers (leave blanks blank)</span></h2>
+  <h2>Your team <span class="small">&nbsp;your hero first, then any teammate hovers</span></h2>
   <div class="slots" id="teamSlots"></div>
-  <h2>Ban phase <span class="small">&nbsp;in order; <span class="sideB">us</span> / <span class="sideR">them</span></span></h2>
+  <h2>Ban phase <span class="small">&nbsp;in order, <span class="sideB">us</span> and <span class="sideR">them</span></span></h2>
   <div class="slots" id="banSlots"></div>
   <p class="small" id="turnHint"></p>
   <h2>Heroes</h2>
-  <p class="small">Click a hero to put it in the highlighted slot. Or type:
+  <p class="small">Click a hero to fill the highlighted slot, or type a name:
     <input type="text" id="search" placeholder="type a hero, Enter" autocomplete="off">
     <span class="small" id="matches"></span><br>
     <span id="target"></span> &nbsp;<kbd>Enter</kbd> picks the first match, <kbd>Backspace</kbd> on an empty box undoes the last ban.</p>

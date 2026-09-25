@@ -135,7 +135,7 @@
                : e < 6 ? `<b>ban #${e + 1}</b> (${ours(e) ? "us" : "them"})` : "nowhere (ban phase complete)";
     $("target").innerHTML = "Next pick goes to " + dest + ".";
     $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." :
-      ourTurn() ? `Next: <span class="sideB">our ban #${e + 1}</span>${turnCount() === 2 ? ` and #${e + 2}` : ""}. Suggestions show dashed; click one to use it.`
+      ourTurn() ? `Next: <span class="sideB">our ban #${e + 1}</span>${turnCount() === 2 ? ` and #${e + 2}` : ""}. The dashed portrait is the suggestion. Click it to use it.`
                 : `Next: <span class="sideR">their ban #${e + 1}</span>. Pick the hero they ban.`;
   }
   function renderRoster() {
@@ -214,44 +214,44 @@
   }
   function renderAdvice() {
     const e = nextBan(), R = RES; let html = "";
-    if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. The charts below show what each team is now likely to open.</p>`;
+    if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. Figures 2 and 3 show what each team is now likely to open.</p>`;
     else if (ourTurn() && st.model === "sim") html += simAdvice();
     else if (ourTurn()) {
       const cnt = turnCount(), top = topBans(15), best = top.slice(0, cnt);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
       html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")}
-        <span class="small">&nbsp;${best.map(h => `${pp(R.V[h])} ± ${(196 * R.se[h]).toFixed(2)}`).join(", ")} win-probability points${cnt === 2 ? " (values add to first order)" : ""}</span></p>`;
+        <span class="small">&nbsp;${best.map(h => `${pp(R.V[h])} ± ${(196 * R.se[h]).toFixed(2)}`).join(", ")} points of win probability${cnt === 2 ? " (the two values add)" : ""}</span></p>`;
       html += `<figure>${valueChart(top.slice(0, 12).map(h => ({ h, v: R.V[h], se: R.se[h] })))}
-        <figcaption>Figure 1. Value of each candidate ban: the change in your team's win probability, in points, against not banning it.
-        Whiskers are 95% intervals from the model ensemble and the bootstrap of removal costs. Red bars would help the other team.</figcaption></figure>`;
+        <figcaption>Figure 1. Change in your team's win probability from each ban, in points, against leaving the hero open.
+        Whiskers are 95% intervals from the four networks and the bootstrap of removal costs. A red bar means the ban helps the other team.</figcaption></figure>`;
       html += `<div style="overflow-x:auto"><table><tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th></th><th class="r">They open</th><th class="r">You open</th>
-        <th class="r">Cost to lose</th><th class="r">Goes later</th><th class="r">Their reply</th></tr>` +
+        <th class="r">Cost to lose</th><th class="r">Banned later</th><th class="r">Their reply</th></tr>` +
         top.map((h, k) => `<tr class="pick" data-h="${h}" title="click to ban ${esc(NAMES[h])}"><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td><td>${esc(NAMES[h])}</td>
           <td class="r">${pp(R.V[h])}</td><td><span class="bar" style="width:${Math.max(0, R.V[h]) / Math.max(1e-9, R.V[top[0]]) * 60}px"></span></td>
           <td class="r">${pct(R.Pt[h])}</td><td class="r">${pct(R.Pu[h])}</td><td class="r">${(100 * R.R[h]).toFixed(1)}</td><td class="r">${pct(R.PL[h])}</td>
           <td class="r">${pp(R.reply[h])}</td></tr>`).join("") + `</table></div>
-        <p class="small">They open / you open: chance each team opens the hero if it stays available. Cost to lose: points the team that would open it loses when it can't
-        (averaged over the real players who open it at your rank, adjusted for the heroes your team shows). Goes later: chance it is banned later anyway.
+        <p class="small">They open, you open: chance each team opens the hero if it stays available. Cost to lose: points the team that would open it loses without it,
+        averaged over real players who open it at your rank and adjusted for the heroes your team shows. Banned later: chance it is banned later anyway.
         Their reply: value of how your ban changes the other team's remaining bans. Click a row to ban it.</p>`;
       const h = best[0], later = 1 - R.PL[h];
-      html += `<h2>How the top ban is valued</h2><table class="eq">
+      html += `<h2>Where the ${esc(NAMES[h])} value comes from</h2><table class="eq">
         <tr><td>They open ${esc(short(h))}</td><td class="r">${pct(R.Pt[h])}</td><td class="op">×</td><td>cost to them</td><td class="r">${(100 * R.R[h]).toFixed(2)}</td><td class="op">=</td><td class="r">${pp(R.Pt[h] * R.R[h])}</td></tr>
         <tr><td>You open ${esc(short(h))}</td><td class="r">${pct(R.Pu[h])}</td><td class="op">×</td><td>cost to you</td><td class="r">${(100 * R.Rus[h]).toFixed(2)}</td><td class="op">=</td><td class="r">${pp(-R.Pu[h] * R.Rus[h])}</td></tr>
-        <tr><td>Not banned later anyway</td><td class="r">${pct(later)}</td><td class="op">×</td><td>net</td><td></td><td class="op">=</td><td class="r">${pp(R.first[h])}</td></tr>
+        <tr><td>Not banned later anyway</td><td class="r">${pct(later)}</td><td class="op">×</td><td>difference</td><td></td><td class="op">=</td><td class="r">${pp(R.first[h])}</td></tr>
         <tr><td>Their reply</td><td></td><td></td><td></td><td></td><td class="op">+</td><td class="r">${pp(R.reply[h])}</td></tr>
         <tr><td><b>Value</b></td><td></td><td></td><td></td><td></td><td class="op">=</td><td class="r"><b>${pp(R.V[h])}</b></td></tr></table>
-        <p class="small">Points of win probability. The first-order line uses the ensemble average, so its product can differ slightly from the rows above.</p>`;
+        <p class="small">Points of win probability. The third line averages over the four networks, so it can differ slightly from the product of the rounded rows.</p>`;
     } else {
       const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 10);
       html += `<h2>Their ban #${e + 1}</h2><p class="big">Most likely: ${top.slice(0, 3).map(h => `<b>${esc(NAMES[h])}</b> ${pct(THEIRS[h])}`).join(", ")}</p>
-        <figure>${probChart(top.map(h => ({ h, p: THEIRS[h] })), "them", 420)}<figcaption>Figure 1. What a typical team in their position bans next
-        (ban model: map, rank, ban order, what the team plays, what it fears, and the bans so far). Enter what they actually ban in the ban phase.</figcaption></figure>`;
+        <figure>${probChart(top.map(h => ({ h, p: THEIRS[h] })), "them", 420)}<figcaption>Figure 1. What a typical team in their position bans next, from the ban model (map, rank, ban order, the heroes the team plays and fears, and the bans so far).
+        Enter what they actually ban in the ban phase.</figcaption></figure>`;
     }
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(R.Pt.keys()).filter(h => !bans.has(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 10);
     const us = Array.from(R.Pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => R.Pu[b] - R.Pu[a]).slice(0, 10);
     const fn = ourTurn() && st.model === "sim" && SIM ? 4 : 2;
-    html += `<h2>What the lobby tells us</h2><div class="cols">
+    html += `<h2>Most likely openers: ${esc(NAMES[them[0]])} for them, ${esc(NAMES[us[0]])} for you</h2><div class="cols">
       ${colFig(probChart(them.map(h => ({ h, p: R.Pt[h] })), "them"), `Figure ${fn}. Heroes the other team is likely to open, given the bans so far.
       Teams protect their own heroes and ban what beats them, so their bans shift this.`)}
       ${colFig(probChart(us.map(h => ({ h, p: R.Pu[h] })), "us"), `Figure ${fn + 1}. Heroes your team is likely to fill in around the heroes shown.`)}</div>`;
@@ -263,15 +263,15 @@
   function simAdvice() {
     const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
     const bar = `<div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
-    if (!SIM) return html + bar + `<p class="small">Every legal ban gets 6 simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs;
-      the 12 best then get 10 more.</p>`;
+    if (!SIM) return html + bar + `<p class="small">Every legal ban gets 6 simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
+      The 12 best then get 10 more.</p>`;
     const S = SIM, top = topBans(15), best = top.slice(0, cnt);
-    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban;
-      expected win with a typical ban ${(100 * S.base).toFixed(1)}%</span></p>`;
+    html += `<p class="big">Ban ${best.map(h => `<b>${esc(NAMES[h])}</b>`).join(" and ")} <span class="small">&nbsp;${best.map(h => `${pp(S.V[h])} ± ${(196 * S.se[h]).toFixed(2)}`).join(", ")} points against a typical ban.
+      Your chance of winning after a typical ban: ${(100 * S.base).toFixed(1)}%</span></p>`;
     html += S.prelim ? bar : `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     html += `<figure>${valueChart(top.slice(0, 12).map(h => ({ h, v: S.V[h], se: S.se[h] })))}<figcaption>Figure 1. Change in your team's win probability, in points,
       from banning each hero instead of what a typical team would ban here. Whiskers are 95% intervals over the simulated continuations, paired so every ban faces the same
-      stand-ins and random draws. Rankings inside overlapping whiskers are not reliable.</figcaption></figure>`;
+      stand-in players and random draws. Rankings inside overlapping whiskers are not reliable.</figcaption></figure>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
     html += `<div style="overflow-x:auto"><table><tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th class="r">± 95%</th><th class="r">Win if banned</th><th class="r">They draft it</th><th>They switch to</th><th class="r">Runs</th></tr>` +
       top.map((h, k) => `<tr class="pick" data-h="${h}" title="click to ban ${esc(NAMES[h])}"><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td><td>${esc(NAMES[h])}</td>
@@ -282,7 +282,8 @@
     const h = best[0], dO = [], dU = [];
     for (let x = 0; x < H; x++) { dO.push({ h: x, d: S.co[h][x] - S.baseCo[x] }); dU.push({ h: x, d: S.cu[h][x] - S.baseCu[x] }); }
     const big = a => a.filter(r => Math.abs(r.d) >= .005).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 10).sort((a, b) => b.d - a.d);
-    html += `<h2>What banning ${esc(NAMES[h])} changes</h2><div class="cols">
+    const up = big(dO).filter(r => r.d > 0 && r.h !== h).slice(0, 2);
+    html += `<h2>Banning ${esc(NAMES[h])}${up.length ? " moves them to " + up.map(r => `${esc(NAMES[r.h])} (+${(100 * r.d).toFixed(0)})`).join(" and ") : ""}</h2><div class="cols">
       ${colFig(shiftChart(big(dO), "them"), "Figure 2. The other team's simulated drafts: change in the share that include each hero, in points, against a typical ban.")}
       ${colFig(shiftChart(big(dU), "us"), "Figure 3. Your team's simulated drafts, the same comparison.")}</div>`;
     return html;
@@ -294,7 +295,7 @@
   let pool = [], RUN = null, SIM = null, simId = 0;
   function newWorker() { const w = new Worker("sim-worker.js"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
-  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; $("mainEl").classList.remove("busy"); const el = $("simMsg"); if (el) el.textContent = "The simulator could not start in this browser; the ban value model still works."; }
+  function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; $("mainEl").classList.remove("busy"); const el = $("simMsg"); if (el) el.textContent = "The simulator could not start in this browser. The ban value model still works."; }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
   function startSim(s) {
     ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
@@ -384,37 +385,37 @@
     const lg = bandLab.map((b, k) => `<svg width="10" height="10" style="display:inline;vertical-align:-1px"><g style="color:var(--ink)">${mark(k, 5, 5)}</g></svg> ${b}`).join(" &nbsp; ");
     const L_ = v.lineup;
     $("method").innerHTML = `<h2>Method</h2>
-      <p>In ranked you rarely know who the other team is. A ban works by taking a hero away from both teams, so what matters is how likely each team is to open it,
-      how much losing it costs whoever would have played it, and whether it would have been banned anyway. For every legal ban <i>x</i>, the value in win probability is</p>
+      <p>A ban removes a hero from both teams, and in ranked you usually don't know who is on the other side. Its value depends on how likely each team is to open the hero,
+      what losing it costs the team that would have played it, and whether it would be banned later anyway. For every legal ban <i>x</i>, the value in win probability is</p>
       <p class="formula">V(<i>x</i>) = (1 − <i>P</i><sub>later</sub>(<i>x</i>)) × [ <i>P</i><sub>them</sub>(<i>x</i>) × <i>R</i><sub>them</sub>(<i>x</i>) − <i>P</i><sub>us</sub>(<i>x</i>) × <i>R</i><sub>us</sub>(<i>x</i>) ] + reply(<i>x</i>)</p>
       <ul>
         <li><b><i>P</i><sub>them</sub>, <i>P</i><sub>us</sub></b>: a masked team-lineup network (two hidden layers of 512, an ensemble of four) that sees only what a lobby shows: the bans so far and who made them,
           the heroes your team shows, map, rank and side. It was trained on 243k Season 10 matches with random parts of each team hidden.</li>
         <li><b><i>R</i></b>: the cost of losing a hero, computed with a fitted outcome model on 1.8 million real opening picks. Each player is moved to their next choice (from a pick model) and the change
           in the team's win probability is recorded. That includes the hero, map, side, rank, compositions, teammates and matchups, and the player's familiarity with both heroes.
-          A player knocked off a hero they rely on loses far more than one with a wide pool: in the raw data, a team whose one-trick loses their main to a ban wins 7.5 points less often.</li>
+          Losing a main costs far more for a player with a narrow pool. In the raw data, a team whose one-trick has their main banned wins 7.5 points less often.</li>
         <li><b><i>P</i><sub>later</sub> and the reply</b>: a ban model fitted on every Season 10 ban. Teams avoid banning their own players' heroes, ban heroes that beat what they play, and react to earlier bans.
           It gives the chance a hero goes later anyway, and how your ban changes theirs.</li>
       </ul>
       <figure><div class="cols">${[0, 1, 2].map(panel).join("")}</div>
         <figcaption>Figure 4. Cost to a team of losing each hero, in win-probability points, by average lobby rank (${lg}). Averaged over maps.
-        Negative values: the team does better on its next choice, so banning that hero helps whoever planned to play it.</figcaption></figure>
-      <h2>How well it holds up</h2>
-      <table><tr><th>Check, on 27,016 later matches the model never saw</th><th class="r">Result</th></tr>
-        <tr><td>Predicting the other team's heroes before any ban (cross-entropy; popularity baseline ${L_["0"].bce_popularity.toFixed(4)})</td><td class="r">${L_["0"].bce_model.toFixed(4)}</td></tr>
+        A negative value means the team does better on its next choice, so banning that hero helps whoever planned to play it.</figcaption></figure>
+      <h2>Checks on 27,016 later matches</h2>
+      <table><tr><th>Check (matches the model never saw)</th><th class="r">Result</th></tr>
+        <tr><td>Predicting the other team's heroes before any ban (cross-entropy, against ${L_["0"].bce_popularity.toFixed(4)} from popularity alone)</td><td class="r">${L_["0"].bce_model.toFixed(4)}</td></tr>
         <tr><td>&hellip; after three bans / after all six</td><td class="r">${L_["3"].bce_model.toFixed(4)} / ${L_["6"].bce_model.toFixed(4)}</td></tr>
         <tr><td>Share of the other team's six heroes in the model's top six guesses, after all six bans</td><td class="r">${pct(L_["6"].top6_recall)}</td></tr>
         <tr><td>Win probability a typical team's three bans leave on the table, by the model's own values</td><td class="r">${v.bans.mean_regret_pp.toFixed(2)} pts</td></tr>
         <tr><td>Do teams whose real bans scored higher win more? Slope of winning on ban value (1 = right size)</td><td class="r">${v.bans.slope.toFixed(2)} ± ${(1.96 * v.bans.slope_se).toFixed(2)}</td></tr></table>
-      <p class="small">The last line is inconclusive: real teams' bans differ by fractions of a point, and 27k coin-flip outcomes can only detect a slope of about ±${v.bans.detectable_slope_80pct.toFixed(1)}.
-      Each piece of the model is checked separately instead. Bans reveal only a little about a team you can't see; your teammates' hovers reveal much more. A good ban is worth about
-      one point of win probability per game, and candidates within about 0.1 points of each other are effectively tied.</p>
+      <p class="small">The last line is inconclusive. Real teams' bans differ by fractions of a point, and 27k coin-flip outcomes can only detect a slope of about ±${v.bans.detectable_slope_80pct.toFixed(1)}.
+      Each piece of the model is checked separately instead. Bans reveal only a little about a team you can't see. Your teammates' hovers reveal much more. A good ban is worth about
+      one point of win probability per game, and bans within about 0.1 points of each other are tied.</p>
       <h2>Limits</h2>
       <ul class="small">
         <li>Fitted on PC ranked Season 10 matches from 11 to 21 September 2026, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
         <li>Ranks map to scores at about 100 points per division (Grandmaster 3 ≈ 4,550). The exact tier boundaries are approximate.</li>
         <li>Hovers are not in the data. The model treats a shown hero as that player's likely pick and assumes a hover sticks about four times in five.</li>
-        <li>Every other player is anonymous: the values average over the real players who play at your rank, not the people in your lobby.</li>
+        <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
         <li>Values are first order. A ban that reshapes a whole composition is only approximated, and on a two-ban turn the two values are simply added.</li>
       </ul>`;
   }
