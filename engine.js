@@ -1,4 +1,5 @@
-/* Ban value engine, v7 (a port of the notebook's Part B `ban_values`; tools/engine_ref.py mirrors it in numpy).
+/* Ban value engine, v7.1 (a port of the notebook's Part B; tools/engine_ref.py is the canonical numpy version and states
+   the assumptions behind treating our own bans as interventions).
    A ban's value is a rollout comparison against a typical ban with the same budget:
      value(x) = E[ W(bans from now on | we ban x) ] − E[ W(bans from now on | we ban as a typical team) ]
      W(set)   = Σ over the heroes in the set of  P_them(y)·R_them(y) − P_us(y)·R_us(y)
@@ -8,7 +9,10 @@
    Information boundaries:
      - the other team sees public information only: the bans so far, never our hovers;
      - our own bans are interventions: they remove heroes, but they are not evidence about our players, so our lineup
-       is averaged over the bans a typical team in our seat would have made instead of conditioning on the actual ones.
+       is averaged over legal ban histories a typical team in our seat could have made (never a hero the other team bans
+       at any point), weighted by how likely the other team's actual bans are under each history.
+   v7.1: optional joint-removal terms (a hero's openers also lose their fallback when it is banned too) and an optional
+   richer ban model (responses to the previous ban, position-specific protection and fear), used when the export has them.
    Intervals are conditional on the fitted models: they cover the four lineup networks, the removal-cost bootstrap and
    the rollout noise, not refitting the models.
    Runs in the browser and in Node (tools/check_*.js). */
@@ -43,6 +47,8 @@
       });
       this.FD = this.nets[0].W1_shape[0]; this.HID = this.nets[0].W1_shape[1];
       this._noiseKey = null;
+      this.DP = meta.pair_removal || null;              // [x][y][band]: R(x | y gone too) - R(x)
+      const b = meta.ban; this.B2 = !!b.Lo;              // richer ban model
     }
     band(r0) { let b = 0; for (const t of this.m.bands) if (r0 > t) b++; return b; }
     rankFeat(r0) { let b = 0; for (const t of this.RE) if (r0 > t) b++; return b; }
@@ -111,43 +117,57 @@
       // our team: the raw prediction conditions on our own bans as if they described our players (kept for comparison)
       const xu = this.features(c.rev, c.ownU, c.ownT, c.m, c.rf, c.sideUs, c.e);
       const PuRaw = nets.map(n => this.netProb(n, xu));
-      let PuE, sePu = new Float64Array(H);
+      let PuE, sePu = new Float64Array(H), ess = this.NOWN;
       if (!c.ownU.length) PuE = PuRaw.map(P => this.fixUp(P.slice(), c, c.rev));
       else {                                           // our bans are interventions: average over typical own-ban histories
         const prior = new Float64Array(H), x0 = this.features(c.rev, [], [], c.m, c.rf, c.sideUs, 0);
         for (const n of nets) { const P = this.netProb(n, x0); for (let h = 0; h < H; h++) prior[h] += P[h] / nets.length; }
         for (const h of c.rev) prior[h] = 1;
-        const R = rng(c.seedOwn ^ 0x9e3779b9), sum = nets.map(() => new Float64Array(H)), cnt = new Float64Array(H), sm = new Float64Array(H), sq = new Float64Array(H);
+        const priorT = new Float64Array(H), x0t = this.features([], [], [], c.m, c.rf, 1 - c.sideUs, 0);
+        for (const n of nets) { const P = this.netProb(n, x0t); for (let h = 0; h < H; h++) priorT[h] += P[h] / nets.length; }
+        const R = rng(c.seedOwn ^ 0x9e3779b9), hist = [];
         for (let s = 0; s < this.NOWN; s++) {
-          const own = new Uint8Array(H), oth = new Uint8Array(H), done = new Uint8Array(H), mine = [];
+          const own = new Uint8Array(H), oth = new Uint8Array(H), done = new Uint8Array(H), mine = []; let lw = 0, last = null;   // last: [hero, banned by us]
           for (let i = 0; i < c.e; i++) {
             const h0 = c.bans[i];
-            if (!c.ours(i)) { oth[h0] = 1; done[h0] = 1; continue; }
-            const u = this.banUtil(i, prior, own, oth, c.m, c.bd); let best = -1, bv = -Infinity;
-            for (let h = 0; h < H; h++) { if (done[h] || c.rv[h]) continue; const v = u[h] + gumbel(R); if (v > bv) { bv = v; best = h; } }
-            own[best] = 1; done[best] = 1; mine.push(best);
+            if (!c.ours(i)) {                            // their actual ban: how likely it is after this history
+              const u = this.banUtil(i, priorT, oth, own, c.m, c.bd, last ? [last[0], !last[1]] : null); let mx = -Infinity, se = 0;
+              for (let h = 0; h < H; h++) if (!done[h] && u[h] > mx) mx = u[h];
+              for (let h = 0; h < H; h++) if (!done[h]) se += Math.exp(u[h] - mx);
+              lw += u[h0] - (mx + Math.log(se)); oth[h0] = 1; done[h0] = 1; last = [h0, false]; continue;
+            }
+            const u = this.banUtil(i, prior, own, oth, c.m, c.bd, last); let best = -1, bv = -Infinity;
+            for (let h = 0; h < H; h++) { if (done[h] || c.BT[h] || c.rv[h]) continue; const v = u[h] + gumbel(R); if (v > bv) { bv = v; best = h; } }
+            own[best] = 1; done[best] = 1; mine.push(best); last = [best, true];
           }
-          const xs = this.features(c.rev, mine, c.ownT, c.m, c.rf, c.sideUs, c.e);
-          const pm = new Float64Array(H);
-          nets.forEach((n, k) => { const P = this.netProb(n, xs); for (let h = 0; h < H; h++) if (!own[h]) { sum[k][h] += P[h]; pm[h] += P[h] / nets.length; } });
-          for (let h = 0; h < H; h++) if (!own[h]) { cnt[h] += 1; sm[h] += pm[h]; sq[h] += pm[h] * pm[h]; }
+          hist.push({ mine, own, lw });
         }
-        PuE = nets.map((n, k) => { const P = new Float64Array(H); for (let h = 0; h < H; h++) P[h] = cnt[h] ? sum[k][h] / cnt[h] : PuRaw[k][h]; return this.fixUp(P, c, c.rev); });
-        sePu = new Float64Array(H);                    // Monte Carlo error of the average (0 where the hero is shown or banned)
-        for (let h = 0; h < H; h++) if (c.legal[h] && !c.rv[h] && cnt[h] > 1) { const m = sm[h] / cnt[h]; sePu[h] = Math.sqrt(Math.max(0, sq[h] / cnt[h] - m * m) / (cnt[h] - 1)); }
+        let lmx = -Infinity; for (const x of hist) lmx = Math.max(lmx, x.lw);
+        let ws = 0, ws2 = 0; for (const x of hist) { x.w = Math.exp(x.lw - lmx); ws += x.w; ws2 += x.w * x.w; } ess = ws * ws / ws2;
+        const sum = nets.map(() => new Float64Array(H)), den = new Float64Array(H), m1 = new Float64Array(H), m2 = new Float64Array(H), w2 = new Float64Array(H);
+        for (const x of hist) {
+          const xs = this.features(c.rev, x.mine, c.ownT, c.m, c.rf, c.sideUs, c.e), pm = new Float64Array(H), wt = x.w;
+          nets.forEach((n, k) => { const P = this.netProb(n, xs); for (let h = 0; h < H; h++) if (!x.own[h]) { sum[k][h] += wt * P[h]; pm[h] += P[h] / nets.length; } });
+          for (let h = 0; h < H; h++) if (!x.own[h]) { den[h] += wt; m1[h] += wt * pm[h]; m2[h] += wt * pm[h] * pm[h]; w2[h] += wt * wt; }
+        }
+        PuE = nets.map((n, k) => { const P = new Float64Array(H); for (let h = 0; h < H; h++) P[h] = den[h] > 0 ? sum[k][h] / den[h] : PuRaw[k][h]; return this.fixUp(P, c, c.rev); });
+        for (let h = 0; h < H; h++) if (c.legal[h] && !c.rv[h] && den[h] > 0) {   // weighted mean's error (Kish)
+          const m = m1[h] / den[h], v = Math.max(0, m2[h] / den[h] - m * m); sePu[h] = Math.sqrt(v * w2[h] / (den[h] * den[h]));
+        }
       }
       const mean = A => { const o = new Float64Array(H); for (const a of A) for (let h = 0; h < H; h++) o[h] += a[h] / A.length; return o; };
       const raw = (P, fixed) => { const Q = P.slice(); for (let h = 0; h < H; h++) if (!c.legal[h]) Q[h] = 0; for (const h of fixed) Q[h] = 1; return Q; };   // v6: banned 0, shown 1, nothing else
-      return { PuE, PtE, sePu, pu: mean(PuE), pt: mean(PtE), puRaw: mean(PuRaw.map(P => raw(P, c.rev))), ptRaw: mean(PtRaw.map(P => raw(P, []))) };
+      return { PuE, PtE, sePu, ess, pu: mean(PuE), pt: mean(PtE), puRaw: mean(PuRaw.map(P => raw(P, c.rev))), ptRaw: mean(PtRaw.map(P => raw(P, []))) };
     }
     // ---- ban model
-    banUtil(ep, rel, own, oth, m, bd) {
+    banUtil(ep, rel, own, oth, m, bd, last) {         // last: [hero, same team] of the ban at ep - 1 (richer ban model)
       const b = this.m.ban, H = this.H, u = new Float64Array(H);
       for (let h = 0; h < H; h++) {
         let v = b.a[h] + b.am[m][h] + b.ab[bd][h] + b.ae[ep][h] - b.lam * rel[h], cr = 0, ro = 0;
         const Ch = this.m.C[h]; for (let j = 0; j < H; j++) cr += Ch[j] * rel[j];
         for (let i = 0; i < H; i++) { if (own[i]) ro += b.Ro[i][h]; if (oth[i]) ro += b.Rt[i][h]; }
         u[h] = v + b.gam * cr + ro;
+        if (this.B2) { u[h] += -b.lam_e[ep] * rel[h] + b.gam_e[ep] * cr; if (last) u[h] += (last[1] ? b.Lo : b.Lt)[last[0]][h]; }
       }
       return u;
     }
@@ -167,7 +187,9 @@
         if (c.BU[h0]) for (let h = 0; h < H; h++) { respU[h] += b.Ro[h0][h]; respT[h] += b.Rt[h0][h]; }
         if (c.BT[h0]) for (let h = 0; h < H; h++) { respT[h] += b.Ro[h0][h]; respU[h] += b.Rt[h0][h]; }
       }
-      return { c, baseU: base(pu), baseT: base(pt), respU, respT, G: this.noise(c) };
+      const fear = rel => { const f = new Float64Array(H); for (let h = 0; h < H; h++) { let cr = 0; for (let j = 0; j < H; j++) cr += C[h][j] * rel[j]; f[h] = cr; } return f; };
+      const last = c.e > 0 ? [c.bans[c.e - 1], c.ours(c.e - 1)] : null;          // [hero, banned by us]
+      return { c, baseU: base(pu), baseT: base(pt), respU, respT, G: this.noise(c), relU: pu, relT: pt, fearU: fear(pu), fearT: fear(pt), last };
     }
     noise(c) {                                         // Gumbel noise per rollout, ban position and hero; it depends on the lobby, not on the bans
       const key = c.seed + ":" + this.NS;             // so the state after a ban reuses the same draws for the positions still to come
@@ -184,15 +206,23 @@
       const rU = new Float64Array(H), rT = new Float64Array(H), done = new Uint8Array(H), seq = new Int32Array(6 - e);
       for (let s = 0; s < NS; s++) {
         rU.set(rc.respU); rT.set(rc.respT); done.set(c.BU); for (let h = 0; h < H; h++) if (c.BT[h]) done[h] = 1;
+        let last = rc.last;
         for (let ep = e; ep < 6; ep++) {
           const us = c.ours(ep); let h = -1;
           if (ep - e < prefix.length) h = prefix[ep - e];
           else if (fix && fix[ep] !== undefined && !done[fix[ep]]) h = fix[ep];
           else {
             const base = us ? rc.baseU : rc.baseT, resp = us ? rU : rT, ae = b.ae[ep], g = (s * 6 + ep) * H; let bv = -Infinity;
-            for (let x = 0; x < H; x++) { if (done[x] || (us && c.rv[x])) continue; const v = base[x] + ae[x] + resp[x] + G[g + x]; if (v > bv) { bv = v; h = x; } }
+            const B2 = this.B2, rel = us ? rc.relU : rc.relT, fr = us ? rc.fearU : rc.fearT, le = B2 ? b.lam_e[ep] : 0, ge = B2 ? b.gam_e[ep] : 0;
+            const Lrow = B2 && last ? (last[1] === us ? b.Lo : b.Lt)[last[0]] : null;
+            for (let x = 0; x < H; x++) {
+              if (done[x] || (us && c.rv[x])) continue;
+              let v = base[x] + ae[x] + resp[x] + G[g + x];
+              if (B2) { v += -le * rel[x] + ge * fr[x]; if (Lrow) v += Lrow[x]; }
+              if (v > bv) { bv = v; h = x; }
+            }
           }
-          done[h] = 1; seq[ep - e] = h;
+          done[h] = 1; seq[ep - e] = h; last = [h, us];
           const Ro = b.Ro[h], Rt = b.Rt[h], own = us ? rU : rT, oth = us ? rT : rU;
           for (let x = 0; x < H; x++) { own[x] += Ro[x]; oth[x] += Rt[x]; }
         }
@@ -207,7 +237,7 @@
       const c0 = this.ctx(st), ts = c0.e > 0 && c0.e < 6 && c0.ours(c0.e) && c0.ours(c0.e - 1) ? c0.e - 1 : c0.e;
       const pre = st.bans.slice(ts), c = ts < c0.e ? this.ctx(Object.assign({}, st, { bans: st.bans.slice(0, ts), rev: c0.rev })) : c0;
       const H = this.H, L = this.lineups(c), cnt = Math.min(st.cnt || 1, 6 - c0.e);
-      const out = { Pu: L.pu, Pt: L.pt, PuRaw: L.puRaw, PtRaw: L.ptRaw, legal: c0.legal, band: c.bd, e: c0.e, cnt, turnStart: ts, pre };
+      const out = { Pu: L.pu, Pt: L.pt, PuRaw: L.puRaw, PtRaw: L.ptRaw, legal: c0.legal, band: c.bd, e: c0.e, cnt, turnStart: ts, pre, ess: L.ess };
       if (ts < c0.e) for (const h of pre) { out.Pu = out.Pu.slice(); out.Pt = out.Pt.slice(); out.Pu[h] = 0; out.Pt[h] = 0; }
       if (c0.e >= 6) return out;
       const M = this.m, bd = c.bd, m = c.m, NN = L.PuE.length, NS = this.NS;
@@ -221,9 +251,16 @@
       const w = L.PuE.map((Pu, k) => { const Pt = L.PtE[k], v = new Float64Array(H); for (let y = 0; y < H; y++) v[y] = Pt[y] * (R0[y] + adjC[y]) - Pu[y] * (R0[y] + adjS[y]); return v; });
       const wm = new Float64Array(H); for (const v of w) for (let y = 0; y < H; y++) wm[y] += v[y] / NN;
       const rc = this.rolloutCtx(c, L.pu, L.pt);
+      // joint removal: x's openers also lose y when both are banned (new bans in this rollout, and bans made before the turn)
+      const DP = this.DP, S0 = c.bans, dpt = L.PuE.map((Pu, k) => { const Pt = L.PtE[k], v = new Float64Array(H); for (let y = 0; y < H; y++) v[y] = Pt[y] - Pu[y]; return v; });
+      const ex = new Float64Array(6);
       const Wof = (prefix, rec) => {                   // W per rollout and network: (NN, NS)
         const Wn = w.map(() => new Float64Array(NS));
-        this.rollout(rc, pre.concat(prefix), null, (s, seq) => { for (let k = 0; k < NN; k++) { let t = 0; for (const y of seq) t += w[k][y]; Wn[k][s] = t; } if (rec) rec(seq); });
+        this.rollout(rc, pre.concat(prefix), null, (s, seq) => {
+          if (DP) for (let i = 0; i < seq.length; i++) { const Dx = DP[seq[i]]; let t = 0; for (let j = 0; j < seq.length; j++) if (j !== i) t += Dx[seq[j]][bd]; for (const y of S0) t += Dx[y][bd]; ex[i] = t; }
+          for (let k = 0; k < NN; k++) { let t = 0; for (const y of seq) t += w[k][y]; if (DP) for (let i = 0; i < seq.length; i++) t += dpt[k][seq[i]] * ex[i]; Wn[k][s] = t; }
+          if (rec) rec(seq);
+        });
         return Wn;
       };
       const PLb = new Float64Array(H), Wb = Wof([], seq => { for (const y of seq) PLb[y] += 1 / NS; });
@@ -263,8 +300,8 @@
     }
     // ---- what the other team is likely to ban at position e (they cannot see our hovers)
     theirNextBan(st, res) {
-      const c = this.ctx(st), pt = res ? res.Pt : this.lineups(c).pt;
-      const u = this.banUtil(c.e, pt, c.BT, c.BU, c.m, c.bd), mask = new Uint8Array(this.H); for (let h = 0; h < this.H; h++) mask[h] = c.BU[h] || c.BT[h];
+      const c = this.ctx(st), pt = res ? res.Pt : this.lineups(c).pt, last = c.e > 0 ? [c.bans[c.e - 1], !c.ours(c.e - 1)] : null;   // same team, from their side
+      const u = this.banUtil(c.e, pt, c.BT, c.BU, c.m, c.bd, last), mask = new Uint8Array(this.H); for (let h = 0; h < this.H; h++) mask[h] = c.BU[h] || c.BT[h];
       return BanEngine.softmaxMasked(u, mask);
     }
   }
