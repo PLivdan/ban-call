@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ban Call</title>
+<meta name="description" content="Which hero to ban in Marvel Rivals ranked: a ban value model fitted on Season 10 matches, running in your browser.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper: #ffffff; --ink: #14161a; --faint: #5c5f66; --hair: #c8c8c8;
+    --blue: #2a4bad; --red: #a03232; --safe: #1e6b30;
+    --active: #f2f4fa; --cf: #f6f2e4; --hover: #e2e8f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #15171c; --ink: #e7e5e0; --faint: #9a9da6; --hair: #45484f;
+      --blue: #809be8; --red: #d98a8a; --safe: #74c284;
+      --active: #222736; --cf: #2c2820; --hover: #2b3350;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #15171c; --ink: #e7e5e0; --faint: #9a9da6; --hair: #45484f;
+    --blue: #809be8; --red: #d98a8a; --safe: #74c284;
+    --active: #222736; --cf: #2c2820; --hover: #2b3350;
+  }
+  body { background: var(--paper); color: var(--ink);
+         font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif;
+         font-size: 13px; line-height: 1.3; margin: 14px 12px; }
+  main { max-width: 1480px; margin: 0 auto; }
+  .mainRow { display: flex; gap: 30px; flex-wrap: wrap; align-items: flex-start; }
+  #lobby { flex: 1 1 560px; min-width: 330px; }
+  #advice { flex: 1 1 600px; min-width: 330px; }
+  h1 { font-size: 17px; font-weight: 600; margin: 0 0 2px 0; }
+  h2 { font-size: 13px; font-weight: 600; margin: 18px 0 4px 0;
+       border-bottom: 1px solid var(--ink); padding-bottom: 2px; }
+  h3 { font-size: 11.5px; font-weight: 600; margin: 8px 0 2px 0; color: var(--faint); }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 600; border-bottom: 1px solid var(--ink);
+       padding: 1px 8px 1px 0; font-size: 12px; }
+  td { border-bottom: 1px solid var(--hair); padding: 2px 8px 2px 0;
+       font-size: 12.5px; vertical-align: middle; }
+  td.r, th.r { text-align: right; }
+  input[type=text], select { font-family: inherit; font-size: 12.5px; padding: 1px 2px;
+       background: var(--paper); color: var(--ink); border: 1px solid var(--hair); }
+  input:focus, select:focus, button:focus { outline: 2px solid var(--blue); }
+  button { font-family: inherit; font-size: 12px; background: var(--paper);
+           color: var(--ink); border: 1px solid var(--ink); padding: 1px 8px; cursor: pointer; }
+  button:hover { background: var(--active); }
+  button.on { background: var(--ink); color: var(--paper); }
+  .small { font-size: 11.5px; color: var(--faint); }
+  .sideB { color: var(--blue); font-weight: 600; }
+  .sideR { color: var(--red); font-weight: 600; }
+  .num { color: var(--faint); font-size: 11px; }
+  figure { margin: 8px 0 4px 0; }
+  figcaption { font-size: 11.5px; color: var(--faint); margin-top: 3px; max-width: 640px; }
+  svg { max-width: 100%; height: auto; display: block; }
+  svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; fill: var(--ink); }
+  svg .faint { fill: var(--faint); } svg .us { fill: var(--blue); } svg .them { fill: var(--red); }
+  svg .axis { stroke: var(--ink); stroke-width: 1; } svg .grid { stroke: var(--hair); stroke-width: 1; }
+  svg .whisk { stroke: var(--ink); stroke-width: 1; }
+  .ctrl { margin: 8px 0 2px 0; } .ctrl > span { margin-right: 14px; white-space: nowrap; }
+  /* slots: your team and the ban phase */
+  .slots { display: flex; gap: 6px; flex-wrap: wrap; }
+  .slot { width: 62px; text-align: center; cursor: pointer; user-select: none; }
+  .slot .pic { width: 58px; height: 58px; border: 1px solid var(--hair); background: var(--active);
+               display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative; }
+  .slot .pic img { width: 58px; height: 58px; display: block; }
+  .slot.empty .pic { border-style: dashed; color: var(--faint); font-size: 18px; }
+  .slot.active .pic { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .slot .lab { font-size: 10.5px; color: var(--faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot .who { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+  .slot.us .who { color: var(--blue); } .slot.them .who { color: var(--red); }
+  .slot.us .pic { border-top: 3px solid var(--blue); } .slot.them .pic { border-top: 3px solid var(--red); }
+  .slot .x { position: absolute; top: -1px; right: 1px; font-size: 11px; color: var(--faint); display: none; }
+  .slot:not(.empty):hover .x { display: block; }
+  .slot.sug .pic { border-style: dashed; border-color: var(--blue); }
+  .slot.sug .pic img { opacity: .45; }
+  /* roster */
+  .grid { display: flex; flex-wrap: wrap; gap: 2px 3px; }
+  .tile { width: 50px; text-align: center; cursor: pointer; font-size: 9.5px; line-height: 1.1; position: relative; user-select: none; }
+  .tile img { width: 46px; height: 46px; display: block; margin: 0 auto; border: 1px solid var(--hair); background: var(--active); }
+  .tile:hover img { border-color: var(--ink); }
+  .tile .nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+  .tile.banned img { filter: grayscale(1); opacity: .3; }
+  .tile.banned::after { content: "✕"; position: absolute; top: 9px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
+  .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .tile.dim { opacity: .25; }
+  .tile .rk { position: absolute; top: 0; left: 2px; background: var(--red); color: #fff; font-size: 9.5px;
+              font-weight: 600; padding: 0 3px; }
+  #search { width: 190px; }
+  #matches a { color: var(--blue); text-decoration: none; } #matches a:hover { text-decoration: underline; }
+  #target { font-size: 12px; }
+  /* results */
+  .big { font-size: 15px; margin: 4px 0 2px 0; }
+  .big b { font-weight: 600; }
+  tr.pick { cursor: pointer; } tr.pick:hover td { background: var(--hover); }
+  td img.mini { width: 20px; height: 20px; vertical-align: middle; border: 1px solid var(--hair); }
+  .bar { display: inline-block; height: 7px; background: var(--blue); vertical-align: baseline; }
+  .cols { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .cols > figure { flex: 0 1 300px; margin-top: 4px; }
+  .eq td { border-bottom: none; padding: 0 8px 0 0; }
+  .eq td.op { color: var(--faint); }
+  #busy { visibility: hidden; } main.busy #busy { visibility: visible; }
+  .method p, .method li { max-width: 760px; }
+  .method ul { padding-left: 18px; margin: 4px 0; }
+  .formula { font-family: "Times New Roman", Times, serif; font-size: 15px; margin: 6px 0 6px 12px; }
+  footer { margin-top: 22px; border-top: 1px solid var(--hair); padding-top: 4px; }
+  kbd { font-family: inherit; border: 1px solid var(--hair); padding: 0 3px; font-size: 11px; }
+</style>
+
+<main id="mainEl">
+<h1>Ban Call <span class="small">&nbsp;which hero to ban in Marvel Rivals ranked</span></h1>
+<p class="small" id="status">Loading the model&hellip;</p>
+
+<div class="ctrl">
+  <span>Rank <select id="tierSel"></select></span>
+  <span>Map <select id="mapSel"></select></span>
+  <span>We ban <button id="firstBtn">first</button><button id="secondBtn">second</button></span>
+  <span><button id="resetBtn">Reset</button> <button id="linkBtn">Copy link</button> <button id="themeBtn">Dark</button></span>
+  <span class="small" id="busy">computing&hellip;</span>
+</div>
+
+<div class="mainRow">
+<section id="lobby">
+  <h2>Your team <span class="small">&nbsp;you and any teammate hovers (leave blanks blank)</span></h2>
+  <div class="slots" id="teamSlots"></div>
+  <h2>Ban phase <span class="small">&nbsp;in order; <span class="sideB">us</span> / <span class="sideR">them</span></span></h2>
+  <div class="slots" id="banSlots"></div>
+  <p class="small" id="turnHint"></p>
+  <h2>Heroes</h2>
+  <p class="small">Click a hero to put it in the highlighted slot. Or type:
+    <input type="text" id="search" placeholder="type a hero, Enter" autocomplete="off">
+    <span class="small" id="matches"></span><br>
+    <span id="target"></span> &nbsp;<kbd>Enter</kbd> picks the first match, <kbd>Backspace</kbd> on an empty box undoes the last ban.</p>
+  <div id="roster"></div>
+</section>
+
+<section id="advice">
+  <div id="adviceBody"></div>
+</section>
+</div>
+
+<section class="method" id="method"></section>
+
+<footer class="small">
+  Built from crawled public ranked matches (rivalsmeta.com), Season 10, PC. Not affiliated with or endorsed by NetEase Games or Marvel.
+  Everything runs in your browser; nothing you enter leaves this page.
+</footer>
+</main>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</html>
