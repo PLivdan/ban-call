@@ -12,3 +12,11 @@ for name in ("engine.js", "app.js"):
     t = re.sub(rf'<script src="{re.escape(name)}(\?v=[^"]*)?"></script>', f'<script src="{name}?v={h(name)}"></script>', t)
 page.write_text(t)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)), "| worker", re.search(r'sim-worker\.js\?v=[^"]+', s).group(0))
+# the studio page (studio/) uses the same engine and worker
+st_js = root / "studio" / "studio.js"
+if st_js.exists():
+    s2 = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', st_js.read_text()); st_js.write_text(s2)
+    sp = root / "studio" / "index.html"; t2 = sp.read_text()
+    t2 = re.sub(r'<script src="\.\./engine\.js(\?v=[^"]*)?"></script>', f'<script src="../engine.js?v={h("engine.js")}"></script>', t2)
+    t2 = re.sub(r'<script src="studio\.js(\?v=[^"]*)?"></script>', f'<script src="studio.js?v={h("studio/studio.js")}"></script>', t2)
+    sp.write_text(t2); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)))
