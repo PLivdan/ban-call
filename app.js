@@ -316,7 +316,8 @@
     return Array.from(V.keys()).filter(h => !isNaN(V[h])).sort((a, b) => V[b] - V[a]).slice(0, k);
   }
   // ---------------------------------------------------------------- terminal view: the same results as plain text, drawn with characters
-  let VIEW = "charts"; try { VIEW = localStorage.getItem("bancall-view") === "term" ? "term" : "charts"; } catch (e) {}
+  // the terminal view is hidden from the site for now: always start in the chart view (the code stays for later)
+  let VIEW = "charts";
   const setView = v => { VIEW = v; document.documentElement.dataset.view = v; try { localStorage.setItem("bancall-view", v); } catch (e) {}
     $("chartsBtn").classList.toggle("on", v === "charts"); $("termBtn").classList.toggle("on", v === "term");
     if (RES) { renderRoster(); renderStatusBar(); } };

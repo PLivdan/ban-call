@@ -40,6 +40,7 @@
           border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair);
           position: sticky; top: 0; z-index: 10; background: var(--paper); }
   .ctrl > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .ctrl > span[hidden] { display: none; }
   .ctrl .lab { font-size: 12px; color: var(--faint); }
   .ctrl .push { margin-left: auto; gap: 6px; }
   .seg { display: inline-flex; }
@@ -256,7 +257,7 @@
   <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
   <span><span class="lab">Model</span><span class="seg"><button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span></span>
   <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer."><span class="lab">Runs</span><span class="seg"><button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button></span></span>
-  <span><span class="lab">View</span><span class="seg"><button id="chartsBtn">Charts</button><button id="termBtn">Terminal</button></span></span>
+  <span hidden><span class="lab">View</span><span class="seg"><button id="chartsBtn">Charts</button><button id="termBtn">Terminal</button></span></span>
   <span id="busy">computing</span>
   <span class="push"><button id="resetBtn">Reset</button><button id="linkBtn">Copy link</button><button id="themeBtn">Dark</button></span>
 </div>
@@ -293,5 +294,5 @@
 </main>
 
 <script src="engine.js?v=de3cb77edd"></script>
-<script src="app.js?v=6414f6f928"></script>
+<script src="app.js?v=1660c916f5"></script>
 </html>
