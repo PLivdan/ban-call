@@ -50,6 +50,6 @@ for i in range(40):
     bd = int(np.searchsorted(bands, r0)); RELu, RELo = rel_tables(bd, shown)
     p = ban_probs(np.eye(NM)[m], np.eye(len(bands) + 1)[bd], camp, RELu, RELo, ourB, thB, last, e, allowed)
     cases.append(dict(m=m, r0=r0, firstUs=first, bans=bans, you=you, mates=mates, p=p.tolist()))
-maxdiff = max(float(np.abs(np.asarray(B["params"][k], float) - np.asarray(MOD["ban"][k], float)).max()) for k in B["params"])
+maxdiff = max(float(np.abs(np.asarray(B["params"][k], float) - np.asarray(MOD["ban"][k], float)).max()) for k in B["params"] if k in MOD["ban"])
 json.dump(dict(cases=cases, export_rounding_max=maxdiff), open("tools/reports/check_v8_ban.json", "w"))
 print(f"{len(cases)} ban-model states written; largest difference between exported and fitted parameters {maxdiff:.2e}")

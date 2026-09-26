@@ -33,7 +33,10 @@
   const H = E.H, ORDER = LAY.order, NAMES = LAY.heroes, ROLES = LAY.roles;
   status(`Loading the value networks (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)…`);
   E.addBuffer("opt", await fetchBin(`model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, "Loading the value networks"));
-  const auxP = fetchBin(`model8/${LAY.files.aux.path}${VQ}`, LAY.files.aux.bytes, null);          // behaviour and robust members: after the page is up
+  const auxP = LAY.files.aux ? fetchBin(`model8/${LAY.files.aux.path}${VQ}`, LAY.files.aux.bytes, null) : null;   // behaviour and robust members: after the page is up
+  // the networks behind the ranges: three members (v8.1), or the large networks a student was trained on (v8.2 on, one SD either side)
+  const NW = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][E.NN - 1] || String(E.NN);
+  const spreadTxt = sp => sp.pts.length ? `the ${NW} networks: ${sp.pts.map(u => pp(u)).join(", ")}` : `the ${NW} networks, one SD either side: ${pp(sp.lo)} to ${pp(sp.hi)}`;
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const V7 = new Map(META.maps.map((m, i) => [m.name, i]));                          // the lineup network's map index, by name
@@ -261,17 +264,16 @@
 
   // ---------------------------------------------------------------- figures (inline SVG, drawn from the model output)
   function niceStep(span, n = 5) { const raw = span / n || .001, p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
-  const memberV = h => RES.Q.map(q => q[h] - RES.base);
-  function rankTable(top, cols, cap) {                // one row per ban: value, the members' range drawn in the row, extra columns
-    const lo = Math.min(0, ...top.map(h => Math.min(...memberV(h)))), hi = Math.max(0, ...top.map(h => Math.max(...memberV(h)))), CW = 200, X = v => 17 + (v - lo) / (hi - lo || 1) * (CW - 34);
+  function rankTable(top, cols, cap) {                // one row per ban: value, the networks' range drawn in the row, extra columns
+    const lo = Math.min(0, ...top.map(h => RES.spread(h).lo)), hi = Math.max(0, ...top.map(h => RES.spread(h).hi)), CW = 200, X = v => 17 + (v - lo) / (hi - lo || 1) * (CW - 34);
     const step = niceStep(hi - lo, 3); let ticks = "";
     for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-12; t += step) ticks += `<text x="${X(t)}" y="10" font-size="10" text-anchor="middle" class="faint">${pp(t, step < .005 ? 2 : 1)}</text>`;
-    const cell = h => { const v = memberV(h), neg = RES.V[h] < 0;
+    const cell = h => { const v = RES.spread(h), neg = RES.V[h] < 0, tk = v.pts.length ? v.pts : [v.lo, v.hi];
       return `<svg width="${CW}" height="16" viewBox="0 0 ${CW} 16" style="display:inline-block;vertical-align:middle"><line class="grid" x1="${X(0)}" x2="${X(0)}" y1="0" y2="16"/>
-        <line class="whisk" x1="${X(Math.min(...v))}" x2="${X(Math.max(...v))}" y1="8" y2="8"/>${v.map(u => `<line class="whisk" x1="${X(u)}" x2="${X(u)}" y1="5" y2="11"/>`).join("")}<circle cx="${X(RES.V[h])}" cy="8" r="3.6" class="${neg ? "them" : "us"}"/></svg>`; };
+        <line class="whisk" x1="${X(v.lo)}" x2="${X(v.hi)}" y1="8" y2="8"/>${tk.map(u => `<line class="whisk" x1="${X(u)}" x2="${X(u)}" y1="5" y2="11"/>`).join("")}<circle cx="${X(RES.V[h])}" cy="8" r="3.6" class="${neg ? "them" : "us"}"/></svg>`; };
     return `<div style="overflow-x:auto"><table style="width:100%"><caption>${cap}</caption>
       <tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th><svg width="${CW}" height="13" viewBox="0 0 ${CW} 13" style="display:block">${ticks}</svg></th>${cols.map(c => `<th${c.r === false ? "" : ' class="r"'}>${c.th}</th>`).join("")}</tr>` +
-      top.map((h, k) => `<tr class="pick" data-h="${h}" title="${esc(NAMES[h])}: ${pp(RES.V[h])} points (members ${memberV(h).map(v => pp(v)).join(", ")}). Click to ban."><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td>
+      top.map((h, k) => `<tr class="pick" data-h="${h}" title="${esc(NAMES[h])}: ${pp(RES.V[h])} points (${spreadTxt(RES.spread(h))}). Click to ban."><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td>
         <td class="nmc">${esc(NAMES[h])}${RES.supported.has(h) ? "" : ' <span class="small" title="typical teams almost never make this ban, so the advice does not pick it">(rare)</span>'}</td><td class="r">${pp(RES.V[h])}</td><td>${cell(h)}</td>${cols.map(c => `<td${c.r === false ? "" : ' class="r"'}>${c.td(h)}</td>`).join("")}</tr>`).join("") + `</table></div>`;
   }
   function butterfly(them, us, P1, P2, shown) {       // one shared hero list, the other team to the left and yours to the right
@@ -332,24 +334,26 @@
     const R = RES, best = R.best, items = R.cands.map(h => ({ h, v: R.V[h] })).sort((a, b) => b.v - a.v).slice(0, 22);
     if (!items.some(i => i.h === best)) items.push({ h: best, v: R.V[best] });
     items.sort((a, b) => (b.h === best) - (a.h === best) || b.v - a.v);
-    const mb = R.Q.map(q => q[best] - R.base), PAD = 30, vs = items.map(i => i.v).concat(mb), vlo = Math.min(0, ...vs), vhi = Math.max(...vs), span = vhi - vlo || .001, lo = vlo - span * .05, hi = vhi + span * .06;
+    const sb = R.spread(best), PAD = 30, vs = items.map(i => i.v).concat([sb.lo, sb.hi]), vlo = Math.min(0, ...vs), vhi = Math.max(...vs), span = vhi - vlo || .001, lo = vlo - span * .05, hi = vhi + span * .06;
     const X = v => PAD + (v - lo) / (hi - lo) * (W - 2 * PAD), rb = W < 560 ? 21 : 25, rs = W < 560 ? 11 : 13, placed = [];
     for (const it of items) {
       it.r = it.h === best ? rb : rs; it.x = X(it.v); it.y = 0;
       for (let k = 0; k < 400; k++) { const dy = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 2; if (!placed.some(p => Math.hypot(p.x - it.x, p.y - dy) < p.r + it.r + 2)) { it.y = dy; break; } }
       placed.push(it);
     }
-    const ext = Math.max(...items.map(i => Math.abs(i.y) + i.r)) + 4, cy = ext + 28, base = cy + ext + 18, Hh = base + 36, mv = h => R.Q.map(q => q[h] - R.base);
+    const ext = Math.max(...items.map(i => Math.abs(i.y) + i.r)) + 4, cy = ext + 28, base = cy + ext + 18, Hh = base + 36;
     let g = ticks(lo, hi, W < 560 ? 3 : 5).map(t => `<line x1="${X(t)}" x2="${X(t)}" y1="14" y2="${base}" stroke="var(--hair)"/><text x="${X(t)}" y="${base + 15}" font-size="11" text-anchor="middle" class="faint">${pp(t, t && Math.abs(t) < .01 ? 2 : 1)}</text>`).join("");
     g += `<line x1="${X(0)}" x2="${X(0)}" y1="14" y2="${base}" stroke="var(--ink)" stroke-dasharray="2 3"/><text x="${X(0)}" y="${base + 29}" font-size="11" text-anchor="middle" class="faint">a typical ban</text>`;
     g += `<text x="${W - PAD}" y="${base + 29}" font-size="11" text-anchor="end" class="faint">points against a typical ban →</text>`;
-    const b0 = items[0], m = mv(best);
-    const my = base - 8;                                 // the three networks' values for the advice, on a line of their own under the board
-    g += `<g${T_(`the three networks put ${esc(NAMES[best])} at ${m.map(u => pp(u)).join(", ")}`)}><line x1="${X(Math.min(...m))}" x2="${X(Math.max(...m))}" y1="${my}" y2="${my}" stroke="var(--blue)" stroke-width="1.5"/>`
-      + m.map(u => `<circle cx="${X(u)}" cy="${my}" r="3" fill="var(--blue)"/>`).join("") + `<rect x="${X(Math.min(...m)) - 4}" y="${my - 6}" width="${X(Math.max(...m)) - X(Math.min(...m)) + 8}" height="12" fill="transparent"/></g>`;
+    const b0 = items[0], m = sb;
+    const my = base - 8;                                 // the networks' range for the advice, on a line of their own under the board
+    g += `<g${T_(`<b>${esc(NAMES[best])}</b>: ${spreadTxt(m)}`)}><line x1="${X(m.lo)}" x2="${X(m.hi)}" y1="${my}" y2="${my}" stroke="var(--blue)" stroke-width="1.5"/>`
+      + (m.pts.length ? m.pts.map(u => `<circle cx="${X(u)}" cy="${my}" r="3" fill="var(--blue)"/>`).join("")
+        : [m.lo, m.hi].map(u => `<line x1="${X(u)}" x2="${X(u)}" y1="${my - 4}" y2="${my + 4}" stroke="var(--blue)" stroke-width="1.5"/>`).join("") + `<circle cx="${X(R.V[best])}" cy="${my}" r="3" fill="var(--blue)"/>`)
+      + `<rect x="${X(m.lo) - 4}" y="${my - 6}" width="${X(m.hi) - X(m.lo) + 8}" height="12" fill="transparent"/></g>`;
     for (const it of items.slice().reverse()) {
-      const h = it.h, rare = !R.supported.has(h), isB = h === best, x = it.x, y = cy + it.y, v = mv(h);
-      const tipH = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">the three networks: ${v.map(u => pp(u)).join(", ")}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${LU ? `<br>they open it: ${pct(LU.pt[h])} · you: ${pct(LU.pu[h])}` : ""}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`;
+      const h = it.h, rare = !R.supported.has(h), isB = h === best, x = it.x, y = cy + it.y;
+      const tipH = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">${spreadTxt(R.spread(h))}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${LU ? `<br>they open it: ${pct(LU.pt[h])} · you: ${pct(LU.pu[h])}` : ""}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`;
       g += `<g data-ban="${h}"${T_(tipH)}>${pic(h, x, y, it.r, rare ? "rare" : "")}<circle class="ring" cx="${x}" cy="${y}" r="${it.r}" fill="none" stroke="${isB ? "var(--blue)" : "var(--paper)"}" stroke-width="${isB ? 3 : 1.5}"/></g>`;
     }
     g += `<text x="${b0.x}" y="${cy + b0.y - b0.r - 8}" font-size="13" font-weight="600" text-anchor="middle" class="us">${esc(nm(best))}</text>`;
@@ -411,7 +415,7 @@
     rows.forEach((a, i) => cols.forEach((b, j) => { const p = val.get(a + "," + b), x = L + j * cs, y = T + i * cs;
       if (!p) { g += `<rect x="${x + 2}" y="${y + 2}" width="${cs - 4}" height="${cs - 4}" fill="var(--panel)"/>`; return; }
       const op = (.1 + .82 * Math.min(1, Math.abs(p.V) / mx)).toFixed(2), isB = p === best;
-      g += `<rect data-pair="${a},${b}" x="${x + 2}" y="${y + 2}" width="${cs - 4}" height="${cs - 4}" fill="${p.V >= 0 ? "var(--blue)" : "var(--red)"}" fill-opacity="${op}" style="cursor:pointer"${isB ? ' stroke="var(--ink)" stroke-width="2.5"' : ""}${T_(`<b>${esc(NAMES[a])}</b>, then <b>${esc(NAMES[b])}</b>: ${pp(p.V)}<br><span class="d">the three networks: ${p.mv.map(u => pp(u)).join(", ")}</span><br>click to ban both`)}/>`;
+      g += `<rect data-pair="${a},${b}" x="${x + 2}" y="${y + 2}" width="${cs - 4}" height="${cs - 4}" fill="${p.V >= 0 ? "var(--blue)" : "var(--red)"}" fill-opacity="${op}" style="cursor:pointer"${isB ? ' stroke="var(--ink)" stroke-width="2.5"' : ""}${T_(`<b>${esc(NAMES[a])}</b>, then <b>${esc(NAMES[b])}</b>: ${pp(p.V)}<br><span class="d">${spreadTxt(p.spread)}</span><br>click to ban both`)}/>`;
       if (isB) g += `<text x="${x + cs / 2}" y="${y + cs / 2 + 4}" font-size="${cs < 44 ? 11 : 12.5}" font-weight="700" text-anchor="middle" style="fill:var(--paper)" pointer-events="none">${pp(p.V)}</text>`; }));
     return `<svg viewBox="0 0 ${Wd} ${Hh}" width="${Wd}">${g}</svg>`;
   }
@@ -469,10 +473,10 @@
     if (e >= 6) html += `<h2>Ban phase complete</h2>${winLine()}${more("Likely openers", openers())}`;
     else if (ourTurn() && RES) {
       const cnt = turnCount(), R = RES, pair = cnt === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null;
-      const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], k = runner === undefined ? 0 : R.Q.filter(q => q[R.best] > q[runner]).length;
+      const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], clr = runner !== undefined && R.clear(R.best, runner);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
       html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("scored as a pair")}</p>`
-        : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : k === R.Q.length ? `clear of ${esc(nm(runner))} in all three networks` : `close call with ${esc(nm(runner))}`)}</p>`;
+        : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}${R.Q ? ` in all ${NW} networks` : ""}` : `close call with ${esc(nm(runner))}`)}</p>`;
       html += winLine() + `<div class="fig8">${banBoard(W)}</div>`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
@@ -481,7 +485,7 @@
         html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}`)}` : ""}</p><div class="fig8">${F.svg}</div>`; }
       html += more("All bans as a table", rankTable(topBans(12), [
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
-        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Ticks: the three networks. Typical: how often a
+        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. ${R.Q ? `Ticks: the ${NW} networks` : `Bar: one SD either side across the ${NW} networks`}. Typical: how often a
         typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's lineup network.`));
       html += more("Likely openers", openers());
     } else if (THEM) {
@@ -535,6 +539,8 @@
     const out8 = t.outcome_recalibrated || t.outcome.v8, out7 = t.outcome["v7.2"], banT = t.ban;
     const slopes = Object.values(bc).map(v => v.slope), sLo = Math.min(...slopes).toFixed(2), sHi = Math.max(...slopes).toFixed(2);
     const fb = C.first_ban_by_role;
+    const ag = C.agreement_by_shown ? Object.values(C.agreement_by_shown).filter(v => v.student_same_advice !== undefined) : [], nAg = sum(ag.map(v => v.lobbies));
+    const stu = E.S && nAg ? { same: sum(ag.map(v => v.lobbies * v.student_same_advice)) / nAg, regret: sum(ag.map(v => v.lobbies * v.student_regret_pts)) / nAg } : null;
     $("method").innerHTML = `<details class="how"><summary>How it works, and how well it holds up</summary><div class="mgrid"><div class="mcol"><h2>Method</h2>
       <p>A ban removes a hero from both teams, you usually don't know who is on the other side, and a ban changes what both teams draft. So the model plays lobbies out. It simulates
       ${fmt(R.world_model.lobbies)} lobbies like yours: stand-in players near the lobby's rank, drawn from the real players who play there and following the heroes your team shows, the rest of the ban phase,
@@ -542,8 +548,9 @@
       assuming your later bans follow the advice and theirs follow what teams really do.</p>
       <p class="formula">value(<i>x</i>) = win chance after you ban <i>x</i> − win chance after a typical ban</p>
       <p>A ban's value is read straight from the next position's network, so the rest of the ban phase, the other team's replies, and both teams' substitutions are all inside it.
-      Three networks are trained on different resamples of the simulated lobbies. The advice takes the highest average minus half their spread, among bans a typical team makes at
-      least 0.1% of the time, so it does not rest on a ban the data never shows.</p>
+      ${E.S ? `${NW[0].toUpperCase() + NW.slice(1)} large networks per position are trained on different resamples of the simulated lobbies, and one small network per position, the one
+      that runs on this page, is trained to reproduce their average and their spread.` : `${NW[0].toUpperCase() + NW.slice(1)} networks are trained on different resamples of the simulated lobbies.`}
+      The advice takes the highest average minus half their spread, among bans a typical team makes at least 0.1% of the time, so it does not rest on a ban the data never shows.</p>
       <ul>
         <li><b>Drafts</b>: a pick model fitted on every Season 10 opening pick, with each player's history as of the match (minutes, skill on each hero, role shares, how they substitute when
           their main is banned) and their teammates' picks. Its simulated drafts match real teams: 2-2-2 in ${pct(d.two_two_two.model)} of drafts (real ${pct(d.two_two_two.real)}),
@@ -561,6 +568,7 @@
         <tr><td>Who wins: log loss per match (previous model), calibration slope</td><td class="r">${out8.logloss.toFixed(4)} (${out7.logloss.toFixed(4)}), ${out8.calib_slope.toFixed(2)}</td></tr>
         <tr><td>Simulated drafts on real teams: 2-2-2 / triple support / stays in role when the main is banned</td><td class="r">${pct(d.two_two_two.model)} / ${pct(d.triple_support.model)} / ${pct(d.role_stay_when_forced.model)} (real ${pct(d.two_two_two.real)} / ${pct(d.triple_support.real)} / ${pct(d.role_stay_when_forced.real)})</td></tr>
         <tr><td>Networks against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${C.brute_force.regret_network_pts.toFixed(2)} (${C.brute_force.regret_typical_pts.toFixed(2)})</td></tr>
+        ${stu ? `<tr><td>The small networks on this page against the large ones, at your first ban: same advice, points lost</td><td class="r">${pct(stu.same)}, ${stu.regret.toFixed(3)}</td></tr>` : ""}
         <tr><td>Inside the simulation: following the advice against banning as players do</td><td class="r">+${C.policy.optimal_vs_players.gain_pts.toFixed(2)} pts</td></tr>
         ${ope.map(q => `<tr><td>Real games: following the advice at your ban ${q.decision} (weights capped, 95% interval)</td><td class="r">${cq(q.doubly_robust_capped)} pts</td></tr>`).join("")}
       </table>
@@ -577,7 +585,7 @@
         <li>Hovers are not in the data. A shown hero is treated as that player's likely pick, and a teammate keeps a shown hero about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
         <li>Mid-match swaps are outside the model (it drafts opening lineups). Tested separately on real matches: they did not measurably change what a ban is worth.</li>
-        <li>The three networks' spread shows where they disagree, not a full interval: refitting everything on other matches would move the values more.</li>
+        <li>The networks' spread shows where they disagree, not a full interval: refitting everything on other matches would move the values more.</li>
         <li>God Quarry is left out (7 matches in the data).</li>
       </ul></div></div></details>
       <h2>Where mains go when their hero is banned</h2>
@@ -592,5 +600,5 @@
   status(""); $("fitted").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}), model ${REP.version} (run ${REP.run}).`;
   renderMethod(); update();
   document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES || THEM || DONE) renderAdvice(); });
-  auxP.then(b => { E.addBuffer("aux", b); update(); }).catch(() => {});
+  if (auxP) auxP.then(b => { E.addBuffer("aux", b); update(); }).catch(() => {});
 })();

@@ -1,6 +1,7 @@
 /* Checks engine8.js against the notebook (run from the repo root: node tools/check_v8.js).
-   1. Value networks: every parity case of the run (float16 weights, the notebook's input), for all five members; the input
-      the page builds from the same lobby must equal the notebook's input exactly.
+   1. Value networks: every parity case of the run (float16 weights, the notebook's input), for all five members (v8.1) or
+      the student's three outputs (v8.2 on); the input the page builds from the same lobby must equal the notebook's input
+      exactly.
    2. Ban model: the probabilities for 40 random states against the notebook's formula with the fitted parameters
       (tools/check_v8_ref.py writes them).
    3. The advice on random lobbies: finite values, the advice supported, pairs on two-ban turns, and timings. */
@@ -8,7 +9,7 @@ const fs = require("fs"), { Engine8 } = require("../engine8.js");
 const L = JSON.parse(fs.readFileSync("model8/value_v8.json", "utf8")), BAN = JSON.parse(fs.readFileSync("model8/ban_v8.json", "utf8"));
 const E = new Engine8(L, BAN);
 const ab = f => { const b = fs.readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
-E.addBuffer("opt", ab("model8/value_opt.bin")); E.addBuffer("aux", ab("model8/value_aux.bin"));
+for (const f of Object.keys(L.files)) E.addBuffer(f, ab(`model8/${L.files[f].path}`));
 const H = E.H, O = E.O, out = []; let bad = 0; const log = s => { console.log(s); out.push(s); };
 // ---- 1. parity
 const PAR = JSON.parse(fs.readFileSync("model8/parity_v8.json", "utf8")); let worstL = 0, worstX = 0;
@@ -19,9 +20,10 @@ for (const c of PAR.cases) {
   const s = { m: at("map", E.NM)[0], r0: x[O.rank_z] * L.rank_sd + L.rank_mean, firstUs: x[O.we_ban_first] === 1, bans: c.bans, you: (at("your_hero", H)[0] ?? -1), mates: at("teammates_heroes", H) };
   const mine = E.input(s, c.position); for (let j = 0; j < E.FD; j++) worstX = Math.max(worstX, Math.abs(mine[j] - x[j]));
   if (E.band(s.r0) !== at("band", E.NB)[0]) { bad++; log(`  band mismatch in a parity case: ${E.band(s.r0)} against ${at("band", E.NB)[0]}`); }
-  members.forEach(([ch, m], k) => { worstL = Math.max(worstL, Math.abs(E.logit(c.position, ch, m, x) - c.logits[k])); });
+  if (E.S) E.outputs(c.position, x).forEach((v, k) => { worstL = Math.max(worstL, Math.abs(v - c.outputs[k])); });
+  else members.forEach(([ch, m], k) => { worstL = Math.max(worstL, Math.abs(E.logit(c.position, ch, m, x) - c.logits[k])); });
 }
-log(`value networks: ${PAR.cases.length} parity cases x 5 members, largest logit difference ${worstL.toExponential(2)}; page input against the notebook's ${worstX.toExponential(2)}`);
+log(`value networks: ${PAR.cases.length} parity cases x ${E.S ? "the student's 3 outputs" : "5 members"}, largest output difference ${worstL.toExponential(2)}; page input against the notebook's ${worstX.toExponential(2)}`);
 if (worstL > 2e-4 || worstX > 1e-5) { bad++; log("  FAIL"); }
 // ---- 2. ban model
 const REF = JSON.parse(fs.readFileSync("tools/reports/check_v8_ban.json", "utf8")); let worstP = 0;
@@ -42,12 +44,14 @@ for (let i = 0; i < 30; i++) {
     let t = performance.now(); const R = E.ourTurn(s); tOur += performance.now() - t; n++;
     const fin = R.cands.every(h => isFinite(R.V[h]) && isFinite(R.sd[h])); if (!fin) { bad++; log(`  non-finite values in lobby ${i}`); }
     if (R.supported.size && !R.supported.has(R.best)) unsupported++;
-    if (R.votes.every(v => v === R.best)) agree++;
+    const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0]; if (runner === undefined || R.clear(R.best, runner)) agree++;
+    const sp = R.spread(R.best); if (!(sp.lo <= R.V[R.best] + 1e-12 && R.V[R.best] <= sp.hi + 1e-12) && !E.S) { bad++; log(`  the advice's value outside its members' range in lobby ${i}`); }
+    if (E.S && !(R.cands.every(h => R.sd[h] >= 0))) { bad++; log(`  negative spread in lobby ${i}`); }
     const two = e + 1 < 6 && E.ours(s.firstUs, e + 1);
     if (two) { t = performance.now(); const P = E.pairs(s, R); tPair += performance.now() - t; nPair++; if (!P || !P.length || !isFinite(P[0].V)) { bad++; log(`  no pairs in lobby ${i}`); } }
   } else { const t = performance.now(); const T = E.theirTurn(s); tThem += performance.now() - t; nThem++; let sp = 0; for (let h = 0; h < H; h++) sp += T.pe[h]; if (Math.abs(sp - 1) > 1e-9) { bad++; log(`  their forecast sums to ${sp}`); } }
 }
-log(`advice on ${n} of our turns (${agree} with all three members agreeing on the ban, ${unsupported} outside the support): ${(tOur / Math.max(n, 1)).toFixed(0)} ms each; ${nPair} two-ban turns, pairs ${(tPair / Math.max(nPair, 1)).toFixed(0)} ms; ${nThem} of their turns ${(tThem / Math.max(nThem, 1)).toFixed(0)} ms`);
+log(`advice on ${n} of our turns (${agree} clear of the runner-up, ${unsupported} outside the support): ${(tOur / Math.max(n, 1)).toFixed(0)} ms each; ${nPair} two-ban turns, pairs ${(tPair / Math.max(nPair, 1)).toFixed(0)} ms; ${nThem} of their turns ${(tThem / Math.max(nThem, 1)).toFixed(0)} ms`);
 if (unsupported) { bad++; log("  FAIL: advice outside the support"); }
 log(bad ? `${bad} problem(s)` : "all checks passed");
 fs.writeFileSync("tools/reports/check_v8.txt", out.join("\n") + "\n"); process.exit(bad ? 1 : 0);

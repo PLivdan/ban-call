@@ -1,10 +1,13 @@
 /* Ban value engine v8: the value networks and the ban model of the ban-solver v8 notebook, in the browser.
    The notebook simulates whole lobbies (stand-in players near your rank, both teams' drafts after the bans, a fitted outcome
-   model) and trains one small network per ban position by backward induction: network k values a lobby after k bans,
-   assuming our later bans follow the advice and theirs follow the ban model. So a ban's value needs no search here:
-     Q(x) = network(k + 1)(the lobby after we ban x), for each of the three optimal members;
-     value(x) = mean over members of Q(x) − the same for a typical ban (the ban model's probabilities for our team);
+   model) and trains networks per ban position by backward induction: network k values a lobby after k bans, assuming our
+   later bans follow the advice and theirs follow the ban model. So a ban's value needs no search here:
+     Q(x) = network(k + 1)(the lobby after we ban x): the members' mean and SD;
+     value(x) = mean Q(x) − the same for a typical ban (the ban model's probabilities for our team);
      the advice is the highest  mean − kappa × SD  among bans a typical team makes with probability >= support.
+   Two formats. Members (v8.1): three optimal members, a behaviour and a robust member per position, each giving a logit.
+   Student (v8.2 on): one network per position distilled from large teacher ensembles, with three outputs: the logit of the
+   teachers' mean, the softplus of their SD, and the logit of the behaviour chain.
    Inputs are what the page knows: map, rank, whether we ban first, both teams' bans so far and the last one, your hero and
    your teammates' shown heroes. The networks' first layer is linear in the bans, so every next ban costs one row added to a
    shared first-layer sum and two hidden layers.
@@ -22,11 +25,13 @@
   }
   const gelu = z => 0.5 * z * (1 + Math.tanh(0.7978845608028654 * (z + 0.044715 * z * z * z)));
   const sig = z => 1 / (1 + Math.exp(-z));
+  const softplus = z => z > 30 ? z : Math.log1p(Math.exp(z));
 
   class Engine8 {
     constructor(layout, ban) {
       this.L = layout; this.H = layout.heroes.length; this.NM = layout.maps.length; this.NB = layout.bands.length + 1;
       this.ORDER = layout.order; this.KAPPA = layout.kappa; this.SUPP = layout.support; this.M = layout.members; this.FD = layout.input_dim;
+      this.S = !!layout.student; this.NN = this.S ? layout.teachers.members : this.M;          // networks behind the spread
       this.O = {}; for (const b of layout.blocks) this.O[b[0]] = b[1];
       this.buf = {}; this.cache = new Map(); this.index = new Map();
       for (const w of layout.weights) this.index.set(`${w.position}|${w.chain}|${w.member}|${w.layer}|${w.name}`, w);
@@ -35,11 +40,12 @@
       this.hasTau = P.tau !== undefined; this.hasB = !!P.Lo; this.hasV8 = !!P.acm;
     }
     addBuffer(file, arrayBuffer) { this.buf[file] = new Uint16Array(arrayBuffer); }
-    ready(chain) { return !!this.buf[chain === "optimal" ? "opt" : "aux"]; }
+    ready(chain) { return !!this.buf[this.S || chain === "optimal" ? "opt" : "aux"]; }
     band(r0) { let b = 0; for (const t of this.L.bands) if (r0 > t) b++; return b; }
     ours(firstUs, i) { return (this.ORDER[i] === 0) === firstUs; }
     // ---- networks, decoded from float16 the first time they are used
     net(pos, chain, member) {
+      if (this.S) { chain = "student"; member = 0; }
       const key = `${pos}|${chain}|${member}`; if (this.cache.has(key)) return this.cache.get(key);
       const layers = [];
       for (let l = 0; ; l++) {
@@ -55,7 +61,8 @@
       for (let i = 0; i < x.length; i++) { const xi = x[i]; if (!xi) continue; const r = i * nout; for (let j = 0; j < nout; j++) z[j] += xi * W[r + j]; }
       return z;
     }
-    static tail(layers, z0) {                        // the rest of the network from the first layer's pre-activation: the logit
+    static tail(layers, z0) { return Engine8.outs(layers, z0)[0]; }      // the logit (a member, or the student's mean)
+    static outs(layers, z0) {                        // the rest of the network from the first layer's pre-activation: all outputs
       let a = new Float64Array(z0.length); for (let j = 0; j < z0.length; j++) a[j] = gelu(z0[j]);
       for (let l = 1; l < layers.length; l++) {
         const { W, b, nin, nout } = layers[l], o = Float64Array.from(b);
@@ -63,9 +70,10 @@
         if (l < layers.length - 1) for (let j = 0; j < nout; j++) o[j] = gelu(o[j]);
         a = o;
       }
-      return a[0];
+      return a;
     }
     logit(pos, chain, member, x) { const n = this.net(pos, chain, member); return n ? Engine8.tail(n, Engine8.first(n, x)) : NaN; }
+    outputs(pos, x) { const n = this.net(pos); return n ? Array.from(Engine8.outs(n, Engine8.first(n, x))) : null; }   // the student's three outputs
     // ---- the network input for a lobby after e bans
     input(s, e, zeroLast = false) {
       const O = this.O, H = this.H, x = new Float64Array(this.FD);
@@ -79,6 +87,7 @@
     /* Values of every candidate as the next ban (position e, made by `usBan`): Q[member][h] from network e + 1. chain:
        "optimal" (members 0..M-1), "behaviour" or "robust" (one member). */
     children(s, e, cands, usBan, chain = "optimal") {
+      if (this.S) { const V = this.studentChildren(s, e, cands, usBan); return V && (chain === "optimal" ? [V.mu] : [V.beh]); }
       const O = this.O, x = this.input(s, e, true), ms = chain === "optimal" ? this.M : 1, out = [];
       for (let m = 0; m < ms; m++) {
         const n = this.net(e + 1, chain, m); if (!n) return null;
@@ -93,8 +102,29 @@
       }
       return out;
     }
-    winNow(s, chain = "optimal") {                   // P(we win) for the lobby as it stands, per member
+    /* The student's mean, SD and behaviour value of every candidate as the next ban (Float64Arrays over heroes, NaN elsewhere). */
+    studentChildren(s, e, cands, usBan) {
+      const O = this.O, x = this.input(s, e, true), n = this.net(e + 1); if (!n) return null;
+      const z0 = Engine8.first(n, x), W = n[0].W, nout = n[0].nout, z = new Float64Array(nout), blk = usBan ? O.our_bans : O.their_bans;
+      const mu = new Float64Array(this.H).fill(NaN), sd = new Float64Array(this.H).fill(NaN), beh = new Float64Array(this.H).fill(NaN);
+      for (const h of cands) {
+        const r1 = (blk + h) * nout, r2 = (O.last_ban + h) * nout;
+        for (let j = 0; j < nout; j++) z[j] = z0[j] + W[r1 + j] + W[r2 + j];
+        const o = Engine8.outs(n, z); mu[h] = sig(o[0]); sd[h] = softplus(o[1]); beh[h] = sig(o[2]);
+      }
+      return { mu, sd, beh };
+    }
+    /* Mean and SD over the networks for every candidate, and the members' values when there are members (Q, else null). */
+    values(s, e, cands, usBan) {
+      if (this.S) { const V = this.studentChildren(s, e, cands, usBan); return V && { mu: V.mu, sd: V.sd, Q: null }; }
+      const Q = this.children(s, e, cands, usBan); if (!Q) return null;
+      const mu = new Float64Array(this.H).fill(NaN), sd = new Float64Array(this.H).fill(NaN);
+      for (const h of cands) { let a = 0; for (const q of Q) a += q[h]; a /= Q.length; let v = 0; for (const q of Q) v += (q[h] - a) ** 2; mu[h] = a; sd[h] = Math.sqrt(v / Q.length); }
+      return { mu, sd, Q };
+    }
+    winNow(s, chain = "optimal") {                   // P(we win) for the lobby as it stands, per member (the student: one value)
       const e = s.bans.length, x = this.input(s, e), ms = chain === "optimal" ? this.M : 1, o = [];
+      if (this.S) { const v = this.outputs(e, x); return v && [sig(chain === "optimal" ? v[0] : v[2])]; }
       for (let m = 0; m < ms; m++) { const v = this.logit(e, chain, m, x); if (isNaN(v)) return null; o.push(sig(v)); }
       return o;
     }
@@ -146,25 +176,30 @@
     ourTurn(s) {
       const e = s.bans.length, H = this.H, legal = this.legal(s), shown = this.shownSet(s), allowed = new Uint8Array(H), cands = [];
       for (let h = 0; h < H; h++) if (legal[h] && !shown.has(h)) { allowed[h] = 1; cands.push(h); }
-      const Q = this.children(s, e, cands, true); if (!Q) return null;
-      const mu = new Float64Array(H).fill(NaN), sd = new Float64Array(H).fill(NaN), pe = this.banProbs(s, e, allowed);
-      for (const h of cands) { let a = 0; for (const q of Q) a += q[h]; a /= Q.length; let v = 0; for (const q of Q) v += (q[h] - a) ** 2; mu[h] = a; sd[h] = Math.sqrt(v / Q.length); }
+      const VV = this.values(s, e, cands, true); if (!VV) return null;
+      const { mu, sd, Q } = VV, pe = this.banProbs(s, e, allowed);
       let base = 0; for (const h of cands) base += pe[h] * mu[h];
       const sup = cands.filter(h => pe[h] >= this.SUPP), pool = sup.length ? sup : cands;
       let best = pool[0]; for (const h of pool) if (mu[h] - this.KAPPA * sd[h] > mu[best] - this.KAPPA * sd[best]) best = h;
       const V = new Float64Array(H).fill(NaN); for (const h of cands) V[h] = mu[h] - base;
-      const votes = Q.map(q => { let b = pool[0]; for (const h of pool) if (q[h] > q[b]) b = h; return b; });
-      return { e, cands, allowed, Q, mu, sd, V, pe, base, best, supported: new Set(sup), votes };
+      const votes = Q ? Q.map(q => { let b = pool[0]; for (const h of pool) if (q[h] > q[b]) b = h; return b; }) : null;
+      const R = { e, cands, allowed, Q, mu, sd, V, pe, base, best, supported: new Set(sup), votes };
+      R.spread = h => this.spread(Q ? Q.map(q => q[h] - base) : null, V[h], sd[h]);
+      R.clear = (a, b) => Q ? Q.every(q => q[a] > q[b]) : mu[a] - mu[b] > sd[a] + sd[b];
+      return R;
     }
+    /* The networks' range for a value v (points against the baseline): the members' lowest and highest, and the members
+       themselves; for the student, one SD either side of the mean. */
+    spread(mv, v, sd) { return mv ? { lo: Math.min(...mv), hi: Math.max(...mv), pts: mv } : { lo: v - sd, hi: v + sd, pts: [] }; }
     /* A two-ban turn: after each of the top first bans x, every second ban y from network e + 2. Values against the same
        typical-first-ban baseline as the single bans (a typical first ban, then the best second ban). */
     pairs(s, R, nFirst = 6, bothOrders = false) {
       const e = R.e, H = this.H, first = R.cands.slice().sort((a, b) => (R.mu[b] - this.KAPPA * R.sd[b]) - (R.mu[a] - this.KAPPA * R.sd[a])).slice(0, nFirst), out = [];
       for (const x of first) {
-        const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), Q = this.children(s2, e + 1, cands, true); if (!Q) return null;
+        const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), VV = this.values(s2, e + 1, cands, true); if (!VV) return null;
         for (const y of cands) {
-          let a = 0; for (const q of Q) a += q[y]; a /= Q.length; let v = 0; for (const q of Q) v += (q[y] - a) ** 2;
-          out.push({ a: x, b: y, mu: a, sd: Math.sqrt(v / Q.length), V: a - R.base, mv: Q.map(q => q[y] - R.base) });
+          const mv = VV.Q ? VV.Q.map(q => q[y] - R.base) : null, V = VV.mu[y] - R.base;
+          out.push({ a: x, b: y, mu: VV.mu[y], sd: VV.sd[y], V, mv, spread: this.spread(mv, V, VV.sd[y]) });
         }
       }
       if (bothOrders) return out.sort((p, q) => (q.mu - this.KAPPA * q.sd) - (p.mu - this.KAPPA * p.sd));
@@ -175,9 +210,9 @@
     /* Their turn: the forecast of their ban, and what each of their likely bans does to our win chance. */
     theirTurn(s) {
       const e = s.bans.length, H = this.H, legal = this.legal(s), cands = []; for (let h = 0; h < H; h++) if (legal[h]) cands.push(h);
-      const W = this.banProbs(s, e, legal, true), pe = W.p, Q = this.children(s, e, cands, false);
-      const mu = new Float64Array(H).fill(NaN); if (Q) for (const h of cands) { let a = 0; for (const q of Q) a += q[h]; mu[h] = a / Q.length; }
-      let base = 0; if (Q) for (const h of cands) base += pe[h] * mu[h];
+      const W = this.banProbs(s, e, legal, true), pe = W.p, VV = this.values(s, e, cands, false);
+      const mu = VV ? VV.mu : new Float64Array(H).fill(NaN);
+      let base = 0; if (VV) for (const h of cands) base += pe[h] * mu[h];
       return { e, pe, why: W, mu, base, cands };
     }
     /* The likeliest path through the rest of the ban phase: our bans as advised, theirs the likeliest. */

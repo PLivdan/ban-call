@@ -1,4 +1,4 @@
-value networks: 8 parity cases x 5 members, largest logit difference 3.86e-8; page input against the notebook's 1.75e-15
+value networks: 8 parity cases x 5 members, largest output difference 3.86e-8; page input against the notebook's 1.75e-15
 ban model: 40 states against the notebook's formula with the fitted parameters, largest probability difference 3.14e-6 (export rounding 5.01e-6)
-advice on 15 of our turns (6 with all three members agreeing on the ban, 0 outside the support): 84 ms each; 4 two-ban turns, pairs 459 ms; 15 of their turns 86 ms
+advice on 15 of our turns (7 clear of the runner-up, 0 outside the support): 149 ms each; 4 two-ban turns, pairs 1001 ms; 15 of their turns 154 ms
 all checks passed

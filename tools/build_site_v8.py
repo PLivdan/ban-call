@@ -4,7 +4,8 @@
 
 Writes:
   model8/value_opt.bin, model8/value_aux.bin  the value networks as float16: the optimal members first (the page is usable
-                                              once they arrive), then the behaviour and robust members
+                                              once they arrive), then the behaviour and robust members. A student run
+                                              (v8.2 on) has one network per position with all three outputs: value_opt.bin only
   model8/value_v8.json                        the input layout and the weight manifest (file, offset, shape)
   model8/ban_v8.json                          their ban model (the selected family), stand-in team tables per rank band, and
                                               per band and hero the share vector of a stand-in who shows that hero
@@ -29,13 +30,16 @@ H = len(L["heroes"])
 # ---- value networks, split into the optimal members and the rest
 parts = {"opt": [], "aux": []}; off = {"opt": 0, "aux": 0}; man = []
 for w in L["weights"]:
-    n = int(np.prod(w["shape"])); b = raw[w["offset"]:w["offset"] + 2 * n]; f = "opt" if w["chain"] == "optimal" else "aux"
+    n = int(np.prod(w["shape"])); b = raw[w["offset"]:w["offset"] + 2 * n]; f = "opt" if w["chain"] in ("optimal", "student") else "aux"
     parts[f].append(b); man.append(dict(w, file=f, offset=off[f])); off[f] += len(b)
-for f in parts:
-    with open(f"{OUT}/value_{f}.bin", "wb") as fh: fh.write(b"".join(parts[f]))
+parts = {f: v for f, v in parts.items() if v}
+for f in ("opt", "aux"):
+    if f in parts:
+        with open(f"{OUT}/value_{f}.bin", "wb") as fh: fh.write(b"".join(parts[f]))
+    elif os.path.exists(f"{OUT}/value_{f}.bin"): os.remove(f"{OUT}/value_{f}.bin")
 lay = {k: v for k, v in L.items() if k != "weights"}; lay["weights"] = man; lay["files"] = {f: dict(path=f"value_{f}.bin", bytes=off[f]) for f in parts}
 json.dump(lay, open(f"{OUT}/value_v8.json", "w", encoding="utf-8"), ensure_ascii=False)
-print(f"value networks: optimal {off['opt'] / 1e6:.1f} MB, behaviour and robust {off['aux'] / 1e6:.1f} MB")
+print(f"value networks: " + ", ".join(f"{f} {off[f] / 1e6:.1f} MB" for f in parts))
 
 # ---- their ban model, plus the shown-hero stand-in tables
 B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8"))
@@ -71,7 +75,8 @@ CHK = json.load(open(f"{RUN}/reports/world_model_checks_v8.json", encoding="utf-
 TEST = json.load(open(f"{RUN}/reports/test_report_v8.json", encoding="utf-8")); SEL = json.load(open(f"{RUN}/reports/selection_v8.json", encoding="utf-8"))
 REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SUM["selected"], comparisons=SEL["comparisons"], test=TEST["test"],
            world_model=SUM["world_model"], checks=dict(terminal=CHK["terminal"], brute_force=CHK["brute_force"], policy=CHK["policy"], drafts=CHK["drafts"],
-           first_ban=CHK["first_ban"], first_ban_by_role=CHK.get("first_ban_by_role")), value_chain=CHK["value_chain"],
+           first_ban=CHK["first_ban"], first_ban_by_role=CHK.get("first_ban_by_role"), agreement_by_shown=CHK.get("agreement_by_shown"), students=CHK.get("students")),
+           value_chain=CHK["value_chain"], networks=dict(student=bool(L.get("student")), members=L["members"], hidden=L["hidden"], layers=L["layers"], teachers=L.get("teachers")),
            ope=dict(decisions=OPE["decisions"], behaviour_calibration={k: dict(slope=v["behaviour"]["calib_slope"], spread_pts=v["spread_pts"]) for k, v in OPE["behaviour_calibration"].items()},
                     ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"]),
            recalibration=SUM.get("recalibration"), draft_calibration={k: v for k, v in SUM.get("draft_calibration", {}).items() if k in ("lam_g", "delta")})
