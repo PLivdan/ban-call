@@ -34,7 +34,7 @@
   function readHash() {
     const q = new URLSearchParams(location.hash.slice(1)); if (!q.has("m")) return;
     if (q.get("t") && META.tiers[q.get("t")]) st.tier = q.get("t");
-    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0"; st.model = q.get("x") === "1" ? "sim" : "value"; st.runs = [16, 32, 64].includes(+q.get("n")) ? +q.get("n") : 16;
+    st.map = Math.max(0, Math.min(META.maps.length - 1, +q.get("m") || 0)); st.first = q.get("f") !== "0"; st.model = q.get("x") === "1" ? "sim" : "value"; st.runs = [16, 32, 64, 128, 256].includes(+q.get("n")) ? +q.get("n") : 16;
     const tm = (q.get("u") || "").split(",").map(x => (x === "" || x === "-") ? -1 : +x); for (let i = 0; i < 6; i++) st.team[i] = Number.isInteger(tm[i]) && tm[i] >= 0 && tm[i] < H ? tm[i] : -1;
     st.bans = (q.get("b") || "").split(",").filter(x => x !== "").map(Number).filter(h => h >= 0 && h < H).slice(0, 6);
     st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
@@ -505,13 +505,14 @@
   }
 
   // ---------------------------------------------------------------- re-draft simulator: a pool of workers, two stages, a progress bar
-  const NW = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12;
-  const RUNS = [16, 32, 64], FIRST = { 16: 6, 32: 8, 64: 12 };   // continuations for the top bans, and for every ban in stage 1
+  const NW = Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12;
+  const RUNS = [16, 32, 64, 128, 256], FIRST = { 16: 6, 32: 8, 64: 12, 128: 16, 256: 24 };   // runs for the top bans, and for every ban in stage 1
+  const PAIR_RUNS = 64;                                             // two-ban turns: 45 pairs, so pairs stop at 64 runs (the single-ban ranking gets them all)
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const PAIRS = 10;                                               // two-ban turns: pairs among the best PAIRS single bans
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=afa32dfd43"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("sim-worker.js?v=1c092ab7d8"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
     if (!RUN || RUN.finished) return; RUN.finished = true;
@@ -521,7 +522,7 @@
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
   function startPairs(s, base) {                            // every pair of the shortlist, all runs, against the singles' typical-ban baseline
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
-    const NR = st.runs, looks = range(0, NR);
+    const NR = Math.min(st.runs, PAIR_RUNS), looks = range(0, NR);
     RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, cs: {}, base, t0: performance.now(), finished: false, pairs: true };
     const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p));
     jobs.forEach((j, k) => send(k, j, looks, []));
@@ -552,7 +553,7 @@
     const S = summarize(R); SIM = S;
     if (R.stage === 1 && R.top2 > 0 && R.L2.length) {       // stage 2: more continuations for the leaders, spread over the workers
       R.stage = 2; S.prelim = true; let k = 0;
-      const parts = chunks(R.L2, Math.max(1, Math.round(pool.length * 2 / R.top2)));
+      const parts = chunks(R.L2, Math.max(1, Math.ceil(pool.length * 4 / R.top2)));   // about four jobs per worker, so they finish together
       R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
       return;
     }

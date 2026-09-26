@@ -33,6 +33,10 @@
         const o = M.out; this.kdOf = ms => ms <= 0 ? 0 : o.kd[o.kd_bins.filter(t => ms >= t).length] * ms;
       }
       this.Qp = M.pick.Qp; this.g = M.pick.g;
+      // flat typed copies of the tables the inner loops read (nested JavaScript arrays are several times slower)
+      const flat = A => { const f = new Float64Array(H * H); for (let i = 0; i < H; i++) for (let j = 0; j < H; j++) f[i * H + j] = A[i][j]; return f; };
+      this.QpF = flat(M.pick.Qp); this.CF = flat(M.out.C); this.SF = flat(M.out.S); this.RoF = flat(M.ban.Ro); this.RtF = flat(M.ban.Rt);
+      this.roleA = Uint8Array.from(this.role); this.g6 = Float32Array.from({ length: 6 }, (_, k) => this.g[Math.min(k, 5)]);
     }
     band(r0) { let b = 0; for (const t of this.M.bands) if (r0 > t) b++; return b; }
     base(p, m, a, bd) {                                           // pick utility of each hero for player p (no bans, no teammates)
@@ -61,31 +65,36 @@
       const idx = new Map(pool.map((p, i) => [p, i]));
       const mkLine = (L, side) => ({ pl: L, base: L.map(p => (side ? baseOp : baseUs)[idx.get(p)]), order: this.perm(R), noise: L.map(() => Array.from({ length: this.SW }, () => Float32Array.from({ length: H }, () => gumbel(R)))) });
       const U = us.map(L => mkLine(L, 0)), O = op.map(L => mkLine(L, 1)), cu = us.map(() => Array.from({ length: 6 }, () => R()));
+      for (const L of U.concat(O))                                 // base utility plus noise, per slot and sweep, added once per lobby
+        L.bn = Array.from({ length: this.SW }, (_, s) => L.base.map((bs, i) => { const nz = L.noise[i][s], v = new Float64Array(H); for (let h = 0; h < H; h++) v[h] = bs[h] + nz[h]; return v; }));
       const o = this.M.out, rs = (r0 - this.M.rank_mu) / this.M.rank_sd, T = o.t_now;
       const wu = new Float32Array(H), wo = new Float32Array(H);
       for (let h = 0; h < H; h++) { const c = o.b[h] + o.bm[m][h] + rs * o.br[h] + T * o.bt[h]; wu[h] = c + a0 * o.ba[h]; wo[h] = c - a0 * o.ba[h]; }
       const relOf = L => { const r = new Float32Array(H); for (const p of L) for (let h = 0; h < H; h++) r[h] += this.SH[p * H + h]; return r; };
       const relUs = new Float32Array(H); for (const L of us) { const r = relOf(L); for (let h = 0; h < H; h++) relUs[h] += r[h] / us.length; }
       const b = this.M.ban, C = o.C, ub = rel => { const u = new Float32Array(H); for (let h = 0; h < H; h++) { let cr = 0; for (let j = 0; j < H; j++) cr += C[h][j] * rel[j]; u[h] = b.a[h] + b.am[m][h] + b.ab[bd][h] - b.lam * rel[h] + b.gam * cr; } return u; };
-      const ubUs = ub(relUs), ubOp = []; for (let j = 0; j < this.LOOK; j++) ubOp.push(ub(relOf(op[j])));
+      const ubUs = ub(relUs), ubOp = []; for (let j = 0; j < this.LOOK; j++) ubOp.push(ub(relOf(op[j % op.length])));   // runs beyond K reuse lineups
       const gb = Array.from({ length: this.LOOK }, () => Array.from({ length: 6 }, () => Float32Array.from({ length: H }, () => gumbel(R))));
-      return { st, hov, U, O, cu, wu, wo, c0: a0 * (o.b0 + o.mm[m]), ubUs, ubOp, gb, prot: new Set(hov.filter(h => h >= 0)) };
+      const protA = new Uint8Array(H); for (const h of hov) if (h >= 0) protA[h] = 1;
+      return { st, hov, U, O, cu, wu, wo, c0: a0 * (o.b0 + o.mm[m]), ubUs, ubOp, gb, prot: new Set(hov.filter(h => h >= 0)), protA };
     }
     perm(R) { const a = [0, 1, 2, 3, 4, 5]; for (let i = 5; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
     draft(line, legal, fixed, tilt) {                             // Gumbel-max picks with Gibbs sweeps (the notebook's `draft`)
-      const H = this.H, role = this.role, picks = fixed.slice(), taken = new Uint8Array(H), rc = [0, 0, 0], bonus = new Float32Array(H);
-      const add = (h, sgn) => { taken[h] = sgn > 0 ? 1 : 0; rc[role[h]] += sgn; const q = this.Qp[h]; for (let k = 0; k < H; k++) bonus[k] += sgn * q[k]; };
-      for (const h of picks) if (h >= 0) add(h, 1);
+      const H = this.H, role = this.roleA, Q = this.QpF, g6 = this.g6, picks = fixed.slice(), avail = Uint8Array.from(legal), rc = [0, 0, 0], bonus = new Float64Array(H);
+      for (let k = 0; k < H; k++) bonus[k] = tilt[k];              // the ban tilt is constant through the draft, so it starts in the bonus
+      for (const h of picks) if (h >= 0) { avail[h] = 0; rc[role[h]]++; const r = h * H; for (let k = 0; k < H; k++) bonus[k] += Q[r + k]; }
       for (let s = 0; s < this.SW; s++) for (let t = 0; t < 6; t++) {
         const i = line.order[t]; if (fixed[i] >= 0) continue;
-        if (picks[i] >= 0) { add(picks[i], -1); picks[i] = -1; }
-        const bs = line.base[i], nz = line.noise[i][s]; let best = -1, bv = -Infinity;
+        const old = picks[i];
+        if (old >= 0) { avail[old] = legal[old]; rc[role[old]]--; const r = old * H; for (let k = 0; k < H; k++) bonus[k] -= Q[r + k]; picks[i] = -1; }
+        const bn = line.bn[s][i], gr0 = g6[rc[0] < 5 ? rc[0] : 5], gr1 = g6[rc[1] < 5 ? rc[1] : 5], gr2 = g6[rc[2] < 5 ? rc[2] : 5];
+        let best = -1, bv = -Infinity;
         for (let h = 0; h < H; h++) {
-          if (!legal[h] || taken[h]) continue;
-          const v = bs[h] + tilt[h] + this.g[Math.min(rc[role[h]], 5)] + bonus[h] + nz[h];
+          if (!avail[h]) continue;
+          const rr = role[h], v = bn[h] + (rr === 0 ? gr0 : rr === 1 ? gr1 : gr2) + bonus[h];
           if (v > bv) { bv = v; best = h; }
         }
-        picks[i] = best; add(best, 1);
+        picks[i] = best; avail[best] = 0; rc[role[best]]++; const r = best * H; for (let k = 0; k < H; k++) bonus[k] += Q[r + k];
       }
       return picks;
     }
@@ -98,7 +107,7 @@
           const mn = this.main[p]; e += w[h] + this.PH[q] - (legal[mn] ? (h !== mn ? this.kv[p] : 0) : this.kf[p]);
         } else e += w[h] + o.kap * this.LC[q] + o.kap10 * this.LC10[q] + o.kw * this.FORM[q] - (h !== this.main[p] ? this.kdOf(this.ms[p]) : 0);
         e += c === 1 ? o.rc[h][0] : c >= 3 ? o.rc[h][1] : 0;
-        for (let j = i + 1; j < 6; j++) e += o.S[h][pk[j]];
+        const r = h * H; for (let j = i + 1; j < 6; j++) e += this.SF[r + pk[j]];
       }
       return e + o.sh[cnt[0] * 7 + cnt[1]];
     }
@@ -112,10 +121,15 @@
       const pu = S.U.map((L, u) => this.draft(L, legal, S.hov.map((h, j) => (h >= 0 && legal[h] && (j === 0 || S.cu[u][j] < commit)) ? h : -1), tu));
       const po = S.O.map(L => this.draft(L, legal, [-1, -1, -1, -1, -1, -1], to));
       const C = this.M.out.C, au = pu.map((pk, u) => this.teamScore(S.U[u].pl, pk, S.wu, S.c0, legal)), ao = po.map((pk, k) => this.teamScore(S.O[k].pl, pk, S.wo, 0, legal));
-      let tot = 0;
-      for (let u = 0; u < pu.length; u++) for (let k = 0; k < po.length; k++) {
-        let x = au[u] - ao[k]; for (const a of pu[u]) { const Ca = C[a]; for (const b of po[k]) x += Ca[b]; }
-        tot += 1 / (1 + Math.exp(-x));
+      let tot = 0; const CF = this.CF, cv = new Float32Array(H), K = po.length, P6 = new Int32Array(K * 6);
+      for (let k = 0; k < K; k++) for (let j = 0; j < 6; j++) P6[k * 6 + j] = po[k][j];
+      for (let u = 0; u < pu.length; u++) {                      // our lineup's matchup vector against every hero, then 6 lookups per opposing lineup
+        cv.fill(0); for (const a of pu[u]) { const r = a * H; for (let b = 0; b < H; b++) cv[b] += CF[r + b]; }
+        const au_ = au[u];
+        for (let k = 0; k < K; k++) {
+          const q = k * 6, x = au_ - ao[k] + cv[P6[q]] + cv[P6[q + 1]] + cv[P6[q + 2]] + cv[P6[q + 3]] + cv[P6[q + 4]] + cv[P6[q + 5]];
+          tot += 1 / (1 + Math.exp(-x));
+        }
       }
       const cu = new Float32Array(H), co = new Float32Array(H);          // how often each hero appears in the simulated drafts
       for (const pk of pu) for (const h of pk) cu[h] += 1 / pu.length;
@@ -134,16 +148,20 @@
       const H = this.H, b = this.M.ban, first = S.st.firstUs, BU = new Uint8Array(H), BT = new Uint8Array(H);
       bans.forEach((h, i) => (((this.ORDER[i] === 0) === first) ? BU : BT)[h] = 1);
       for (const h of cand) BU[h] = 1;
+      // response terms as running totals: accU for a position we ban at (our bans through Ro, theirs through Rt), accT for theirs
+      const Ro = this.RoF, Rt = this.RtF, accU = new Float32Array(H), accT = new Float32Array(H);
+      const addBan = (h, byUs) => { const r = h * H; if (byUs) for (let k = 0; k < H; k++) { accU[k] += Ro[r + k]; accT[k] += Rt[r + k]; }
+                                                    else for (let k = 0; k < H; k++) { accT[k] += Ro[r + k]; accU[k] += Rt[r + k]; } };
+      for (let h = 0; h < H; h++) { if (BU[h]) addBan(h, true); if (BT[h]) addBan(h, false); }
       for (let ep = bans.length + cand.length; ep < 6; ep++) {
-        const ours = (this.ORDER[ep] === 0) === first, own = ours ? BU : BT, oth = ours ? BT : BU, base = ours ? S.ubUs : S.ubOp[j];
+        const ours = (this.ORDER[ep] === 0) === first, base = ours ? S.ubUs : S.ubOp[j], acc = ours ? accU : accT, ae = b.ae[ep], gbe = S.gb[j][ep], prot = S.protA;
         let best = -1, bv = -Infinity;
         for (let h = 0; h < H; h++) {
-          if (BU[h] || BT[h] || (ours && S.prot.has(h))) continue;
-          let v = base[h] + b.ae[ep][h] + S.gb[j][ep][h];
-          for (let i = 0; i < H; i++) { if (own[i]) v += b.Ro[i][h]; if (oth[i]) v += b.Rt[i][h]; }
+          if (BU[h] || BT[h] || (ours && prot[h])) continue;
+          const v = base[h] + ae[h] + gbe[h] + acc[h];
           if (v > bv) { bv = v; best = h; }
         }
-        own[best] = 1;
+        (ours ? BU : BT)[best] = 1; addBan(best, ours);
       }
       const legal = new Uint8Array(H); for (let h = 0; h < H; h++) legal[h] = BU[h] || BT[h] ? 0 : 1;
       return { legal, BU, BT };
