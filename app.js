@@ -112,7 +112,9 @@
       return RES ? Array.from(RES.Pu.keys()).filter(ok).sort((a, b) => RES.Pu[b] - RES.Pu[a]).slice(0, 8).map(h => ({ h, lab: pct(RES.Pu[h]) })) : [];
     }
     if (nextBan() >= 6) return [];
-    if (ourTurn()) { const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES && RES.V; return V ? topBans(8).map(h => ({ h, lab: pp(V[h]) })) : []; }
+    if (ourTurn()) { const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES && RES.V; if (!V) return [];
+      let o = topBans(8); const tb = tbFor(); if (tb && tb.decisive && !Array.isArray(tb.win)) o = [tb.win].concat(o.filter(h => h !== tb.win)).slice(0, 8);
+      return o.map(h => ({ h, lab: pp(V[h]) })); }
     return THEIRS ? Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 8).map(h => ({ h, lab: pct(THEIRS[h]) })) : [];
   }
   const quickSide = () => st.active.kind === "team" || ourTurn() ? "us" : "them";
@@ -335,6 +337,12 @@
 
   // ---------------------------------------------------------------- advice
   function suggested(cnt) {                          // our suggested ban(s) this turn; on a two-ban turn the best pair, scored jointly (null while the simulator scores pairs)
+    const tb = tbFor();
+    if (tb && tb.decisive) {                                         // the simulator broke the value model's tie
+      if (!Array.isArray(tb.win)) return [{ h: tb.win, V: RES.V[tb.win], se: RES.se[tb.win] }];
+      const p = RES.pairs.find(q => q.a === tb.win[0] && q.b === tb.win[1]);
+      if (p) { const ab = RES.V[p.a] >= RES.V[p.b] ? [p.a, p.b] : [p.b, p.a]; return ab.map(h => ({ h, V: p.V, se: p.se, pair: p })); }
+    }
     const h1 = topBans(1)[0]; if (h1 === undefined) return [];
     const S1 = st.model === "sim" ? SIM : RES, one = { h: h1, V: S1.V[h1], se: S1.se[h1] };
     if (cnt < 2) return [one];
@@ -344,6 +352,15 @@
     const p = P[0], ab = S1.V[p.a] >= S1.V[p.b] ? [p.a, p.b] : [p.b, p.a];
     return ab.map(h => ({ h, V: p.V, se: p.se, pair: p }));
   }
+  function tieLine() {                                             // what the simulator made of the value model's tie
+    if (st.model !== "value") return "";
+    const nm = c => Array.isArray(c) ? `${esc(NAMES[c[0]])} and ${esc(NAMES[c[1]])}` : esc(NAMES[c]);
+    if (TB && !TB.finished && TB.key === tbKey(TB.cands)) return `<div class="vtb">Simulating the tie, ${TB_RUNS} runs&hellip;</div>`;
+    const tb = tbFor(); if (!tb) return "";
+    const ci = `${pp(tb.m - 1.96 * tb.se)} to ${pp(tb.m + 1.96 * tb.se)}`;
+    return tb.decisive ? `<div class="vtb">Simulation breaks the tie: ${nm(tb.win)} ahead of ${nm(tb.rival)} by ${pp(tb.m)} (95% CI ${ci}, ${tb.runs} runs)</div>`
+                       : `<div class="vtb">Simulation, ${tb.runs} runs: still tied (${nm(tb.win)} ${pp(tb.m)} over ${nm(tb.rival)}, 95% CI ${ci})</div>`;
+  }
   let lastVerdict = "";
   function headline(sug, cnt, tail = "") {           // the verdict: what to ban, the estimate with its interval, and how it compares with the runner-up
     if (!sug.length) return "";
@@ -351,9 +368,9 @@
     const S1 = st.model === "sim" ? SIM : RES, P = st.model === "sim" ? SIMP : RES.pairs, pairs = cnt === 2 && sug[1];
     let runner = null, rname = "";
     if (pairs && Array.isArray(P) && P[1]) { runner = P[1]; rname = `${esc(NAMES[P[1].a])} and ${esc(NAMES[P[1].b])}`; }
-    else if (!pairs) { const r = topBans(2)[1]; if (r !== undefined) { runner = { V: S1.V[r], se: S1.se[r] }; rname = esc(NAMES[r]); } }
+    else if (!pairs) { const r = topBans(3).find(h => h !== sug[0].h); if (r !== undefined) { runner = { V: S1.V[r], se: S1.se[r] }; rname = esc(NAMES[r]); } }
     const x = sug[0], judge = !runner ? "" : lo(x) > hi(runner)
-      ? `Clear of ${rname} (${pp(runner.V)})` : `Tied with ${rname} (${pp(runner.V)})`;
+      ? `Clear of ${rname} (${pp(runner.V)})` : `${tbFor() && tbFor().decisive ? "Value model: tied" : "Tied"} with ${rname} (${pp(runner.V)})`;
     const hs = pairs ? [sug[0].h, sug[1].h] : [x.h], key = hs.join("+") + st.model;
     const fresh = key !== lastVerdict; lastVerdict = key;
     const name = pairs ? `<span class="vname">${esc(NAMES[hs[0]])}</span> and <span class="vname">${esc(NAMES[hs[1]])}</span>`
@@ -362,7 +379,7 @@
     return `<div class="verdict${pairs ? " pair" : ""}${fresh ? " fresh" : ""}"><div class="vpics">${hs.map(h => `<img src="${img(h)}" alt="">`).join("")}</div>
       <div class="vtext"><div class="vcall">Ban ${name}</div>
         <div class="vest" title="Change in your team's win probability, in points, against ${pairs ? "two typical bans" : "a typical ban"}"><span class="vnum">${pp(x.V)}</span> points${against ? ` ${against}` : ""} <span class="vci">95% CI ${pp(lo(x))} to ${pp(hi(x))}</span></div>
-        <div class="vjudge">${[judge, tail].filter(Boolean).join(". ")}</div></div></div>`;
+        <div class="vjudge">${[judge, tail].filter(Boolean).join(". ")}</div>${tieLine()}</div></div>`;
   }
   function pairTable(P, nShort) {                     // two-ban turns: the best pairs, each scored as a pair
     return `<div style="overflow-x:auto"><table style="width:100%"><caption>Best pairs for this turn. The ${nShort} best single bans are paired every way and each pair is scored together, so heroes that replace each other are not
@@ -577,13 +594,49 @@
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const PAIRS = 10;                                               // two-ban turns: pairs among the best PAIRS single bans
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=1c092ab7d8"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("sim-worker.js?v=1c092ab7d8"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
+    w.onerror = () => { if (TB && !TB.finished) { TB.finished = true; return; } simFail(); }; return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
     if (!RUN || RUN.finished) return; RUN.finished = true;
     if (RUN.pairs) { SIMP = "failed"; renderBans(); renderAdvice(); return; }   // keep the single-ban results
     RUN.failed = true; $("mainEl").classList.remove("busy"); renderAdvice();
   }
+  // ---- value model tie-break: when its top bans are statistically tied, the simulator runs just those (TB_RUNS runs each, the
+  // same stand-ins and draws for every candidate) and decides between them if it can
+  const TB_RUNS = 128, TB_MAX = 4; let TB = null, TBRES = null;
+  const tbKey = c => JSON.stringify([st.first, st.map, st.tier, st.team, st.bans, c]);
+  function tiedSet() {
+    if (st.model !== "value" || !ourTurn() || !RES) return null;
+    const lo = x => x.V - 1.96 * x.se, hi = x => x.V + 1.96 * x.se;
+    if (turnCount() === 2) { const P = RES.pairs; if (!P || P.length < 2) return null;
+      const t = P.slice(0, TB_MAX).filter((p, i) => i === 0 || hi(p) >= lo(P[0])); return t.length > 1 ? t.map(p => [p.a, p.b]) : null; }
+    const top = topBans(TB_MAX), x0 = { V: RES.V[top[0]], se: RES.se[top[0]] };
+    const t = top.filter((h, i) => i === 0 || hi({ V: RES.V[h], se: RES.se[h] }) >= lo(x0)); return t.length > 1 ? t : null;
+  }
+  function stopTieBreak() { if (TB && !TB.finished) { TB.finished = true; ensurePool(true); } }
+  function startTieBreak() {
+    stopTieBreak(); TBRES = null; const c = tiedSet(); if (!c) { TB = null; return; }
+    ensurePool(false);
+    const s = { firstUs: st.first, bans: st.bans.slice(), m: st.map, r0: META.tiers[st.tier], hov6: st.team.slice(), cnt: 1 };
+    TB = { id: ++simId, key: tbKey(c), cands: c, vals: {}, pending: 0, finished: false };
+    chunks(range(0, TB_RUNS), pool.length).forEach((js, k) => { TB.pending++; pool[k].postMessage({ id: TB.id, st: s, cands: c, looks: js, baseLooks: [] }); });
+  }
+  function onTB(d) {
+    if (!d.done || TB.finished) return;
+    for (const k in d.vals) Object.assign(TB.vals[k] || (TB.vals[k] = {}), d.vals[k]);
+    if (--TB.pending > 0) return;
+    TB.finished = true;
+    const keys = TB.cands.map(String), js = Object.keys(TB.vals[keys[0]]);
+    const mean = k => js.reduce((a, j) => a + TB.vals[k][j], 0) / js.length, bi = keys.map(mean).reduce((b, v, i, a) => v > a[b] ? i : b, 0);
+    let worst = null;                                              // the winner against its closest rival, paired run by run
+    keys.forEach((k, i) => { if (i === bi) return; const d_ = js.map(j => TB.vals[keys[bi]][j] - TB.vals[k][j]), m = d_.reduce((a, b) => a + b, 0) / d_.length;
+      const se = Math.sqrt(d_.reduce((a, b) => a + (b - m) ** 2, 0) / (d_.length * (d_.length - 1)));
+      if (!worst || m - 1.96 * se < worst.m - 1.96 * worst.se) worst = { i, m, se }; });
+    TBRES = { key: TB.key, cands: TB.cands, win: TB.cands[bi], rival: TB.cands[worst.i], m: worst.m, se: worst.se, decisive: worst.m - 1.96 * worst.se > 0, runs: js.length };
+    renderBans(); renderRoster(); renderAdvice();
+  }
+  const tbFor = () => TBRES && st.model === "value" && TBRES.key === tbKey(TBRES.cands) ? TBRES : null;   // only for the lobby it was run on
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
   function startPairs(s, base) {                            // every pair of the shortlist, all runs, against the singles' typical-ban baseline
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
@@ -593,7 +646,7 @@
     jobs.forEach((j, k) => send(k, j, looks, []));
   }
   function startSim(s) {
-    ensurePool(RUN && !RUN.finished);                       // a busy pool would finish stale work first, so start it over
+    ensurePool((RUN && !RUN.finished) || (TB && !TB.finished)); if (TB) TB.finished = true;   // a busy pool would finish stale work first, so start it over
     const prot = new Set(s.hov6.filter(h => h >= 0)), cands = [];
     for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
     const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
@@ -674,6 +727,7 @@
       FC = nextBan() < 6 ? forecastChain(s) : null;
       if (st.model === "sim" && ourTurn()) { $("busy").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1, pair: s.cnt === 2 })); }
       else { if (RUN) RUN.finished = true; $("mainEl").classList.remove("busy"); }
+      if (st.model === "value") startTieBreak(); else { stopTieBreak(); TBRES = null; }
       renderBans(); renderRoster(); renderAdvice();
     }, 15);
   }
