@@ -145,11 +145,28 @@
                : e < 6 ? `<b>ban #${e + 1}</b> (${ours(e) ? "us" : "them"})` : "nowhere";
     $("target").innerHTML = ""; $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." : "";
   }
+  // hero order in the roster: how often each hero is opened at the selected rank (the lineup model with no bans and nothing
+  // shown, averaged over maps and sides), computed once per rank so the order stays put while you click
+  const POPC = new Map();
+  function popularity() {
+    const key = st.tier; if (POPC.has(key)) return POPC.get(key);
+    const rf = E.rankFeat(META.tiers[st.tier]), p = new Float64Array(H); let n = 0;
+    for (let m = 0; m < META.maps.length; m++) for (const side of [0, 1]) {
+      const x = E.features([], [], [], m, rf, side, 0);
+      for (const net of E.nets) { const P = E.netProb(net, x); for (let h = 0; h < H; h++) p[h] += P[h]; n++; }
+    }
+    for (let h = 0; h < H; h++) p[h] /= n; POPC.set(key, p); return p;
+  }
+  let SORT = "pop"; try { if (localStorage.getItem("bancall-sort") === "az") SORT = "az"; } catch (e) {}
+  const heroOrder = hs => { if (SORT === "az") return hs.sort((a, b) => NAMES[a].localeCompare(NAMES[b])); const p = popularity(); return hs.sort((a, b) => p[b] - p[a] || NAMES[a].localeCompare(NAMES[b])); };
+  const setSort = v => { SORT = v; try { localStorage.setItem("bancall-sort", v); } catch (e) {} $("sortPop").classList.toggle("on", v === "pop"); $("sortAz").classList.toggle("on", v === "az"); };
+  $("sortPop").onclick = () => { setSort("pop"); renderRoster(); }; $("sortAz").onclick = () => { setSort("az"); renderRoster(); };
+  setSort(SORT);
   function renderRoster() {
     const q = $("search").value.trim().toLowerCase(), bans = bannedSet(), team = teamSet();
     const rank = new Map(); if (ourTurn() && RES) topBans(3).forEach((h, k) => rank.set(h, k + 1));
     $("roster").innerHTML = [0, 1, 2].map(r => {
-      const hs = NAMES.map((n, h) => h).filter(h => META.roles[h] === r).sort((a, b) => NAMES[a].localeCompare(NAMES[b]));
+      const hs = heroOrder(NAMES.map((n, h) => h).filter(h => META.roles[h] === r));
       return `<h3>${ROLE_NAMES[r]}</h3><div class="grid">` + hs.map(h => {
         const cls = ["tile"]; if (bans.has(h)) cls.push("banned"); if (team.has(h)) cls.push("ours");
         if (q && !NAMES[h].toLowerCase().includes(q) && !(SHORT[NAMES[h]] || "").toLowerCase().includes(q)) cls.push("dim");
@@ -405,7 +422,7 @@
     $("lobbyTerm").innerHTML = t;
     let r = `<div class="tcols">`;
     [0, 1, 2].forEach(k => {
-      const hs = NAMES.map((n, h) => h).filter(h => META.roles[h] === k).sort((a, b) => NAMES[a].localeCompare(NAMES[b]));
+      const hs = heroOrder(NAMES.map((n, h) => h).filter(h => META.roles[h] === k));
       r += `<div><div class="tsec">${ROLE_NAMES[k].toLowerCase()}</div>` + hs.map(h => {
         const b = bans.has(h), o = team.has(h), dim = q && !NAMES[h].toLowerCase().includes(q) && !(SHORT[NAMES[h]] || "").toLowerCase().includes(q);
         return `<div class="thero${b ? " banned" : ""}${o ? " ours" : ""}${dim ? " dim" : ""}" data-h="${h}">${rank.has(h) ? rank.get(h) : b ? "x" : o ? "*" : " "} ${esc(NAMES[h])}</div>`;
