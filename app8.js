@@ -31,12 +31,12 @@
     "model/meta.json"].map(u => fetch(u).then(r => r.json())).concat([fetch("model/weights.bin").then(r => r.arrayBuffer()), fetch("model/portraits.json").then(r => r.json())]));
   const E = new Engine8(LAY, BAN), E7 = new BanEngine(META, W7, META.engine ? { NS: 64, NOWN: META.engine.nown } : { NS: 64 });
   const H = E.H, ORDER = LAY.order, NAMES = LAY.heroes, ROLES = LAY.roles;
-  status(`Loading the value networks (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)…`);
-  E.addBuffer("opt", await fetchBin(`model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, "Loading the value networks"));
+  status(`Loading the model (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)…`);
+  E.addBuffer("opt", await fetchBin(`model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, "Loading the model"));
   const auxP = LAY.files.aux ? fetchBin(`model8/${LAY.files.aux.path}${VQ}`, LAY.files.aux.bytes, null) : null;   // behaviour and robust members: after the page is up
-  // the networks behind the ranges: three members (v8.1), or the large networks a student was trained on (v8.2 on, one SD either side)
-  const NW = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][E.NN - 1] || String(E.NN);
-  const spreadTxt = sp => sp.pts.length ? `the ${NW} networks: ${sp.pts.map(u => pp(u)).join(", ")}` : `the ${NW} networks, one SD either side: ${pp(sp.lo)} to ${pp(sp.hi)}`;
+  // a value's range, in plain words: the page never says how many networks sit behind it (the members' lowest to highest in
+  // v8.1, one SD either side of the teachers' mean from v8.2 on)
+  const spreadTxt = sp => `range ${pp(sp.lo)} to ${pp(sp.hi)}`;
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const V7 = new Map(META.maps.map((m, i) => [m.name, i]));                          // the lineup network's map index, by name
@@ -268,7 +268,7 @@
     const lo = Math.min(0, ...top.map(h => RES.spread(h).lo)), hi = Math.max(0, ...top.map(h => RES.spread(h).hi)), CW = 200, X = v => 17 + (v - lo) / (hi - lo || 1) * (CW - 34);
     const step = niceStep(hi - lo, 3); let ticks = "";
     for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-12; t += step) ticks += `<text x="${X(t)}" y="10" font-size="10" text-anchor="middle" class="faint">${pp(t, step < .005 ? 2 : 1)}</text>`;
-    const cell = h => { const v = RES.spread(h), neg = RES.V[h] < 0, tk = v.pts.length ? v.pts : [v.lo, v.hi];
+    const cell = h => { const v = RES.spread(h), neg = RES.V[h] < 0, tk = [v.lo, v.hi];
       return `<svg width="${CW}" height="16" viewBox="0 0 ${CW} 16" style="display:inline-block;vertical-align:middle"><line class="grid" x1="${X(0)}" x2="${X(0)}" y1="0" y2="16"/>
         <line class="whisk" x1="${X(v.lo)}" x2="${X(v.hi)}" y1="8" y2="8"/>${tk.map(u => `<line class="whisk" x1="${X(u)}" x2="${X(u)}" y1="5" y2="11"/>`).join("")}<circle cx="${X(RES.V[h])}" cy="8" r="3.6" class="${neg ? "them" : "us"}"/></svg>`; };
     return `<div style="overflow-x:auto"><table style="width:100%"><caption>${cap}</caption>
@@ -346,10 +346,9 @@
     g += `<line x1="${X(0)}" x2="${X(0)}" y1="14" y2="${base}" stroke="var(--ink)" stroke-dasharray="2 3"/><text x="${X(0)}" y="${base + 29}" font-size="11" text-anchor="middle" class="faint">a typical ban</text>`;
     g += `<text x="${W - PAD}" y="${base + 29}" font-size="11" text-anchor="end" class="faint">points against a typical ban →</text>`;
     const b0 = items[0], m = sb;
-    const my = base - 8;                                 // the networks' range for the advice, on a line of their own under the board
-    g += `<g${T_(`<b>${esc(NAMES[best])}</b>: ${spreadTxt(m)}`)}><line x1="${X(m.lo)}" x2="${X(m.hi)}" y1="${my}" y2="${my}" stroke="var(--blue)" stroke-width="1.5"/>`
-      + (m.pts.length ? m.pts.map(u => `<circle cx="${X(u)}" cy="${my}" r="3" fill="var(--blue)"/>`).join("")
-        : [m.lo, m.hi].map(u => `<line x1="${X(u)}" x2="${X(u)}" y1="${my - 4}" y2="${my + 4}" stroke="var(--blue)" stroke-width="1.5"/>`).join("") + `<circle cx="${X(R.V[best])}" cy="${my}" r="3" fill="var(--blue)"/>`)
+    const my = base - 8;                                 // the advice's range, on a line of its own under the board
+    g += `<g${T_(`<b>${esc(NAMES[best])}</b> ${pp(R.V[best])}<br><span class="d">${spreadTxt(m)}</span>`)}><line x1="${X(m.lo)}" x2="${X(m.hi)}" y1="${my}" y2="${my}" stroke="var(--blue)" stroke-width="1.5"/>`
+      + [m.lo, m.hi].map(u => `<line x1="${X(u)}" x2="${X(u)}" y1="${my - 4}" y2="${my + 4}" stroke="var(--blue)" stroke-width="1.5"/>`).join("") + `<circle cx="${X(R.V[best])}" cy="${my}" r="3" fill="var(--blue)"/>`
       + `<rect x="${X(m.lo) - 4}" y="${my - 6}" width="${X(m.hi) - X(m.lo) + 8}" height="12" fill="transparent"/></g>`;
     for (const it of items.slice().reverse()) {
       const h = it.h, rare = !R.supported.has(h), isB = h === best, x = it.x, y = cy + it.y;
@@ -465,8 +464,7 @@
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(LU.pt.keys()).filter(h => !bans.has(h)).sort((a, b) => LU.pt[b] - LU.pt[a]).slice(0, 10);
     const us = Array.from(LU.pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => LU.pu[b] - LU.pu[a]).slice(0, 10);
-    return `<figure>${butterfly(them, us, LU.pt, LU.pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows (the previous model's lineup network:
-      the new model's drafts live inside its value networks).</figcaption></figure>`;
+    return `<figure>${butterfly(them, us, LU.pt, LU.pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows (from the previous model's draft predictions).</figcaption></figure>`;
   }
   function renderAdvice() {
     const e = nextBan(), W = figW(); let html = "";
@@ -476,7 +474,7 @@
       const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], clr = runner !== undefined && R.clear(R.best, runner);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
       html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("scored as a pair")}</p>`
-        : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}${R.Q ? ` in all ${NW} networks` : ""}` : `close call with ${esc(nm(runner))}`)}</p>`;
+        : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
       html += winLine() + `<div class="fig8">${banBoard(W)}</div>`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
@@ -485,8 +483,8 @@
         html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}`)}` : ""}</p><div class="fig8">${F.svg}</div>`; }
       html += more("All bans as a table", rankTable(topBans(12), [
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
-        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. ${R.Q ? `Ticks: the ${NW} networks` : `Bar: one SD either side across the ${NW} networks`}. Typical: how often a
-        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's lineup network.`));
+        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Bar: the range. Typical: how often a
+        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's draft predictions.`));
       html += more("Likely openers", openers());
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
@@ -548,9 +546,9 @@
       assuming your later bans follow the advice and theirs follow what teams really do.</p>
       <p class="formula">value(<i>x</i>) = win chance after you ban <i>x</i> − win chance after a typical ban</p>
       <p>A ban's value is read straight from the next position's network, so the rest of the ban phase, the other team's replies, and both teams' substitutions are all inside it.
-      ${E.S ? `${NW[0].toUpperCase() + NW.slice(1)} large networks per position are trained on different resamples of the simulated lobbies, and one small network per position, the one
-      that runs on this page, is trained to reproduce their average and their spread.` : `${NW[0].toUpperCase() + NW.slice(1)} networks are trained on different resamples of the simulated lobbies.`}
-      The advice takes the highest average minus half their spread, among bans a typical team makes at least 0.1% of the time, so it does not rest on a ban the data never shows.</p>
+      The model is fitted several times on different resamples of the simulated lobbies${E.S ? `, and a compact copy that runs on this page reproduces their average and how far they disagree` : ""}.
+      The ranges on the page show that disagreement. The advice takes the highest average minus half the range, among bans a typical team makes at least 0.1% of the time, so it does not
+      rest on a ban the data never shows.</p>
       <ul>
         <li><b>Drafts</b>: a pick model fitted on every Season 10 opening pick, with each player's history as of the match (minutes, skill on each hero, role shares, how they substitute when
           their main is banned) and their teammates' picks. Its simulated drafts match real teams: 2-2-2 in ${pct(d.two_two_two.model)} of drafts (real ${pct(d.two_two_two.real)}),
@@ -567,8 +565,8 @@
         <tr><td>Their bans: log loss per ban (the previous model's ban model)</td><td class="r">${banT[R.selected.ban].toFixed(4)} (${banT.A.toFixed(4)})</td></tr>
         <tr><td>Who wins: log loss per match (previous model), calibration slope</td><td class="r">${out8.logloss.toFixed(4)} (${out7.logloss.toFixed(4)}), ${out8.calib_slope.toFixed(2)}</td></tr>
         <tr><td>Simulated drafts on real teams: 2-2-2 / triple support / stays in role when the main is banned</td><td class="r">${pct(d.two_two_two.model)} / ${pct(d.triple_support.model)} / ${pct(d.role_stay_when_forced.model)} (real ${pct(d.two_two_two.real)} / ${pct(d.triple_support.real)} / ${pct(d.role_stay_when_forced.real)})</td></tr>
-        <tr><td>Networks against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${C.brute_force.regret_network_pts.toFixed(2)} (${C.brute_force.regret_typical_pts.toFixed(2)})</td></tr>
-        ${stu ? `<tr><td>The small networks on this page against the large ones, at your first ban: same advice, points lost</td><td class="r">${pct(stu.same)}, ${stu.regret.toFixed(3)}</td></tr>` : ""}
+        <tr><td>The model against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${C.brute_force.regret_network_pts.toFixed(2)} (${C.brute_force.regret_typical_pts.toFixed(2)})</td></tr>
+        ${stu ? `<tr><td>The compact copy on this page against the full model, at your first ban: same advice, points lost</td><td class="r">${pct(stu.same)}, ${stu.regret.toFixed(3)}</td></tr>` : ""}
         <tr><td>Inside the simulation: following the advice against banning as players do</td><td class="r">+${C.policy.optimal_vs_players.gain_pts.toFixed(2)} pts</td></tr>
         ${ope.map(q => `<tr><td>Real games: following the advice at your ban ${q.decision} (weights capped, 95% interval)</td><td class="r">${cq(q.doubly_robust_capped)} pts</td></tr>`).join("")}
       </table>
@@ -585,7 +583,7 @@
         <li>Hovers are not in the data. A shown hero is treated as that player's likely pick, and a teammate keeps a shown hero about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
         <li>Mid-match swaps are outside the model (it drafts opening lineups). Tested separately on real matches: they did not measurably change what a ban is worth.</li>
-        <li>The networks' spread shows where they disagree, not a full interval: refitting everything on other matches would move the values more.</li>
+        <li>A range shows where the model's fits disagree, not a full interval: refitting everything on other matches would move the values more.</li>
         <li>God Quarry is left out (7 matches in the data).</li>
       </ul></div></div></details>
       <h2>Where mains go when their hero is banned</h2>
