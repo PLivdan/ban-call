@@ -305,8 +305,8 @@
   }
 
   // ---------------------------------------------------------------- the advice's figures: portraits for labels, numbers on hover
-  // Colours keep one meaning each: blue is good for you, red is bad for you, and three muted hues (--r0..--r2) are the roles.
-  const RC = ["var(--r0)", "var(--r1)", "var(--r2)"], RN = ["vanguard", "duelist", "strategist"];
+  // The page's palette only: ink and greys, blue for good for you, red for bad for you. Roles are told apart by position and labels.
+  const RN = ["vanguard", "duelist", "strategist"];
   const sum = a => a.reduce((x, y) => x + y, 0), mean = a => sum(a) / a.length, IDX = new Map(NAMES.map((n, i) => [n, i]));
   const nm = h => SHORT[NAMES[h]] || NAMES[h];
   const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
@@ -365,13 +365,13 @@
     const Hh = 290, top = 12, gap = 7, avail = Hh - 2 * top - gap * (nodes.length - 1), x0 = 96, nw = 11, x1 = Math.min(W - 180, x0 + 230);
     let y = top, yl = top + gap * (nodes.length - 1) / 2, g = ""; const ys = [];
     nodes.forEach(n => { const hgt = Math.max(1.5, n.p * avail); n.y0 = y; n.y1 = y + hgt; n.l0 = yl; n.l1 = yl + n.p * avail; y += hgt + gap; yl += n.p * avail; ys.push((n.y0 + n.y1) / 2); });
-    const col = n => n.other ? (n.role >= 0 ? RC[n.role] : "var(--faint)") : RC[ROLES[n.h]];
+    const col = n => (n.other ? n.role === role : ROLES[n.h] === role) ? "var(--faint)" : "var(--blue)";
     for (const n of nodes) {
-      g += `<path d="${band(x0 + nw, n.l0, n.l1, x1, n.y0, n.y1)}" fill="${col(n)}" opacity="${n.other ? .32 : .55}"${T_(`${esc(NAMES[h])} mains → <b>${esc(n.other || NAMES[n.h])}</b> ${pct(n.p)}`)}/>`
+      g += `<path d="${band(x0 + nw, n.l0, n.l1, x1, n.y0, n.y1)}" fill="${col(n)}" opacity="${n.other ? .22 : .38}"${T_(`${esc(NAMES[h])} mains → <b>${esc(n.other || NAMES[n.h])}</b> ${pct(n.p)}`)}/>`
         + `<rect x="${x1}" y="${n.y0}" width="${nw}" height="${n.y1 - n.y0}" fill="${col(n)}"/>`;
     }
     const cyl = top + gap * (nodes.length - 1) / 2 + avail / 2;
-    g += `<rect x="${x0}" y="${top + gap * (nodes.length - 1) / 2}" width="${nw}" height="${avail}" fill="${RC[role]}"/>` + pic(h, x0 - 38, cyl, 28)
+    g += `<rect x="${x0}" y="${top + gap * (nodes.length - 1) / 2}" width="${nw}" height="${avail}" fill="var(--ink)"/>` + pic(h, x0 - 38, cyl, 28)
       + `<text x="${x0 - 38}" y="${cyl + 45}" font-size="11" text-anchor="middle" class="faint">${fmt(r.mains)} mains</text>`;
     const ly = spread(ys, 23, top + 8, Hh - top - 8);
     nodes.forEach((n, i) => { const yy = ly[i], x = x1 + nw + 8;
@@ -430,14 +430,14 @@
       rows.forEach((x, i) => {
         const ry = top + i * (rh + rg); let yy = ry;
         for (const q of [0, 1, 2]) { const hL = x.s[q] * rh, hR = x.s[q] / n * avail; if (hL < .05) continue;
-          g += `<path class="flow" data-hero="${x.h}" d="${band(x0 + nw, yy, yy + hL, x1, fill[q], fill[q] + hR)}" fill="${RC[q]}" opacity=".6"/>`; yy += hL; fill[q] += hR; }
+          g += `<path class="flow" data-hero="${x.h}" d="${band(x0 + nw, yy, yy + hL, x1, fill[q], fill[q] + hR)}" fill="${q === role ? "var(--ink)" : "var(--faint)"}" opacity="${q === role ? .5 : .3}"/>`; yy += hL; fill[q] += hR; }
         g += `<g class="rowlab" data-hero="${x.h}"${T_(`<b>${esc(NAMES[x.h])}</b>: ${pct(x.r.same_role)} of ${fmt(x.r.mains)} mains stay ${RN[role]}<br><span class="d">first choices: ${x.r.top.slice(0, 4).map(([a, p]) => `${esc(SHORT[a] || a)} ${pct(p)}`).join(", ")}</span>`)}>`
-          + `<rect x="0" y="${ry - 1}" width="${x0 + nw}" height="${rh + 2}" fill="transparent"/><rect x="${x0}" y="${ry}" width="${nw}" height="${rh}" fill="${RC[role]}"/><text x="${x0 - 5}" y="${ry + rh - 2}" font-size="11.5" text-anchor="end">${esc(NAMES[x.h])}</text></g>`;
+          + `<rect x="0" y="${ry - 1}" width="${x0 + nw}" height="${rh + 2}" fill="transparent"/><rect x="${x0}" y="${ry}" width="${nw}" height="${rh}" fill="var(--ink)"/><text x="${x0 - 5}" y="${ry + rh - 2}" font-size="11.5" text-anchor="end">${esc(NAMES[x.h])}</text></g>`;
       });
       for (const q of [0, 1, 2]) { const ny = nodeY[q], cyq = (ny.y0 + ny.y1) / 2;
-        g += `<rect x="${x1}" y="${ny.y0}" width="${nw + 2}" height="${Math.max(1, ny.y1 - ny.y0)}" fill="${RC[q]}"/><text x="${x1 + nw + 8}" y="${cyq}" font-size="12" font-weight="600">${ROLE_NAMES[q]}</text><text x="${x1 + nw + 8}" y="${cyq + 14}" font-size="12" class="faint">${pct(tot[q] / n)}</text>`; }
+        g += `<rect x="${x1}" y="${ny.y0}" width="${nw + 2}" height="${Math.max(1, ny.y1 - ny.y0)}" fill="${q === role ? "var(--ink)" : "var(--faint)"}"/><text x="${x1 + nw + 8}" y="${cyq}" font-size="12" font-weight="600">${ROLE_NAMES[q]}</text><text x="${x1 + nw + 8}" y="${cyq + 14}" font-size="12" class="faint">${pct(tot[q] / n)}</text>`; }
       const stay = mean(rows.map(x => x.r.same_role));
-      return `<div><p class="head"><span class="n" style="color:${RC[role]}">${pct(stay)}</span> of ${RN[role]} mains stay ${RN[role]}</p><svg class="sk" viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg></div>`;
+      return `<div><p class="head"><span class="n">${pct(stay)}</span> of ${RN[role]} mains stay ${RN[role]}</p><svg class="sk" viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg></div>`;
     }).join("");
   }
   function wireSankeys(root) {
@@ -476,7 +476,7 @@
       html += winLine() + `<div class="fig8">${banBoard(W)}</div>`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
-      if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n t">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
+      if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n u">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
       if (cnt === 1 && REPLY) { const F = forecastStrip(REPLY, W);
         html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}`)}` : ""}</p><div class="fig8">${F.svg}</div>`; }
       html += more("All bans as a table", rankTable(topBans(12), [
@@ -583,7 +583,7 @@
       <h2>Where mains go when their hero is banned</h2>
       <div class="roles">${roleFlows()}</div>
       <p class="small">Each row is a hero. Its mains (30% or more of their minutes on it) flow to the role they pick when it is banned, before teammates pick (the pick model's average over
-      maps and sides). The colour is the role they end up in. Hover a hero to follow it.</p>`;
+      maps and sides). Dark: they stay in the role. Light: they switch to the role on the right. Hover a hero to follow it.</p>`;
     wireSankeys($("method"));
   }
   const SPL = REP.splits, day = t => new Date(t.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" });
