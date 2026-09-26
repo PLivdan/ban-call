@@ -80,6 +80,3 @@ Node is at `~/tools/node/node.exe` on the development machine (portable, not on 
 
 ## Run locally
     python -m http.server 8765    # then open http://127.0.0.1:8765
-
-## Plans
-- `docs/PLAN_combined_estimator.md`: one estimator with the value model's precision and the simulator's completeness (a control variate built from the simulator's own first-order answer). Planned, not started.
