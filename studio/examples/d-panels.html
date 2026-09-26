@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
+<link rel="stylesheet" href="ex.css">
+<title>The value in panels</title>
+<style>
+  .strip { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 0; border: 1.5px solid var(--ink); overflow-x: auto; scroll-snap-type: x mandatory; }
+  .pn { border-right: 1.5px solid var(--ink); padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 12px; scroll-snap-align: start; min-width: 200px; opacity: 0; animation: pin .5s cubic-bezier(.2, .8, .2, 1) forwards; }
+  .pn:last-child { border-right: 0; background: var(--ink); color: var(--paper); }
+  @keyframes pin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .pn .n { width: 22px; height: 22px; display: grid; place-items: center; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 12px; }
+  .pn:last-child .n { background: var(--paper); color: var(--ink); }
+  .pn svg { width: 100%; height: auto; display: block; }
+  .pn p { margin: 0; font-size: 14px; line-height: 1.35; } .pn p b { font-weight: 800; }
+  .pn .op { font-stretch: 110%; font-weight: 800; font-size: 34px; line-height: 1; color: var(--ink); letter-spacing: -.02em; }
+  .pn:last-child .op { color: var(--paper); font-size: 52px; }
+  .pn .sub { font-size: 12px; color: var(--graphite); font-stretch: 80%; }
+  .pn:last-child .sub { color: color-mix(in srgb, var(--paper) 70%, transparent); }
+  .eq { margin-top: 24px; font-size: 15px; font-stretch: 90%; } .eq b { font-weight: 800; }
+  .eq .t { color: var(--them); } .eq .u { color: var(--us); }
+</style>
+<header><div class="id">Ban Call<span>examples</span></div><nav><a href="index.html">All four</a><a href="a-chance.html">A. Chance of the best ban</a><a href="b-flow.html">B. Where their players go</a><a href="c-tree.html">C. The ban phase as a tree</a><a class="on" href="d-panels.html">D. The value in panels</a></nav></header>
+<main>
+  <p class="lobby" data-lobby></p>
+  <div class="chips" id="chips"></div>
+  <h1 id="h1"></h1>
+  <p class="dek">The ban value model's answer, taken apart in the order it is built. Every number below comes from the model for this lobby.</p>
+  <div class="strip" id="strip"></div>
+  <p class="eq" id="eq"></p>
+  <p class="note">Chances come from the lineup networks, costs from the outcome model (each player moved to their next choice), and the chance it goes anyway from 512 simulated ban phases. The last term is what the ban changes in the rest of the ban phase, such as the other team spending a ban elsewhere.</p>
+</main>
+<script src="ex.js"></script>
+<script>
+(async () => {
+  const X = await EX, { D, N, img, short, pp, pct, esc } = X, Vv = D.value;
+  const cands = Array.from(Vv.V.keys()).filter(h => Vv.V[h] !== null).sort((a, b) => Vv.V[b] - Vv.V[a]).slice(0, 6);
+  let cur = cands[0];
+  const chips = document.getElementById("chips");
+  chips.innerHTML = cands.map(h => `<button class="chip" data-h="${h}"><img src="${img(h)}" alt="">${esc(short(h))}</button>`).join("");
+  chips.querySelectorAll(".chip").forEach(b => b.onclick = () => { cur = +b.dataset.h; draw(); });
+  const grid = (n, col, hatch = 0, hcol) => { let s = ""; for (let i = 0; i < 100; i++) { const x = (i % 10) * 20 + 10, y = Math.floor(i / 10) * 20 + 10, on = i < n, ht = !on && i < n + hatch;
+    s += `<circle cx="${x}" cy="${y}" r="${on || ht ? 7.5 : 3}" fill="${on ? col : ht ? hcol : "var(--hair)"}"${ht ? ' opacity=".55"' : ""}/>`; } return `<svg viewBox="0 0 200 200">${s}</svg>`; };
+  const bar = (lost, col) => { const w = 180, lx = w * .5, cut = Math.min(w * .45, lost * w * 4);
+    return `<svg viewBox="0 0 200 110"><rect x="10" y="30" width="${w}" height="34" fill="var(--hair)"/><rect x="10" y="30" width="${lx - cut}" height="34" fill="${col}"/><rect x="${10 + lx - cut}" y="30" width="${cut}" height="34" fill="${col}" opacity=".25"/>
+      <line x1="${10 + lx}" x2="${10 + lx}" y1="22" y2="72" stroke="var(--ink)" stroke-dasharray="2 2"/><text x="${10 + lx}" y="16" text-anchor="middle" class="t11 g">50%</text>
+      <text x="${10 + lx - cut / 2}" y="92" text-anchor="middle" class="t12 ink" font-weight="700">−${(100 * lost).toFixed(1)}</text></svg>`; };
+  function draw() {
+    chips.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", +b.dataset.h === cur));
+    const h = cur, l = 1 - Vv.PL[h], Pt = Vv.Pt[h], Pu = Vv.Pu[h], R = Vv.R[h], Ru = Vv.Rus[h], V = Vv.V[h], dA = l * Pt * R, dB = l * Pu * Ru, rest = V - dA + dB, nm = esc(short(h));
+    document.getElementById("h1").innerHTML = `Why banning <span class="us">${esc(N[h])}</span> is worth ${pp(V)} points`;
+    const P = [
+      [`<p>They open ${nm} in <b>${Math.round(100 * Pt)} of 100</b> games like this one.</p>`, grid(Math.round(100 * Pt), "var(--them)"), `the other team's lineups`],
+      [`<p>When they have to go without it, they lose <b>${(100 * R).toFixed(1)} points</b> of win chance.</p>`, bar(R, "var(--them)"), `their players move to their next heroes`],
+      [`<p>In <b>${Math.round(100 * (1 - l))} of 100</b> ban phases someone bans it later anyway, so only the rest counts.</p>`, grid(Math.round(100 * l), "var(--ink)", Math.round(100 * (1 - l)), "var(--graphite)"), `grey: banned anyway`],
+      [`<p>Your team opens it in <b>${Math.round(100 * Pu)} of 100</b>, and loses ${(100 * Ru).toFixed(1)} points without it.</p>`, grid(Math.round(100 * Pu), "var(--us)"), `your team's lineups`],
+      [`<p>What the ban is worth to your team.</p>`, `<div class="op">${pp(V)}</div>`, `points of win chance, against a typical ban`]];
+    document.getElementById("strip").innerHTML = P.map(([t, fig, sub], k) => `<div class="pn" style="animation-delay:${k * 110}ms"><span class="n">${k + 1}</span>${t}${fig}<span class="sub">${sub}</span></div>`).join("");
+    document.getElementById("eq").innerHTML = `<b class="t">${pct(Pt)} × ${(100 * R).toFixed(1)}</b> × ${l.toFixed(2)} − <b class="u">${pct(Pu)} × ${(100 * Ru).toFixed(1)}</b> × ${l.toFixed(2)} ${rest >= 0 ? "+" : "−"} ${(100 * Math.abs(rest)).toFixed(2)} for the rest of the ban phase = <b>${pp(V)}</b>`;
+  }
+  draw();
+})();
+</script>

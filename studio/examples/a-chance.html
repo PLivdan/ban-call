@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
+<link rel="stylesheet" href="ex.css">
+<title>Chance of the best ban</title>
+<style>
+  .stack { display: flex; height: 64px; border: 1.5px solid var(--ink); margin: 6px 0 8px; overflow: hidden; }
+  .seg { position: relative; min-width: 0; display: flex; align-items: center; gap: 8px; padding-left: 6px; border-right: 1.5px solid var(--paper); background: var(--us); color: #fff; overflow: hidden;
+         transform-origin: left; animation: grow .9s cubic-bezier(.2, .8, .2, 1) both; }
+  .seg:nth-child(n+2) { background: color-mix(in srgb, var(--us) 70%, var(--paper)); }
+  .seg:nth-child(n+4) { background: color-mix(in srgb, var(--us) 42%, var(--paper)); color: var(--ink); }
+  .seg:nth-child(n+7) { background: color-mix(in srgb, var(--us) 20%, var(--paper)); }
+  .seg img { width: 46px; height: 46px; flex: none; }
+  .seg b { font-stretch: 105%; font-weight: 800; font-size: 20px; white-space: nowrap; }
+  .seg span { font-size: 12px; font-stretch: 78%; white-space: nowrap; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .ridge { transform-origin: 0 0; }
+  .lab2 { display: flex; justify-content: space-between; font-size: 12px; color: var(--graphite); font-stretch: 78%; }
+</style>
+<header><div class="id">Ban Call<span>examples</span></div><nav><a href="index.html">All four</a><a class="on" href="a-chance.html">A. Chance of the best ban</a><a href="b-flow.html">B. Where their players go</a><a href="c-tree.html">C. The ban phase as a tree</a><a href="d-panels.html">D. The value in panels</a></nav></header>
+<main>
+  <p class="lobby" data-lobby></p>
+  <h1 id="h1"></h1>
+  <p class="dek" id="dek"></p>
+  <div class="fig"><div class="lab2"><span>Share of simulated ban phases in which each ban comes out best</span><span id="nruns"></span></div><div class="stack" id="stack"></div></div>
+  <div class="fig" style="margin-top:34px"><div class="lab2"><span>How much each ban is worth, run by run</span><span>average and chance it is best</span></div><svg id="ridges"></svg>
+    <p class="note">Each curve is the spread of one ban's value across the simulated ban phases: the rest of the bans, the stand-in players and both teams' drafts are drawn again every run, and the same draws are used for every ban. Blue is where the ban helps your team, orange where it hurts. The tick is the average. Curves that overlap this much are why no single ban wins most runs.</p></div>
+</main>
+<script src="ex.js"></script>
+<script>
+(async () => {
+  const X = await EX, { D, N, img, short, pp, pct, esc } = X, S = D.sim, J = S.base.length;
+  const rows = S.cands.map(h => { const d = X.diffs(h); return { h, d, m: d.reduce((a, b) => a + b, 0) / J }; });
+  const wins = new Map(rows.map(r => [r.h, 0]));
+  for (let j = 0; j < J; j++) { let b = -1, bv = -1; for (const h of S.cands) if (S.runs[h][j] > bv) { bv = S.runs[h][j]; b = h; } wins.set(b, wins.get(b) + 1); }
+  rows.forEach(r => r.p = wins.get(r.h) / J);
+  const byP = rows.slice().sort((a, b) => b.p - a.p), lead = byP[0], vm = D.value.V, vTop = S.cands[0];
+  document.getElementById("h1").innerHTML = `<span class="us">${esc(N[lead.h])}</span> is the best ban in ${pct(lead.p)} of simulated ban phases`;
+  document.getElementById("dek").innerHTML = `No ban wins most of the time. ${esc(short(byP[1].h))} is best in ${pct(byP[1].p)}, ${esc(short(byP[2].h))} in ${pct(byP[2].p)}. The ban value model's pick, ${esc(short(vTop))}, wins in ${pct(rows.find(r => r.h === vTop).p)}: it is a steady small gain, while the leaders swing more from run to run.`;
+  document.getElementById("nruns").textContent = `${J} runs, the 12 leading bans`;
+  document.getElementById("stack").innerHTML = byP.filter(r => r.p > 0).map((r, k) => `<div class="seg" style="flex:${r.p} 1 0;animation-delay:${k * 60}ms" title="${esc(N[r.h])}: best in ${pct(r.p)} of runs">${r.p >= .06 ? `<img src="${img(r.h)}" alt="">` : ""}${r.p >= .1 ? `<div><b>${pct(r.p)}</b><br><span>${esc(short(r.h))}</span></div>` : r.p >= .06 ? `<b style="font-size:14px">${pct(r.p)}</b>` : ""}</div>`).join("");
+  // ridgeline: kernel density of each ban's run-by-run value
+  const byM = rows.slice().sort((a, b) => b.m - a.m), all = rows.flatMap(r => r.d).sort((a, b) => a - b);
+  const lo = all[Math.floor(.01 * all.length)], hi = all[Math.floor(.99 * all.length)], Wd = 1100, L = 150, R = 150, rowH = 42, amp = 50, top = 60;
+  const x = v => L + (v - lo) / (hi - lo) * (Wd - L - R);
+  const kde = d => { const n = d.length, m = d.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)), bw = 1.06 * sd * Math.pow(n, -.2);
+    const pts = []; for (let i = 0; i <= 120; i++) { const v = lo + (hi - lo) * i / 120; let s = 0; for (const u of d) s += Math.exp(-.5 * ((v - u) / bw) ** 2); pts.push([v, s / (n * bw * Math.sqrt(2 * Math.PI))]); } return pts; };
+  const dens = byM.map(r => kde(r.d)), dmax = Math.max(...dens.flat().map(p => p[1]));
+  let g = `<defs><clipPath id="pos"><rect x="${x(0)}" y="0" width="${Wd}" height="2000"/></clipPath><clipPath id="neg"><rect x="0" y="0" width="${x(0)}" height="2000"/></clipPath></defs>`;
+  const H = top + byM.length * rowH + 40;
+  g += `<line x1="${x(0)}" x2="${x(0)}" y1="0" y2="${H - 30}" stroke="var(--ink)" stroke-dasharray="2 3"/>`;
+  byM.forEach((r, k) => {
+    const base = top + k * rowH, path = "M" + dens[k].map(([v, p]) => `${x(v).toFixed(1)} ${(base - p / dmax * amp).toFixed(1)}`).join("L") + `L${x(hi)} ${base}L${x(lo)} ${base}Z`, line = "M" + dens[k].map(([v, p]) => `${x(v).toFixed(1)} ${(base - p / dmax * amp).toFixed(1)}`).join("L");
+    g += `<g class="ridge" style="transform-origin:0 ${base}px;animation:rise .8s ${120 + k * 55}ms cubic-bezier(.2,.8,.2,1) both">
+      <path d="${path}" fill="var(--paper)"/><path d="${path}" fill="var(--them)" opacity=".38" clip-path="url(#neg)"/><path d="${path}" fill="var(--us)" opacity=".5" clip-path="url(#pos)"/>
+      <path d="${line}" fill="none" stroke="var(--ink)" stroke-width="1.3"/><line x1="${x(lo)}" x2="${x(hi)}" y1="${base}" y2="${base}" stroke="var(--hair)"/>
+      <line x1="${x(r.m)}" x2="${x(r.m)}" y1="${base - 16}" y2="${base + 3}" stroke="var(--ink)" stroke-width="3"/></g>
+      <image href="${img(r.h)}" x="${L - 40}" y="${base - 28}" width="28" height="28"/><text class="t13 tx" x="${L - 48}" y="${base - 9}" text-anchor="end" font-weight="600">${esc(short(r.h))}</text>
+      <text class="t13 ink" x="${Wd - R + 18}" y="${base - 9}" font-weight="700">${pp(r.m)}</text><text class="t12 g" x="${Wd - 10}" y="${base - 9}" text-anchor="end">best ${pct(r.p)}</text>`;
+  });
+  for (let v = Math.ceil(lo * 100) / 100; v <= hi; v += .01) g += `<text class="t11 g" x="${x(v)}" y="${H - 14}" text-anchor="middle">${pp(v, 0)}</text>`;
+  g += `<text class="t11 g" x="${x(hi)}" y="${H}" text-anchor="end">points of win chance, one run</text>`;
+  g += `<style>@keyframes rise{from{transform:scaleY(0)}}</style>`;
+  const sv = document.getElementById("ridges"); sv.setAttribute("viewBox", `0 0 ${Wd} ${H + 4}`); sv.innerHTML = g;
+})();
+</script>

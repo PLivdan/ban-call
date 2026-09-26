@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
+<link rel="stylesheet" href="ex.css">
+<title>Ban Call examples</title>
+<style>
+  .grid4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1.5px solid var(--ink); }
+  .grid4 a { display: block; padding: 22px 24px 26px 0; color: inherit; text-decoration: none; border-bottom: 1.5px solid var(--ink); }
+  .grid4 a:nth-child(odd) { border-right: 1.5px solid var(--ink); } .grid4 a:nth-child(even) { padding-left: 24px; }
+  .grid4 b { display: block; font-stretch: 115%; font-weight: 900; font-size: 26px; line-height: 1; color: var(--ink); letter-spacing: -.02em; margin-bottom: 8px; }
+  .grid4 a:hover b { color: var(--us); }
+  .grid4 p { margin: 0; max-width: 46ch; font-size: 14.5px; }
+  .grid4 span { display: block; margin-top: 10px; font-size: 12px; color: var(--graphite); font-stretch: 80%; }
+  @media (max-width: 760px) { .grid4 { grid-template-columns: 1fr; } .grid4 a:nth-child(odd) { border-right: 0; } .grid4 a:nth-child(even) { padding-left: 0; } }
+</style>
+<header><div class="id">Ban Call<span>examples</span></div><nav><a class="on" href="index.html">All four</a><a href="a-chance.html">A. Chance of the best ban</a><a href="b-flow.html">B. Where their players go</a><a href="c-tree.html">C. The ban phase as a tree</a><a href="d-panels.html">D. The value in panels</a></nav></header>
+<main>
+  <p class="lobby" data-lobby></p>
+  <h1>Four ways to show what the models know</h1>
+  <p class="dek">Each page draws one idea from real model output for the same lobby. Pick the ones you want in the studio.</p>
+  <div class="grid4">
+    <a href="a-chance.html"><b>A. Chance of the best ban</b><p>How sure the model is: the share of simulated ban phases each ban wins, and the spread of its value run by run.</p><span>Re-draft simulator, 128 runs</span></a>
+    <a href="b-flow.html"><b>B. Where their players go</b><p>What a ban does: the banned hero's share of their drafts flowing to the heroes they switch to.</p><span>Re-draft simulator, draft shares</span></a>
+    <a href="c-tree.html"><b>C. The ban phase as a tree</b><p>What happens next: their likeliest replies to your first ban, and the best pair left for your bans 4 and 5.</p><span>Ban model and ban value model</span></a>
+    <a href="d-panels.html"><b>D. The value in panels</b><p>Why the number is what it is: the value built step by step, from the chance they open it to what it is worth to you.</p><span>Ban value model</span></a>
+  </div>
+</main>
+<script src="ex.js"></script>

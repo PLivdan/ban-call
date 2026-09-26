@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
+<link rel="stylesheet" href="ex.css">
+<title>Where their players go</title>
+<style>
+  .rib { mix-blend-mode: multiply; transition: opacity .2s; }
+  @media (prefers-color-scheme: dark) { .rib { mix-blend-mode: screen; } }
+  .rib:hover { opacity: 1 !important; }
+  .flow-in { animation: draw 1s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  .side2 { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; } @media (max-width: 900px) { .side2 { grid-template-columns: 1fr; } }
+  .mini { font-size: 13px; } .mini li { margin: 6px 0; display: flex; align-items: center; gap: 8px; } .mini img { width: 24px; height: 24px; }
+  .mini ul { list-style: none; padding: 0; margin: 8px 0 0; }
+</style>
+<header><div class="id">Ban Call<span>examples</span></div><nav><a href="index.html">All four</a><a href="a-chance.html">A. Chance of the best ban</a><a class="on" href="b-flow.html">B. Where their players go</a><a href="c-tree.html">C. The ban phase as a tree</a><a href="d-panels.html">D. The value in panels</a></nav></header>
+<main>
+  <p class="lobby" data-lobby></p>
+  <div class="chips" id="chips"></div>
+  <h1 id="h1"></h1>
+  <p class="dek" id="dek"></p>
+  <div class="side2">
+    <div class="fig"><svg id="flow"></svg><p class="note">Out of every 100 simulated drafts by the other team, heroes that get rarer are on the left, the banned hero first, and heroes that gain are on the right. Each draft keeps six heroes, so both sides add up to the same total. Ribbons split each left block in proportion to the gains, so they show the size of the shift, not which player moved where. From the re-draft simulator, 128 runs, against a typical ban.</p></div>
+    <div class="fig mini" id="ours"></div>
+  </div>
+</main>
+<script src="ex.js"></script>
+<script>
+(async () => {
+  const X = await EX, { D, N, img, short, esc } = X, S = D.sim;
+  const pts = v => (100 * v).toFixed(1);
+  let cur = S.cands[0];
+  const chips = document.getElementById("chips");
+  chips.innerHTML = S.cands.slice(0, 6).map(h => `<button class="chip" data-h="${h}"><img src="${img(h)}" alt="">Ban ${esc(short(h))}</button>`).join("");
+  chips.querySelectorAll(".chip").forEach(b => b.onclick = () => { cur = +b.dataset.h; draw(); });
+  function draw() {
+    chips.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", +b.dataset.h === cur));
+    const h = cur, d = N.map((n, x) => ({ x, d: S.co[h][x] - S.baseCo[x] })), drop = -d[h].d;
+    const up = d.filter(r => r.x !== h && r.d > 0).sort((a, b) => b.d - a.d), shown = up.slice(0, 7), rest = up.slice(7).reduce((a, r) => a + r.d, 0);
+    const down = d.filter(r => r.x !== h && r.d < -.004).sort((a, b) => a.d - b.d).slice(0, 3);
+    const targets = shown.map(r => ({ ...r })).concat(rest > .001 ? [{ x: -1, d: rest }] : []), inflow = targets.reduce((a, r) => a + r.d, 0);
+    document.getElementById("h1").innerHTML = `Ban <span class="us">${esc(N[h])}</span> and their players move to ${shown.slice(0, 3).map(r => esc(short(r.x))).join(", ").replace(/, ([^,]*)$/, " and $1")}`;
+    document.getElementById("dek").innerHTML = `${esc(short(h))} was in ${pts(S.baseCo[h])} of every 100 of their simulated drafts. With the ban, ${esc(short(shown[0].x))} shows up in ${pts(shown[0].d)} more of them${shown[1] ? `, ${esc(short(shown[1].x))} in ${pts(shown[1].d)} more` : ""}.${down.length ? ` ${esc(short(down[0].x))} gets rarer (${pts(down[0].d)}), because the teams it suited are drafted differently now.` : ""}`;
+    // the ribbons: every hero that gets rarer on the left (the banned one first), every hero that gains on the right. Drafts keep
+    // six heroes, so the two sides balance exactly; each left block is split across the right blocks in proportion.
+    const downAll = d.filter(r => r.x !== h && r.d < 0).sort((a, b) => a.d - b.d), dShown = downAll.slice(0, 3), dRest = downAll.slice(3).reduce((a, r) => a - r.d, 0);
+    const sources = [{ x: h, d: drop, main: true }].concat(dShown.map(r => ({ x: r.x, d: -r.d })), dRest > .001 ? [{ x: -1, d: dRest }] : []);
+    const Wd = 900, total = targets.reduce((a, r) => a + r.d, 0), K = 420 / Math.max(total, sources.reduce((a, r) => a + r.d, 0)), gap = 10, L = 190, Rx = 620, nodeW = 14, top = 20;
+    const place = (arr) => { let y = top; return arr.map(r => { const o = { ...r, y, hh: Math.max(2, r.d * K) }; y += o.hh + gap; return o; }); };
+    const Ls = place(sources), Rs = place(targets), Hh = Math.max(Ls[Ls.length - 1].y + Ls[Ls.length - 1].hh, Rs[Rs.length - 1].y + Rs[Rs.length - 1].hh) + 24;
+    const lab = (r, side) => r.x < 0 ? `<text class="t12 g" x="${side ? Rx + 24 : L - nodeW - 10}" y="${r.y + r.hh / 2 + 4}" text-anchor="${side ? "start" : "end"}">${side ? `${up.length - 7} other heroes` : `${downAll.length - 3} other heroes`}, ${side ? "+" : "−"}${pts(r.d)}</text>`
+      : side ? `<image href="${img(r.x)}" x="${Rx + 22}" y="${r.y + r.hh / 2 - 14}" width="28" height="28"/><text class="t13 tx" x="${Rx + 58}" y="${r.y + r.hh / 2 - 1}" font-weight="700">${esc(short(r.x))}</text><text class="t12 g" x="${Rx + 58}" y="${r.y + r.hh / 2 + 13}">+${pts(r.d)} in 100</text>`
+      : `<image href="${img(r.x)}" x="${L - nodeW - 40}" y="${r.y + r.hh / 2 - (r.main ? 22 : 14)}" width="${r.main ? 44 : 28}" height="${r.main ? 44 : 28}"/><text class="t13 ${r.main ? "ink" : "tx"}" x="${L - nodeW - (r.main ? 56 : 46)}" y="${r.y + r.hh / 2 - 1}" text-anchor="end" font-weight="${r.main ? 800 : 600}">${r.main ? "Banned: " : ""}${esc(short(r.x))}</text><text class="t12 g" x="${L - nodeW - (r.main ? 56 : 46)}" y="${r.y + r.hh / 2 + 13}" text-anchor="end">−${pts(r.d)} in 100</text>`;
+    let g = "", k = 0;
+    const oy = Rs.map(r => r.y);                                            // running offsets inside each right block
+    Ls.forEach(sN => { let sy = sN.y;
+      Rs.forEach((tN, j) => { const w = sN.d * tN.d / total * K; if (w < .3) return; const c = (L + Rx) / 2, ty = oy[j];
+        g += `<path class="rib flow-in" d="M${L} ${sy}C${c} ${sy} ${c} ${ty} ${Rx} ${ty}L${Rx} ${ty + w}C${c} ${ty + w} ${c} ${sy + w} ${L} ${sy + w}Z" fill="${sN.main ? "var(--them)" : "var(--graphite)"}" opacity="${sN.main ? .75 : .28}" style="animation-delay:${(k++) * 12}ms"><title>${sN.x < 0 ? "other heroes" : esc(N[sN.x])} → ${tN.x < 0 ? "other heroes" : esc(N[tN.x])}</title></path>`;
+        sy += w; oy[j] += w; }); });
+    Ls.forEach(r => g += `<rect x="${L - nodeW}" y="${r.y}" width="${nodeW}" height="${r.hh}" fill="${r.main ? "var(--them)" : "var(--ink)"}"/>` + lab(r, false));
+    Rs.forEach(r => g += `<rect x="${Rx}" y="${r.y}" width="${nodeW}" height="${r.hh}" fill="var(--ink)"/>` + lab(r, true));
+    const sv = document.getElementById("flow"); sv.setAttribute("viewBox", `-60 0 ${Wd + 60} ${Hh}`); sv.innerHTML = g;
+    // your team's drafts
+    const u = N.map((n, x) => ({ x, d: S.cu[h][x] - S.baseCu[x] })).filter(r => r.x !== h), uUp = u.filter(r => r.d > .003).sort((a, b) => b.d - a.d).slice(0, 4);
+    document.getElementById("ours").innerHTML = `<b style="font-stretch:105%;font-size:15px;color:var(--ink)">Your team</b><p class="note" style="margin-top:6px">${S.baseCu[h] > .01 ? `${esc(short(h))} was in ${pts(S.baseCu[h])} of every 100 of your simulated drafts, so the ban moves some of your players too.` : `Your team rarely drafts ${esc(short(h))}, so your drafts barely move.`}</p>
+      <ul>${uUp.map(r => `<li><img src="${img(r.x)}" alt=""><span>${esc(short(r.x))}</span><span style="margin-left:auto;color:var(--us);font-weight:700">+${pts(r.d)}</span></li>`).join("")}</ul>`;
+  }
+  draw();
+})();
+</script>
