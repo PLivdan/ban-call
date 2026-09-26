@@ -31,6 +31,8 @@
   // ---------------------------------------------------------------- state (mirrored in the URL hash, so a lobby can be shared)
   const st = { tier: "Grandmaster 3", map: MAPS.find(m => /Klyntar \(Dom/.test(m.name)) ? MAPS.find(m => /Klyntar \(Dom/.test(m.name)).i : 0,
                first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 }, model: "value", runs: 16 };
+  let MINE = []; try { MINE = JSON.parse(localStorage.getItem("bancall-mine") || "[]").filter(h => Number.isInteger(h)); } catch (e) {}
+  const rememberMine = h => { MINE = [h].concat(MINE.filter(x => x !== h)).slice(0, 8); try { localStorage.setItem("bancall-mine", JSON.stringify(MINE)); } catch (e) {} };
   function readHash() {
     const q = new URLSearchParams(location.hash.slice(1)); if (!q.has("m")) return;
     if (q.get("t") && META.tiers[q.get("t")]) st.tier = q.get("t");
@@ -45,6 +47,7 @@
   }
   let lastHash = "";
   readHash();
+  if (!location.hash && MINE.length && MINE[0] < NAMES.length) { st.team[0] = MINE[0]; st.active = { kind: "ban" }; }
   window.addEventListener("hashchange", () => {                  // a pasted or edited link in an open tab
     if (location.hash === lastHash) return;
     st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; readHash();
@@ -86,8 +89,9 @@
     if (a.kind === "team") {
       if (st.bans.includes(h)) return flash(`${NAMES[h]} is banned`);
       for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;
-      st.team[a.i] = h;
-      st.active = { kind: "ban" };                                  // straight to the ban phase; teammates are optional (click a slot)
+      st.team[a.i] = h; if (a.i === 0) rememberMine(h);
+      const nxt = a.i === 0 ? -1 : st.team.findIndex((x, i) => x < 0 && i > a.i);   // your hero: on to the bans; a teammate: the next empty teammate slot
+      st.active = nxt >= 0 ? { kind: "team", i: nxt } : { kind: "ban" };
     } else {
       if (nextBan() >= 6 || st.bans.includes(h)) return;
       for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;    // a banned hover is gone
@@ -98,17 +102,29 @@
   }
   // one-click picks under the ban track: their likeliest next bans on their turn, our best bans on ours (keys 1-8)
   function quickList() {
+    if (st.active.kind === "team") {                                 // filling your team: your usual heroes, or what your team is likely to play
+      const bans = bannedSet(), team = teamSet(), ok = h => !bans.has(h) && !team.has(h);
+      if (st.active.i === 0) {
+        const pop = popularity(), seen = new Set(), out = [];
+        for (const h of MINE.concat(Array.from(pop.keys()).sort((a, b) => pop[b] - pop[a]))) if (h < H && ok(h) && !seen.has(h) && out.length < 8) { seen.add(h); out.push({ h, lab: MINE.includes(h) ? "yours" : pct(pop[h]) }); }
+        return out;
+      }
+      return RES ? Array.from(RES.Pu.keys()).filter(ok).sort((a, b) => RES.Pu[b] - RES.Pu[a]).slice(0, 8).map(h => ({ h, lab: pct(RES.Pu[h]) })) : [];
+    }
     if (nextBan() >= 6) return [];
     if (ourTurn()) { const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES && RES.V; return V ? topBans(8).map(h => ({ h, lab: pp(V[h]) })) : []; }
     return THEIRS ? Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 8).map(h => ({ h, lab: pct(THEIRS[h]) })) : [];
   }
-  function renderQuick() {
-    const q = quickList();
-    $("quick").innerHTML = q.length ? `<span class="qlab">${ourTurn() ? "Best bans" : "Their likely ban"}</span>` + q.map((x, k) =>
-      `<button class="qt ${ourTurn() ? "us" : "them"}" data-h="${x.h}" title="${esc(NAMES[x.h])} (key ${k + 1})"><span class="qk">${k + 1}</span><img src="${img(x.h)}" alt=""><span class="qv">${x.lab}</span></button>`).join("") : "";
-    $("quick").querySelectorAll(".qt").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
+  const quickSide = () => st.active.kind === "team" || ourTurn() ? "us" : "them";
+  function renderQuick() {                                           // shown under the slots it fills: your team, or the ban track
+    const q = quickList(), teamMode = st.active.kind === "team";
+    const lab = teamMode ? (st.active.i === 0 ? "Your hero" : `Mate ${st.active.i + 1}: likely`) : ourTurn() ? "Best bans" : "Their likely ban";
+    const html = q.length ? `<span class="qlab">${lab}</span>` + q.map((x, k) =>
+      `<button class="qt ${quickSide()}" data-h="${x.h}" title="${esc(NAMES[x.h])} (key ${k + 1})"><span class="qk">${k + 1}</span><img src="${img(x.h)}" alt=""><span class="qv">${x.lab}</span></button>`).join("") : "";
+    $("quickTeam").innerHTML = teamMode ? html : ""; $("quick").innerHTML = teamMode ? "" : html;
+    document.querySelectorAll("#quick .qt, #quickTeam .qt").forEach(el => el.onclick = () => place(+el.dataset.h));
   }
-  const quickPick = k => { const q = quickList()[k - 1]; if (q) { st.active = { kind: "ban" }; place(q.h); return true; } return false; };
+  const quickPick = k => { const q = quickList()[k - 1]; if (q) { place(q.h); return true; } return false; };
   function newLobby() {                                             // the next game: bans and teammates cleared, rank and your hero kept
     st.bans = []; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
     $("search").value = ""; renderMatches(); update();
@@ -183,9 +199,9 @@
   $("sortPop").onclick = () => { setSort("pop"); renderRoster(); }; $("sortAz").onclick = () => { setSort("az"); renderRoster(); };
   setSort(SORT);
   function renderRoster() {
-    const q = $("search").value.trim().toLowerCase(), bans = bannedSet(), team = teamSet();
+    const q = $("search").value.split(",").pop().trim().toLowerCase(), bans = bannedSet(), team = teamSet();
     const rank = new Map(); quickList().forEach((x, k) => rank.set(x.h, k + 1));    // the same numbers as the quick picks and keys 1-8
-    const rkc = ourTurn() ? "rk us" : "rk them";
+    const rkc = quickSide() === "us" ? "rk us" : "rk them";
     $("roster").innerHTML = [0, 1, 2].map(r => {
       const hs = heroOrder(NAMES.map((n, h) => h).filter(h => META.roles[h] === r));
       return `<h3>${ROLE_NAMES[r]}</h3><div class="grid">` + hs.map(h => {
@@ -197,7 +213,7 @@
     $("roster").querySelectorAll(".tile").forEach(el => el.onclick = () => { if (!el.classList.contains("banned")) place(+el.dataset.h); });
     if (typeof VIEW !== "undefined" && VIEW === "term") renderLobbyTerm();
   }
-  const searchMatches = () => { const q = $("search").value.trim().toLowerCase(); if (!q) return [];
+  const searchMatches = () => { const q = $("search").value.split(",").pop().trim().toLowerCase(); if (!q) return [];   // the name being typed
     const b = bannedSet(); return NAMES.map((n, h) => h).filter(h => !b.has(h) && (NAMES[h].toLowerCase().includes(q) || (SHORT[NAMES[h]] || "").toLowerCase().includes(q)))
       .sort((a, b2) => ((NAMES[a].toLowerCase().startsWith(q) ? 0 : 1) - (NAMES[b2].toLowerCase().startsWith(q) ? 0 : 1)) || NAMES[a].length - NAMES[b2].length); };
   function renderMatches() {
@@ -207,7 +223,17 @@
   }
   $("search").oninput = () => { renderRoster(); renderMatches(); };
   $("search").onkeydown = ev => {
-    if (ev.key === "Enter") { const m = searchMatches(); if (m.length) place(m[0]); ev.preventDefault(); }
+    if (ev.key === "Enter") {
+      const parts = $("search").value.split(",").map(x => x.trim()).filter(Boolean);
+      if (parts.length > 1) {                                        // several names: team slots in order if a team slot is highlighted, else bans in order
+        const team = st.active.kind === "team"; let i = team ? st.active.i : 0;
+        for (const q of parts) {
+          if (team) { while (i < 6 && st.team[i] >= 0 && i !== st.active.i) i++; if (i >= 6) break; st.active = { kind: "team", i }; }
+          $("search").value = q; const m = searchMatches(); if (m.length) place(m[0]); if (team) i++;
+        }
+        if (team) st.active = { kind: "ban" }; $("search").value = ""; renderMatches(); update(false); }
+      else { const m = searchMatches(); if (m.length) place(m[0]); }
+      ev.preventDefault(); }
     else if (/^[1-8]$/.test(ev.key) && !$("search").value) { quickPick(+ev.key); ev.preventDefault(); }
     else if (ev.key === "Backspace" && !$("search").value && st.bans.length) { st.bans.pop(); update(); ev.preventDefault(); }
     else if (ev.key === "Escape") { $("search").value = ""; renderRoster(); }
