@@ -303,10 +303,10 @@
     const all = legal.map(parts), mean = [0, 1, 2, 3].map(k => all.reduce((a, p) => a + p[k], 0) / all.length);
     return Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 5).map(h => ({ h, c: parts(h).map((v, k) => v - mean[k]) }));
   }
-  function whySvg(P) {
+  function whySvg(P, Wd0) {
     const rs = whyParts(P), key = [["popular here", "var(--them)", 1], ["they protect it", "var(--graphite)", .55], ["it beats what they play", "var(--them)", .45], ["reaction to earlier bans", "var(--us)", .7]];
     const sum = (r, sg) => r.c.filter(v => sg * v > 0).reduce((a, b) => a + b, 0), lo = Math.min(0, ...rs.map(r => sum(r, -1))), hi = Math.max(1e-6, ...rs.map(r => sum(r, 1)));
-    const L = 96, Wd = 360, X = v => L + (v - lo) / (hi - lo) * (Wd - L - 8), rowH = 20;
+    const L = 110, Wd = Wd0 || 360, X = v => L + (v - lo) / (hi - lo) * (Wd - L - 8), rowH = 20;
     let g = rs.map((r, k) => { let p = 0, n = 0; const segs = r.c.map((v, j) => { const a = v >= 0 ? p : n; if (v >= 0) p += v; else n += v;
       return `<rect x="${X(Math.min(a, a + v))}" y="${k * rowH + 3}" width="${Math.abs(X(a + v) - X(a))}" height="11" fill="${key[j][1]}" opacity="${key[j][2]}"/>`; }).join("");
       return `<text x="${L - 8}" y="${k * rowH + 13}" text-anchor="end">${esc(short(r.h))}</text>${segs}`; }).join("");
@@ -371,29 +371,30 @@
     for (const h of hs) { for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1; if (!st.bans.includes(h) && st.bans.length < 6) st.bans.push(h); }
     st.active = { kind: "ban" }; update();
   }
-  function renderWhy() {                                    // the section under the answer: the breakdown behind it
-    const e = nextBan(); let h3 = "Why", body = "";
-    if (st.active.kind === "team") { h3 = "Why enter your team"; body = `<p class="note">Teams avoid banning their own heroes and ban what beats them, and a ban costs most when it hits a hero someone on the team relies on. The heroes you enter tell the model which bans would hurt your team, so it will not suggest them, and they change what it expects the other team to take.</p>`; }
-    else if (e >= 6) { h3 = "Done"; body = `<p class="note">All six bans are in. The board shows what the other team is now likely to open.</p>`; }
-    else if (ourTurn()) {
-      const S = st.model === "sim" && SIM && !SIM.prelim ? SIM : null, x = (S ? topBans(1)[0] : suggested(1)[0] && suggested(1)[0].h);
-      if (x !== undefined) { h3 = `Why ${short(x)} is worth ${pp(RES.V[x])}`; body = `<div class="anat">${anatomy(x, RES)}</div><p class="note">Each area is a chance times a cost, from the ban value model${S ? " (the simulator's number above re-drafts both teams instead)" : ""}. Discounted by the chance the hero would be banned anyway.</p>`; }
-    } else if (THEIRS) { h3 = "Why they would ban it"; body = whySvg(THEIRS) + `<p class="note">The ban model's reasons for each likely ban, measured against an average hero.</p>`; }
-    $("whyH").textContent = h3; $("why").innerHTML = body;
+  function renderWhy() {                                    // on their turn: the ban model's reasons. Entering the team: why it matters
+    const e = nextBan(), W = $("chW");
+    if (st.active.kind === "team") { W.hidden = false; $("whyH").textContent = "Why enter your team";
+      $("whyP").textContent = "The heroes you enter tell the model which bans would hurt your own team, so it will not suggest them, and they change what it expects the other team to take.";
+      $("why").innerHTML = `<p class="reason" style="max-width:60ch">Teams avoid banning their own heroes and ban what beats them, and a ban costs most when it hits a hero someone relies on. Skip teammates you do not know: the model fills them in from players at your rank.</p>`; return; }
+    if (e >= 6 || ourTurn() || !THEIRS) { W.hidden = true; return; }
+    const top = Array.from(THEIRS.keys()).sort((a, b) => THEIRS[b] - THEIRS[a])[0];
+    W.hidden = false; $("whyH").innerHTML = `Why they would ban <span class="them">${esc(short(top))}</span>`;
+    $("whyP").textContent = "The ban model's reasons for each likely ban, measured against an average hero. Only the lengths relative to each other matter.";
+    $("why").innerHTML = whySvg(THEIRS, Math.min(820, Math.max(520, $("why").clientWidth - 56)));
   }
 
   // ================================================================ openers: both teams' likely heroes, mirrored
   function renderFly() {
     const R = RES, bans = bannedSet(), revs = teamSet();
     const hs = NAMES.map((n, h) => h).filter(h => !bans.has(h)).sort((a, b) => Math.max(R.Pt[b], revs.has(b) ? 0 : R.Pu[b]) - Math.max(R.Pt[a], revs.has(a) ? 0 : R.Pu[a])).slice(0, 12);
-    const Wd = 640, mid = Wd / 2, half = mid - 92, rowH = 30, top = 26, mx = Math.max(...hs.map(h => Math.max(R.Pt[h], revs.has(h) ? 0 : R.Pu[h])), 1e-6);
+    const Wd = Math.min(900, Math.max(560, $("fly").clientWidth)), mid = Wd / 2, half = mid - 100, rowH = 32, top = 28, mx = Math.max(...hs.map(h => Math.max(R.Pt[h], revs.has(h) ? 0 : R.Pu[h])), 1e-6);
     let g = `<text class="hd them" x="${mid - 60}" y="12" text-anchor="end">Other team</text><text class="hd us" x="${mid + 60}" y="12">Your team</text>`;
     hs.forEach((h, k) => { const y = top + k * rowH, a = R.Pt[h] / mx * half, b = revs.has(h) ? 0 : R.Pu[h] / mx * half;
       g += `<rect class="them" x="${mid - 58 - a}" y="${y + 9}" width="${Math.max(1, a)}" height="10"/><text class="p" x="${mid - 62 - a}" y="${y + 18}" text-anchor="end">${pct(R.Pt[h])}</text>
         <image href="${img(h)}" x="${mid - 54}" y="${y + 1}" width="24" height="24"/><text x="${mid - 24}" y="${y + 18}">${esc(short(h))}</text>
         ${revs.has(h) ? `<text class="p" x="${mid + 64}" y="${y + 18}">on your team</text>` : `<rect class="us" x="${mid + 58}" y="${y + 9}" width="${Math.max(1, b)}" height="10"/><text class="p" x="${mid + 62 + b}" y="${y + 18}">${pct(R.Pu[h])}</text>`}`; });
     g += `<line class="mid" x1="${mid - 58}" x2="${mid - 58}" y1="${top - 4}" y2="${top + hs.length * rowH}"/><line class="mid" x1="${mid + 58}" x2="${mid + 58}" y1="${top - 4}" y2="${top + hs.length * rowH}"/>`;
-    $("fly").innerHTML = `<svg viewBox="0 0 ${Wd} ${top + hs.length * rowH + 4}">${g}</svg><p class="note">The chance each team opens a hero, given the bans so far and the heroes your team shows. Long bars on both sides mean a ban costs both teams.</p>`;
+    $("fly").innerHTML = `<svg viewBox="0 0 ${Wd} ${top + hs.length * rowH + 4}">${g}</svg>`;
   }
 
   // ================================================================ the pipeline: what runs when you click
@@ -411,7 +412,8 @@
       const d = A.y === B.y ? `M${x1} ${y1}H${x2}` : A.x === B.x ? `M${A.x + w / 2} ${A.y + h}V${B.y}` : `M${A.x + w / 2} ${A.y + h}V${y2}H${x2}`;
       return `<path class="${cls || ""}" d="${d}"/>` + (((!sim && !cls) || (sim && cls === "sim")) ? `<path class="flow" d="${d}"/>` : ""); };
     const edges = [E2(0, 1), E2(1, 2), E2(1, 3), E2(2, 4), E2(3, 4), E2(0, 5, "sim"), E2(5, 6, "sim")];
-    $("pipe").innerHTML = `<svg viewBox="-2 0 436 256">${edges.join("")}${N.map(box).join("")}</svg><p class="note">${sim ? "The simulator re-drafts both teams with real players near your rank for every leading ban, then scores the drafts with the outcome model." : "The value model answers in a fraction of a second. Switch to the simulator to re-draft both teams instead."}</p>`;
+    $("pipe").innerHTML = `<svg viewBox="-2 0 436 256">${edges.join("")}${N.map(box).join("")}</svg>`;
+    $("pipeP").textContent = sim ? "The simulator re-drafts both teams with real players near your rank for every leading ban, then scores the drafts with the outcome model." : "The ban value model answers in a fraction of a second. Switch to the simulator to re-draft both teams instead.";
   }
   const SPL = META.validation && META.validation.splits, fitN = SPL ? SPL.train.n + SPL.validation.n : 243143;
   const dayOf = t => new Date(t.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
@@ -542,8 +544,9 @@
     el.querySelectorAll(".chip").forEach(b => b.onclick = () => { set(+b.dataset.h); renderChapters(); });
   }
   function renderChapters() {
-    const box = $("chapters"), show = RES && st.active.kind === "ban" && ourTurn();
-    box.hidden = !show; $("bandMain").classList.toggle("ours", !!show);
+    const show = !!(RES && st.active.kind === "ban" && ourTurn());
+    for (const id of ["chD", "chA", "chB", "chC"]) $(id).hidden = !show;
+    renderWhy();
     if (!show) return;
     if (CHKEY.v !== lobbyKey()) { CHKEY.v = lobbyKey(); CHS.d = CHS.b = null; }
     const sug = suggested(turnCount()).filter(Boolean), top5 = Array.from(RES.V.keys()).filter(h => !isNaN(RES.V[h])).sort((a, b) => RES.V[b] - RES.V[a]).slice(0, 5);
@@ -602,7 +605,7 @@
     C.p.innerHTML = (L0.h !== pick.h
       ? `${esc(short(L0.h))} is best more often (${pct(L0.p)}), but its average is lower (${pp(L0.m)} against ${pp(pick.m)}) because its value swings more from run to run. The recommendation follows the average. `
       : pick.p < .5 ? `No ban wins most of the time. ` : `It wins most simulated ban phases. `) + `The averages are measured far more precisely than any single run: see the black bars.`;
-    const strip = `<div class="lab2"><span>Share of the ${J} simulated ban phases in which each ban comes out best</span></div><div class="bstrip">${byP.filter(r => r.p > 0).map((r, k) => `<div class="seg" style="flex:${r.p} 1 0;animation-delay:${k * 55}ms" title="${esc(NAMES[r.h])}: best in ${pct(r.p)}">${r.p >= .06 ? `<img src="${img(r.h)}" alt="">` : ""}${r.p >= .1 ? `<div><b>${pct(r.p)}</b><br><span>${esc(short(r.h))}</span></div>` : r.p >= .06 ? `<b style="font-size:13px">${pct(r.p)}</b>` : ""}</div>`).join("")}</div>`;
+    const strip = `<div class="lab2"><span>Share of the ${J} simulated ban phases in which each ban comes out best</span></div><div class="bstrip">${byP.filter(r => r.p > 0).map((r, k) => `<div class="bseg" style="flex:${r.p} 1 0;animation-delay:${k * 55}ms" title="${esc(NAMES[r.h])}: best in ${pct(r.p)}">${r.p >= .06 ? `<img src="${img(r.h)}" alt="">` : ""}${r.p >= .1 ? `<div><b>${pct(r.p)}</b><br><span>${esc(short(r.h))}</span></div>` : r.p >= .06 ? `<b style="font-size:13px">${pct(r.p)}</b>` : ""}</div>`).join("")}</div>`;
     const all = rows.flatMap(r => r.d).sort((a, b) => a - b), lo = all[Math.floor(.01 * (all.length - 1))], hi = all[Math.floor(.99 * (all.length - 1))], Wd = fw(C.f, 620), L = 140, Rr = 160, rowH = 38, amp = 44, top = 66;
     const x = v => L + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo || 1) * (Wd - L - Rr);
     const kde = d => { const n = d.length, m = d.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)) || 1e-4, bw = 1.06 * sd * Math.pow(n, -.2);
