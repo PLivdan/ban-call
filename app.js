@@ -152,7 +152,7 @@
   const top2 = P => Array.from(P.keys()).sort((a, b) => P[b] - P[a]).slice(0, 2).map(h => ({ h, p: P[h] }));
   function renderBans() {
     const e = nextBan(), cnt = turnCount();
-    const sug = ourTurn() && RES ? suggested(cnt) : [];
+    const sug0 = ourTurn() && RES ? suggested(cnt) : [], sug = sug0.length === 2 && sug0[1] === null ? [null, null] : sug0;   // pairs still scoring: no single suggestion in the boxes
     $("banSlots").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
       const sg = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined, s = sg ? sg.h : undefined, wait = sg === null;
@@ -569,6 +569,11 @@
     if (RUN && RUN.failed) return html + `<p class="small">The simulator stopped with an error in this browser. Reload the page to try again. The ban value model still works.</p>`;
     if (!SIM || SIM.prelim) return html + bar;
     const S = SIM, top = topBans(10), sug = suggested(cnt), best = sug.filter(Boolean).map(x => x.h);
+    if (cnt === 2 && sug[1] === null) {                    // two bans: the pair decides, so no single-ban verdict while pairs are scored
+      const b = top[0];
+      return html + `<p class="small">Scoring the ${PAIRS * (PAIRS - 1) / 2} pairs among the ${PAIRS} best single bans, ${st.runs} runs each. The two bans are chosen together.</p>${bar}
+        <p class="small">Best single ban so far: ${esc(NAMES[b])} (${pp(S.V[b])}). It may not be in the best pair.</p>`;
+    }
     html += headline(sug.filter(Boolean), cnt, `Baseline win chance ${(100 * S.base).toFixed(1)}%`);
     if (cnt === 2 && Array.isArray(SIMP)) html += pairTable(SIMP, PAIRS);
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
@@ -589,12 +594,20 @@
   // ---------------------------------------------------------------- re-draft simulator: a pool of workers, two stages, a progress bar
   const NW = Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12;
   const RUNS = [16, 32, 64, 128, 256], FIRST = { 16: 6, 32: 8, 64: 12, 128: 16, 256: 24 };   // runs for the top bans, and for every ban in stage 1
-  const PAIR_RUNS = 64;                                             // two-ban turns: 45 pairs, so pairs stop at 64 runs (the single-ban ranking gets them all)
+  // interval of an average over runs that share stand-in draws: runs j and j + 32 use the same stand-ins, so they are
+  // clustered by draw (cluster-robust, CR1); runs are not independent observations
+  const DRAWS = 32;
+  function cse(js, d, m) {
+    const G = new Map(); js.forEach((j, i) => { const g = (+j) % DRAWS, o = G.get(g) || { s: 0, n: 0 }; o.s += d[i]; o.n++; G.set(g, o); });
+    const k = G.size, n = d.length; if (k < 2) return NaN;
+    let s2 = 0; for (const o of G.values()) s2 += (o.s - o.n * m) ** 2;
+    return Math.sqrt(k / (k - 1) * s2) / n;
+  }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
-  const PAIRS = 10;                                               // two-ban turns: pairs among the best PAIRS single bans
+  const PAIRS = 8;                                                // two-ban turns: pairs among the best PAIRS single bans (28 pairs, every run)
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=1c092ab7d8"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
+  function newWorker() { const w = new Worker("sim-worker.js?v=30cbdc90d9"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
     w.onerror = () => { if (TB && !TB.finished) { TB.finished = true; return; } simFail(); }; return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
@@ -631,7 +644,7 @@
     const mean = k => js.reduce((a, j) => a + TB.vals[k][j], 0) / js.length, bi = keys.map(mean).reduce((b, v, i, a) => v > a[b] ? i : b, 0);
     let worst = null;                                              // the winner against its closest rival, paired run by run
     keys.forEach((k, i) => { if (i === bi) return; const d_ = js.map(j => TB.vals[keys[bi]][j] - TB.vals[k][j]), m = d_.reduce((a, b) => a + b, 0) / d_.length;
-      const se = Math.sqrt(d_.reduce((a, b) => a + (b - m) ** 2, 0) / (d_.length * (d_.length - 1)));
+      const se = cse(js, d_, m);
       if (!worst || m - 1.96 * se < worst.m - 1.96 * worst.se) worst = { i, m, se }; });
     TBRES = { key: TB.key, cands: TB.cands, win: TB.cands[bi], rival: TB.cands[worst.i], m: worst.m, se: worst.se, decisive: worst.m - 1.96 * worst.se > 0, runs: js.length };
     renderBans(); renderRoster(); renderAdvice();
@@ -640,7 +653,7 @@
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
   function startPairs(s, base) {                            // every pair of the shortlist, all runs, against the singles' typical-ban baseline
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
-    const NR = Math.min(st.runs, PAIR_RUNS), looks = range(0, NR);
+    const NR = st.runs, looks = range(0, NR);
     RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, cs: {}, base, t0: performance.now(), finished: false, pairs: true };
     const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p));
     jobs.forEach((j, k) => send(k, j, looks, []));
@@ -659,7 +672,7 @@
   }
   function onSim(d) {
     const R = RUN; if (!R || d.id !== R.id || R.finished) return;
-    if (!d.done) { R.ticks += d.tick || 0; if (!R.pairs) progress(); return; }
+    if (!d.done) { R.ticks += d.tick || 0; progress(); return; }
     for (const h in d.vals) {
       Object.assign(R.vals[h] || (R.vals[h] = {}), d.vals[h]);
       const c = R.cs[h] || (R.cs[h] = { u: new Float64Array(H), o: new Float64Array(H), n: 0 }), n = Object.keys(d.vals[h]).length;
@@ -683,7 +696,7 @@
   function progress() {
     const f = Math.min(1, RUN.ticks / RUN.total), el = $("simProg");
     if (el) el.style.width = (100 * f).toFixed(1) + "%";
-    const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ban phases simulated`;
+    const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ${RUN.pairs ? "pair runs" : "ban phases"} simulated`;
     $("busy").textContent = `simulating ${Math.round(100 * f)}%`;
     if (VIEW === "term") renderStatusBar();
   }
@@ -693,7 +706,7 @@
     for (const h of R.cands) {
       const v = R.vals[h]; if (!v) continue; const js = Object.keys(v), d = js.map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
       V[h] = m; n[h] = d.length; win[h] = js.reduce((a, j) => a + v[j], 0) / js.length;
-      se[h] = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1)));
+      se[h] = cse(js, d, m);
       co[h] = R.cs[h].o.map(x => x / R.cs[h].n); cu[h] = R.cs[h].u.map(x => x / R.cs[h].n);
     }
     return { V, se, win, n, base: bm, co, cu, baseCo: R.bcs.o.map(x => x / R.bcs.n), baseCu: R.bcs.u.map(x => x / R.bcs.n), total: R.total };
@@ -702,7 +715,7 @@
     const out = [];
     for (const p of R.cands) {
       const k = String(p), v = R.vals[k]; if (!v) continue; const js = Object.keys(v), d = js.map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
-      out.push({ a: p[0], b: p[1], V: m, n: d.length, se: Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1))) });
+      out.push({ a: p[0], b: p[1], V: m, n: d.length, se: cse(js, d, m) });
     }
     out.ms = performance.now() - R.t0; return out.sort((x, y) => y.V - x.V);
   }

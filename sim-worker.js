@@ -1,7 +1,8 @@
-// One of several simulator workers; each evaluates the candidates and scenarios it is given (four stand-in draws per ban, v7).
+// One of several simulator workers; each evaluates the candidates and scenarios it is given. Run j uses stand-in draw j % 32:
+// with only 4 draws (before 2026-09-26) which stand-ins were drawn dominated the answer and the intervals understated it ~3x.
 importScripts("sim.js" + self.location.search);            // the version tag busts stale caches
 let E = null;
-const ready = fetch("model/sim.json").then(r => r.json()).then(M => { E = new SimEngine(M, { MU: 48, K: 96, LOOK: 256, DRAWS: 4 }); });
+const ready = fetch("model/sim.json").then(r => r.json()).then(M => { E = new SimEngine(M, { MU: 48, K: 96, LOOK: 256, DRAWS: 32 }); });
 onmessage = async ev => {
   await ready; const { id, job, st, cands, looks, baseLooks } = ev.data; let n = 0;
   const out = E.evaluate(st, cands, looks, baseLooks, () => { if (++n % 3 === 0) postMessage({ id, tick: 3 }); });

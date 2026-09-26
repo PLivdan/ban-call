@@ -425,7 +425,7 @@
     $("team").innerHTML = st.team.map((h, i) => { const on = st.active.kind === "team" && st.active.i === i;
       return `<button class="sl us${h >= 0 ? " filled" : ""}${on ? " on" : ""}" data-i="${i}" title="${i === 0 ? "You" : "Teammate " + (i + 1)}${h >= 0 ? ": " + esc(NAMES[h]) : ""}"><span class="box">${h >= 0 ? `<img src="${img(h)}" alt="">` : "+"}</span><span class="cap">${i === 0 ? "You" : "Mate " + (i + 1)}</span>${h >= 0 ? `<span class="x" data-clear="${i}">✕</span>` : ""}</button>`; }).join("");
     $("team").querySelectorAll(".sl").forEach(b => b.onclick = ev => { const i = +b.dataset.i, clr = ev.target.dataset.clear !== undefined; if (clr) st.team[i] = -1; st.active = { kind: "team", i }; update(clr); });
-    const e = nextBan(), sug = ourTurn() && RES && st.active.kind === "ban" ? suggested(turnCount()) : [];
+    const e = nextBan(), sug0 = ourTurn() && RES && st.active.kind === "ban" ? suggested(turnCount()) : [], sug = sug0.length === 2 && sug0[1] === null ? [] : sug0;
     $("track").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], sd = ours(i) ? "us" : "them", sg = h === undefined && i >= e && i < e + sug.length ? sug[i - e] : null, f = h === undefined && !ours(i) && FC && FC.top[i] && FC.top[i][0];
       const inner = h !== undefined ? `<img src="${img(h)}" alt="">` : sg ? `<img class="gh" src="${img(sg.h)}" alt="">` : f ? `<img class="gh" src="${img(f.h)}" alt="">` : i + 1;
@@ -439,11 +439,20 @@
   }
 
   // ================================================================ re-draft simulator: the main page's worker pool, two stages
-  const NW = Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12, FIRST = { 32: 8, 64: 12, 128: 16, 256: 24 }, PAIR_RUNS = 64, PAIRS = 10;
+  const NW = Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)), TOP2 = 12, FIRST = { 32: 8, 64: 12, 128: 16, 256: 24 }, PAIRS = 8;
+  // interval of an average over runs that share stand-in draws: runs j and j + 32 use the same stand-ins, so they are
+  // clustered by draw (cluster-robust, CR1); runs are not independent observations
+  const DRAWS = 32;
+  function cse(js, d, m) {
+    const G = new Map(); js.forEach((j, i) => { const g = (+j) % DRAWS, o = G.get(g) || { s: 0, n: 0 }; o.s += d[i]; o.n++; G.set(g, o); });
+    const k = G.size, n = d.length; if (k < 2) return NaN;
+    let s2 = 0; for (const o of G.values()) s2 += (o.s - o.n * m) ** 2;
+    return Math.sqrt(k / (k - 1) * s2) / n;
+  }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   let pool = [], RUN = null, SRUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("../sim-worker.js?v=1c092ab7d8"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("../sim-worker.js?v=30cbdc90d9"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; if (RUN.pairs) { SIMP = "failed"; refresh(); return; } RUN.failed = true; busy(false); renderCall(); }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
@@ -460,14 +469,14 @@
   }
   function startPairs(s, base) {
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
-    const NR = Math.min(st.runs, PAIR_RUNS);
+    const NR = st.runs;
     RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, base, t0: performance.now(), finished: false, pairs: true };
     const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p)); jobs.forEach((j, k) => send(k, j, range(0, NR), []));
   }
   let cloudT = 0;
   function onSim(d) {
     const R = RUN; if (!R || d.id !== R.id || R.finished) return;
-    if (!d.done) { R.ticks += d.tick || 0; if (!R.pairs) progress(); return; }
+    if (!d.done) { R.ticks += d.tick || 0; progress(); return; }
     for (const h in d.vals) Object.assign(R.vals[h] || (R.vals[h] = {}), d.vals[h]);
     if (d.baseCnt) Object.assign(R.base, d.base);
     if (!R.pairs && performance.now() - cloudT > 120) { cloudT = performance.now(); drawCloud(); }
@@ -485,17 +494,17 @@
   function summarize(R) {
     const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), bj = Object.keys(R.base), bm = bj.reduce((a, j) => a + R.base[j], 0) / bj.length;
     for (const h of R.cands) { const v = R.vals[h]; if (!v) continue; const d = Object.keys(v).map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
-      V[h] = m; se[h] = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1))); }
+      V[h] = m; se[h] = cse(Object.keys(v), d, m); }
     return { V, se, base: bm, total: R.total };
   }
   function summarizePairs(R) {
     const out = []; for (const p of R.cands) { const v = R.vals[String(p)]; if (!v) continue; const d = Object.keys(v).map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
-      out.push({ a: p[0], b: p[1], V: m, se: Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length * Math.max(1, d.length - 1))) }); }
+      out.push({ a: p[0], b: p[1], V: m, se: cse(Object.keys(v), d, m) }); }
     return out.sort((x, y) => y.V - x.V);
   }
   function progress() {
     const f = Math.min(1, RUN.ticks / RUN.total), bar = $("simBar"); if (bar) bar.style.width = (100 * f).toFixed(1) + "%";
-    const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ban phases simulated`;
+    const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ${RUN.pairs ? "pair runs" : "ban phases"} simulated`;
     $("busyT").textContent = `simulating ${Math.round(100 * f)}%`;
   }
   // the run cloud: one dot per simulated ban phase, for the leading bans, as the workers report
@@ -521,6 +530,9 @@
     const cloud = `<div class="cloud"><h3>Every simulated ban phase<span class="n">one dot per run, the tick is the average</span></h3><div id="cloud"></div></div>`;
     if (!SIM || SIM.prelim) return html + `<div><p class="q">Simulating every ban</p><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p></div>` + cloud;
     const sug = suggested(cnt), top = topBans(8), x = sug[0], pairs = cnt === 2 && sug[1];
+    if (cnt === 2 && sug[1] === null)                       // two bans: the pair decides, so no single-ban verdict while pairs are scored
+      return html + `<div><p class="q">Scoring pairs</p><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p>
+        <p class="reason" style="margin-top:12px">Your two bans are chosen together: ${PAIRS * (PAIRS - 1) / 2} pairs among the ${PAIRS} best single bans, ${st.runs} runs each. Best single so far: <b>${esc(short(top[0]))}</b> (${pp(SIM.V[top[0]])}). It may not be in the best pair.</p></div>` + cloud;
     let runner = null, rname = "";
     if (pairs && Array.isArray(SIMP) && SIMP[1]) { runner = SIMP[1]; rname = `${short(SIMP[1].a)} and ${short(SIMP[1].b)}`; }
     else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: SIM.V[r], se: SIM.se[r] }; rname = short(r); } }
@@ -615,7 +627,7 @@
       <line x1="${x(0)}" x2="${x(0)}" y1="${top - 60}" y2="${H - 26}" stroke="var(--ink)" stroke-dasharray="2 3"/><text class="t11 g" x="${x(0) + 4}" y="${top - 50}">no effect</text>`, over = "";
     byM.forEach((r, k) => {
       const base = top + k * rowH, pts = dens[k].map(([v, p]) => `${x(v).toFixed(1)} ${(base - p / dmax * amp).toFixed(1)}`), line = "M" + pts.join("L"), area = line + `L${x(hi)} ${base}L${x(lo)} ${base}Z`;
-      const se = Math.sqrt(r.d.reduce((a, b) => a + (b - r.m) ** 2, 0) / (J * (J - 1)));
+      const se = cse(js, r.d, r.m);
       g += `<g class="ridge" style="transform-origin:0 ${base}px;animation-delay:${100 + k * 50}ms"><path d="${area}" fill="var(--paper)"/><path d="${area}" fill="var(--them)" opacity=".36" clip-path="url(#cpNeg)"/><path d="${area}" fill="var(--us)" opacity=".48" clip-path="url(#cpPos)"/><path d="${line}" fill="none" stroke="var(--ink)" stroke-width="1.2"/></g>
         <image href="${img(r.h)}" x="${L - 34}" y="${base - 26}" width="26" height="26"/><text class="t13 tx" x="${L - 42}" y="${base - 8}" text-anchor="end" font-weight="600">${esc(short(r.h))}</text>
         <text class="t13 ink" x="${Wd - Rr + 20}" y="${base - 8}" font-weight="700">${pp(r.m)}</text><rect x="${Wd - Rr + 72}" y="${base - 17}" width="80" height="7" fill="var(--hair)"/><rect x="${Wd - Rr + 72}" y="${base - 17}" width="${(80 * r.p / L0.p).toFixed(1)}" height="7" fill="var(--us)"/><text class="t11 g" x="${Wd - Rr + 72}" y="${base - 1}">best ${pct(r.p)}</text>`;
