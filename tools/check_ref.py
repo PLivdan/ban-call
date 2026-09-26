@@ -4,7 +4,8 @@ Also checks that the notebook embeds the reference engine verbatim (so the noteb
 Usage: python tools/check_ref.py [path/to/01_ban_solver_real.py]"""
 import json, os, subprocess, sys, numpy as np
 sys.path.insert(0, os.path.dirname(__file__)); from engine_ref import Model
-NODE = os.environ.get("NODE", os.path.expanduser("~/tools/node/node.exe"))
+import shutil
+NODE = os.environ.get("NODE") or next((p for p in (os.path.expanduser("~/tools/node/node.exe"), shutil.which("node")) if p and os.path.exists(p)), "node")
 meta = json.load(open("model/meta.json")); raw = np.fromfile("model/weights.bin", np.float16).astype(np.float64)
 M = dict(meta); M["removal_cost_boot_sd"] = meta["removal_cost_sd"]
 M["lineup_models"] = [{k: raw[v["offset"]:v["offset"] + int(np.prod(v["shape"]))].reshape(v["shape"]) for k, v in ent.items()} for ent in meta["weights"]["models"]]

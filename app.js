@@ -503,6 +503,7 @@
     };
     const lg = bandLab.map((b, k) => `<svg width="10" height="10" style="display:inline;vertical-align:-1px"><g style="color:var(--ink)">${mark(k, 5, 5)}</g></svg> ${b}`).join(" &nbsp; ");
     const L_ = v.lineup;
+    const dsp = v.displacement && v.displacement[v.displacement.length - 1], oneTrick = dsp ? Math.abs(dsp.pp).toFixed(1) : "9.7";
     $("method").innerHTML = `<h2>Method</h2>
       <p>A ban removes a hero from both teams, and in ranked you usually don't know who is on the other side. Every hero banned in the rest of the ban phase, by either team, is worth</p>
       <p class="formula">w(<i>y</i>) = <i>P</i><sub>them</sub>(<i>y</i>) × <i>R</i><sub>them</sub>(<i>y</i>) − <i>P</i><sub>us</sub>(<i>y</i>) × <i>R</i><sub>us</sub>(<i>y</i>)</p>
@@ -518,7 +519,7 @@
         <li><b><i>R</i></b>: the cost of losing a hero, computed with a fitted outcome model on 1.8 million real opening picks. Each player is moved to their next choice (from a pick model) and the change
           in the team's win probability is recorded. That includes the hero, map, side, rank, compositions, teammates and matchups, and the player's playtime, recent picks and skill on both heroes.
           Losing a main costs far more for a player with a narrow pool, and less if they have a backup in the same role. In the raw data, a team whose one-trick (70% or more of their
-          playtime on one hero) has that hero banned wins 9.7 points less often. The model gives 9.4.</li>
+          playtime on one hero) has that hero banned wins ${oneTrick} points less often.</li>
         <li><b>The simulated bans</b>: a ban model fitted on every Season 10 ban. Teams avoid banning their own players' heroes, ban heroes that beat what they play, and react to earlier bans.
           It sees your hovers only when it bans for your team.</li>
       </ul>
@@ -540,7 +541,7 @@
       one point of win probability per game, and bans within about 0.1 points of each other are tied.</p>
       <h2>Limits</h2>
       <ul class="small">
-        <li>Fitted on PC ranked Season 10 matches from 11 to 21 September 2026, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
+        <li>Fitted on PC ranked Season 10 matches from ${fitDates}, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
         <li>Ranks map to scores at about 100 points per division (Grandmaster 3 ≈ 4,550). The exact tier boundaries are approximate.</li>
         <li>Hovers are not in the data. The model treats a shown hero as that player's likely pick and assumes a hover sticks about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
@@ -550,7 +551,11 @@
       </ul>`;
   }
 
-  $("status").textContent = "Fitted on 243,143 PC ranked matches from Season 10 (11 to 21 September 2026).";
+  // the fitting period comes from the model file's split manifest (training + validation matches) when it has one
+  const SPL = META.validation && META.validation.splits, day = t => new Date(t.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" });
+  const fitN = SPL ? SPL.train.n + SPL.validation.n : 243143;
+  const fitDates = SPL ? `${day(SPL.train.first_utc)} to ${day(SPL.validation.last_utc)} ${new Date(SPL.validation.last_utc.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}` : "11 to 21 September 2026";
+  $("status").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}).`;
   renderMethod(); update();
   document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES) renderAdvice(); });
 })();
