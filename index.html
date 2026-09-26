@@ -4,24 +4,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ban Call</title>
 <meta name="description" content="Which hero to ban in Marvel Rivals ranked: a ban value model fitted on Season 10 matches, running in your browser.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3Cpath d=%27M7.5 24.5L24.5 7.5%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
   :root {
-    --paper: #ffffff; --ink: #14161a; --faint: #5c5f66; --hair: #c8c8c8;
-    --blue: #2a4bad; --red: #a03232; --safe: #1e6b30;
-    --active: #f2f4fa; --cf: #f6f2e4; --hover: #e2e8f7;
+    --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6;
+    --blue: #2a4bad; --red: #b0382d; --safe: #1e6b30;
+    --active: #eceef2; --cf: #f6f2e4; --hover: #e8edf8; --wash: #dfe6f7;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --paper: #15171c; --ink: #e7e5e0; --faint: #9a9da6; --hair: #45484f;
-      --blue: #809be8; --red: #d98a8a; --safe: #74c284;
-      --active: #222736; --cf: #2c2820; --hover: #2b3350;
+      --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
+      --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
+      --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
     }
   }
   :root[data-theme="dark"] {
-    --paper: #15171c; --ink: #e7e5e0; --faint: #9a9da6; --hair: #45484f;
-    --blue: #809be8; --red: #d98a8a; --safe: #74c284;
-    --active: #222736; --cf: #2c2820; --hover: #2b3350;
+    --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
+    --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
+    --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
   }
   * { box-sizing: border-box; }
   body { background: var(--paper); color: var(--ink); margin: 0;
@@ -30,11 +32,13 @@
   main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px 24px; }
   /* header and toolbar */
   .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding-bottom: 10px; }
-  h1 { font-size: 26px; font-weight: 600; line-height: 1.1; margin: 0; letter-spacing: -.01em; }
+  .wide, h1, .vname, .vnum { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; }
+  h1 { font-size: 30px; font-weight: 800; line-height: 1; margin: 0; letter-spacing: -.02em; }
   .lede { font-size: 15px; margin: 0; }
   #status { flex-basis: 100%; margin: 2px 0 0 0; font-size: 12px; color: var(--faint); }
-  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 4px;
-          border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair); }
+  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 18px;
+          border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair);
+          position: sticky; top: 0; z-index: 10; background: var(--paper); }
   .ctrl > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
   .ctrl .lab { font-size: 12px; color: var(--faint); }
   .ctrl .push { margin-left: auto; gap: 6px; }
@@ -48,13 +52,14 @@
   button.on { background: var(--ink); color: var(--paper); }
   :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   /* layout */
-  .mainRow { display: flex; gap: 36px; flex-wrap: wrap; align-items: flex-start; }
-  #lobby { flex: 1 1 540px; min-width: 320px; }
+  .mainRow { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+  #lobby { flex: 1 1 540px; min-width: 320px; background: var(--panel); padding: 2px 18px 18px 18px; }
+  #lobby .slot .pic, #lobby .tile img { background: var(--paper); }
   #advice { flex: 1 1 620px; min-width: 320px; }
   h2 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 24px 0 8px 0;
        border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
   h2 .small { font-weight: 400; }
-  #lobby > h2:first-child, #adviceBody > h2:first-child { margin-top: 14px; }
+  #lobby > h2:first-child { margin-top: 14px; } #adviceBody > h2:first-child { margin-top: 16px; }
   h3 { font-size: 12px; font-weight: 600; margin: 10px 0 4px 0; color: var(--faint); }
   p { margin: 6px 0; }
   .small { font-size: 12px; color: var(--faint); }
@@ -66,6 +71,22 @@
   .big { font-size: 22px; line-height: 1.25; margin: 4px 0 10px 0; }
   .big b { font-weight: 600; }
   .big .small { display: block; font-size: 13px; line-height: 1.4; margin-top: 2px; }
+  .verdict { display: flex; gap: 16px; align-items: flex-start; margin: 10px 0 16px 0; padding: 12px 14px;
+             border-left: 4px solid var(--blue); background: var(--panel); }
+  .verdict.them { border-left-color: var(--red); }
+  .vpics { display: flex; gap: 6px; flex: none; }
+  .vpics img { width: 76px; height: 76px; display: block; border: 1px solid var(--hair); background: var(--paper); }
+  .vtext { min-width: 0; }
+  .vcall { font-size: 17px; line-height: 1.2; }
+  .vname { font-size: 26px; font-weight: 800; letter-spacing: -.015em; line-height: 1.1; }
+  .verdict.pair .vname { font-size: 21px; }
+  .vest { font-size: 13.5px; margin-top: 6px; }
+  .vnum { font-size: 17px; font-weight: 700; color: var(--blue); margin-right: 2px; }
+  .verdict.them .vnum { color: var(--red); }
+  .vci { color: var(--faint); white-space: nowrap; }
+  .vjudge { font-size: 12.5px; color: var(--faint); margin-top: 4px; max-width: 70ch; }
+  .verdict.fresh { animation: settle .9s ease-out; }
+  @keyframes settle { from { background: var(--wash); } to { background: var(--panel); } }
   /* tables */
   table { border-collapse: collapse; }
   caption { caption-side: bottom; text-align: left; font-size: 12px; line-height: 1.45; color: var(--faint); padding-top: 6px; max-width: 78ch; }
@@ -128,6 +149,34 @@
   #search { width: 190px; }
   #matches a { color: var(--blue); text-decoration: none; } #matches a:hover { text-decoration: underline; }
   #target { color: var(--ink); }
+  details.more { margin-top: 4px; }
+  details.more summary, details.how > summary { cursor: pointer; color: var(--faint); font-size: 12px; list-style: none; width: max-content; }
+  details.more summary::before, details.how > summary::before { content: "+ "; }
+  details[open].more summary::before, details[open].how > summary::before { content: "− "; }
+  details.more summary:hover, details.how > summary:hover { color: var(--ink); }
+  details.more[open] { max-width: 78ch; }
+  details.how { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 8px; }
+  details.how > summary { font-size: 15px; font-weight: 600; color: var(--ink); }
+  /* terminal view: black on white, one monospace face, results drawn with characters */
+  :root[data-view="term"] { --paper: #ffffff; --ink: #000000; --faint: #5a5a5a; --hair: #b8b8b8; --panel: #ffffff;
+    --blue: #1d3a9a; --red: #9e2a1f; --active: #f0f0f0; --hover: #ececec; --wash: #e4e4e4; }
+  [data-view="term"] body, [data-view="term"] input, [data-view="term"] select, [data-view="term"] button,
+  [data-view="term"] .wide, [data-view="term"] h1, [data-view="term"] svg text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-stretch: normal; }
+  [data-view="term"] body { font-size: 12.5px; }
+  [data-view="term"] h1 { font-size: 24px; font-weight: 600; letter-spacing: 0; }
+  [data-view="term"] h1::before { content: "$ "; color: var(--faint); font-weight: 400; }
+  [data-view="term"] h2 { font-size: 13px; }
+  [data-view="term"] #lobby { border: 1px solid var(--ink); }
+  [data-view="term"] .slot .who, [data-view="term"] .tile, [data-view="term"] .slot .lab { font-size: 10px; }
+  [data-view="term"] .tile { width: 66px; } [data-view="term"] .tile .nm { overflow-wrap: normal; }
+  [data-view="term"] .ctrl button, [data-view="term"] .ctrl select { font-size: 11.5px; padding: 0 8px; } [data-view="term"] .ctrl { gap: 8px 16px; }
+  pre.term { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; margin: 14px 0 0 0;
+             white-space: pre; overflow-x: auto; color: var(--ink); }
+  pre.term .tl { cursor: default; }
+  pre.term .tl[data-h], pre.term .tl.tp2 { cursor: pointer; }
+  pre.term .tl[data-h]:hover, pre.term .tl.tp2:hover { background: var(--hover); }
+  pre.term .tv { font-weight: 600; font-size: 14px; }
+  pre.term .tp { color: var(--faint); }
   /* method */
   .method { margin-top: 12px; }
   .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
@@ -137,16 +186,19 @@
   .method ul { padding-left: 18px; margin: 6px 0; }
   .method li { margin-bottom: 4px; }
   .formula { font-family: "Times New Roman", Times, serif; font-size: 16px; margin: 10px 0 10px 16px; }
+  footer a { color: inherit; }
   footer { margin-top: 32px; border-top: 1px solid var(--hair); padding-top: 6px; }
   kbd { font-family: inherit; border: 1px solid var(--hair); padding: 0 3px; font-size: 11px; }
   @media (max-width: 1000px) { .mgrid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 720px) {
     main { padding: 16px 16px 32px 16px; }
     h1 { font-size: 22px; } .lede { font-size: 13.5px; }
-    .ctrl { gap: 8px 16px; } .ctrl .push { margin-left: 0; }
+    .ctrl { gap: 8px 16px; position: static; } .ctrl .push { margin-left: 0; }
     .big { font-size: 19px; }
+    #lobby { padding: 2px 12px 14px 12px; }
+    .vpics img { width: 56px; height: 56px; } .vname { font-size: 21px; } .verdict { gap: 12px; padding: 10px; }
   }
-  @media (prefers-reduced-motion: reduce) { .prog > span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .prog > span { transition: none; } .verdict.fresh { animation: none; } }
 </style>
 
 <main id="mainEl">
@@ -162,6 +214,7 @@
   <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
   <span><span class="lab">Model</span><span class="seg"><button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span></span>
   <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer."><span class="lab">Runs</span><span class="seg"><button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button></span></span>
+  <span><span class="lab">View</span><span class="seg"><button id="chartsBtn">Charts</button><button id="termBtn">Terminal</button></span></span>
   <span id="busy">computing</span>
   <span class="push"><button id="resetBtn">Reset</button><button id="linkBtn">Copy link</button><button id="themeBtn">Dark</button></span>
 </div>
@@ -174,10 +227,9 @@
   <div class="slots" id="banSlots"></div>
   <p class="small" id="turnHint"></p>
   <h2>Heroes</h2>
-  <p class="howto">Click a hero to fill the highlighted slot, or type a name:
-    <input type="text" id="search" placeholder="type a hero, Enter" autocomplete="off">
-    <span class="small" id="matches"></span><br>
-    <span id="target"></span> &nbsp;<kbd>Enter</kbd> picks the first match, <kbd>Backspace</kbd> on an empty box undoes the last ban.</p>
+  <p class="howto"><input type="text" id="search" placeholder="Type a hero, then Enter" autocomplete="off" aria-label="Type a hero"
+      title="Enter picks the first match. Backspace on an empty box undoes the last ban.">
+    <span class="small" id="matches"></span> <span id="target"></span></p>
   <div id="roster"></div>
 </section>
 
@@ -189,7 +241,7 @@
 <section class="method" id="method"></section>
 
 <footer class="small">
-  Data: public PC ranked matches from rivalsmeta.com, Season 10. Not affiliated with NetEase Games or Marvel.
+  Data: public PC ranked matches from rivalsmeta.com, Season 10. The models run in your browser. <a href="https://github.com/PLivdan/ban-call">Code on GitHub</a>. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
