@@ -386,14 +386,14 @@
     return `<svg viewBox="0 0 ${Math.max(x4 + 110, 380)} 176">
       <rect class="a-us" x="${x1}" y="${base - A.h}" width="${A.w}" height="${A.h}"/>
       <text x="${x1}" y="${base + 16}">they open it ${pct(a.w)}</text><text x="${x1}" y="${base - A.h - 6}">costs them ${(100 * a.h).toFixed(1)} pts</text>
-      <text class="num" x="${x1 + A.w / 2}" y="${base + 34}" text-anchor="middle">${pp(dA)}</text>
+      <text class="num" x="${x1 + A.w / 2}" y="${base + 34}" text-anchor="middle">${(100 * dA).toFixed(2)}</text>
       <text class="op" x="${x2 - 20}" y="${base - 30}" text-anchor="middle">−</text>
       <rect class="a-them" x="${x2}" y="${base - B.h}" width="${B.w}" height="${B.h}"/>
       <text x="${x2}" y="${base + 16}">you open it ${pct(b.w)}</text>${b.w > .004 ? `<text x="${x2}" y="${base - B.h - 6}">costs you ${(100 * b.h).toFixed(1)}</text>` : ""}
-      <text class="num" x="${x2 + B.w / 2}" y="${base + 34}" text-anchor="middle">${pp(dB)}</text>
+      <text class="num" x="${x2 + B.w / 2}" y="${base + 34}" text-anchor="middle">${(100 * dB).toFixed(2)}</text>
       <text class="op" x="${x3 - 20}" y="${base - 30}" text-anchor="middle">${rest >= 0 ? "+" : "−"}</text>
       <rect class="a-rest" x="${x3}" y="${base - Math.max(2, restH)}" width="12" height="${Math.max(2, restH)}"/>
-      <text x="${x3}" y="${base + 16}">rest of the ban phase</text><text class="num" x="${x3 + 6}" y="${base + 34}" text-anchor="middle">${pp(Math.abs(rest))}</text>
+      <text x="${x3}" y="${base + 16}">rest of the ban phase</text><text class="num" x="${x3 + 6}" y="${base + 34}" text-anchor="middle">${(100 * Math.abs(rest)).toFixed(2)}</text>
       <text class="op" x="${x4 - 16}" y="${base - 30}" text-anchor="middle">=</text>
       <text class="res" x="${x4}" y="${base - 22}">${pp(tot)}</text><text x="${x4}" y="${base - 4}">points of win chance</text>
       <line class="dim" x1="0" x2="${Math.max(x4 + 110, 380)}" y1="${base}" y2="${base}"/></svg>`;
