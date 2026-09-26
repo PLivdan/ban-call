@@ -285,23 +285,8 @@
           (shown.has(h) ? `<text x="${c1 + 2}" y="${y + 12}" font-size="10.5" class="faint">shown</text>`
                         : `<rect x="${c1}" y="${y + 3}" width="${Math.max(.5, b)}" height="10" class="us"/><text x="${c1 + b + 4}" y="${y + 12}" font-size="10.5" class="faint">${pct(P2[h])}</text>`); }).join("") + "</svg>";
   }
-  function probChart(rows, cls, W = 290, lab = pct) {  // rows: {h, p}
-    const L = labW(rows.map(r => NAMES[r.h]), 11) + 7, R = Math.ceil(tw("100%", 10.5)) + 8; W = Math.max(W, L + R + 150); const rowH = 16, hgt = rows.length * rowH + 4, mx = Math.max(.05, ...rows.map(r => r.p));
-    return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}">` + rows.map((r, k) => {
-      const y = k * rowH, w = r.p / mx * (W - L - R);
-      return `<text x="${L - 5}" y="${y + 12}" font-size="11" text-anchor="end">${esc(short(r.h))}</text><rect x="${L}" y="${y + 3}" width="${w}" height="10" class="${r.cls || cls}"/>
-        <text x="${L + w + 4}" y="${y + 12}" font-size="10.5" class="faint">${lab(r.p)}</text>`;
-    }).join("") + "</svg>";
-  }
-  function diverge(rows, W = 330) {                   // rows: {h, d, p}: their likely bans and what each does to your win chance
-    const L = labW(rows.map(r => `${NAMES[r.h]} ${pct(r.p)}`), 11) + 8, lab = Math.ceil(tw("−0.00", 10.5)) + 8, plot = W - L - 2 * lab, rowH = 17, hgt = rows.length * rowH + 4;
-    const mx = Math.max(.002, ...rows.map(r => Math.abs(r.d))), c = L + lab + plot / 2, X = d => c + d / mx * plot / 2;
-    return `<svg viewBox="0 0 ${W} ${hgt}" width="${W}"><line class="axis" x1="${c}" x2="${c}" y1="0" y2="${hgt}"/>` + rows.map((r, k) => {
-      const y = k * rowH, x0 = Math.min(c, X(r.d)), w = Math.abs(X(r.d) - c);
-      return `<text x="${L - 5}" y="${y + 12}" font-size="11" text-anchor="end">${esc(NAMES[r.h])} <tspan class="faint">${pct(r.p)}</tspan></text><rect x="${x0}" y="${y + 3}" width="${Math.max(.5, w)}" height="10" class="${r.d >= 0 ? "us" : "them"}"/>
-        <text x="${r.d >= 0 ? X(r.d) + 4 : X(r.d) - 4}" y="${y + 12}" font-size="10.5" class="faint" text-anchor="${r.d >= 0 ? "start" : "end"}">${pp(r.d)}</text>`;
-    }).join("") + "</svg>";
-  }
+
+
   function whySplit(T) {                              // the ban model's utility for their next ban, split into its parts, against an average legal hero
     const W = T.why, legal = T.cands, P = T.pe, parts = h => [W.base[h], W.prot[h], W.fear[h], W.targ[h], W.react[h]];
     const all = legal.map(parts), mean = [0, 1, 2, 3, 4].map(k => all.reduce((a, p) => a + p[k], 0) / all.length);
@@ -318,94 +303,202 @@
     const Wd = Lw + 320 + val;
     return `<svg viewBox="0 0 ${Wd} ${ky + 8}" width="${Wd}">${g}</svg>`;
   }
-  const colFig = (svg, cap, title = "") => `<figure style="width:${+/width="(\d+(?:\.\d+)?)"/.exec(svg)[1]}px;max-width:100%">${title ? `<h3>${title}</h3>` : ""}${svg}<figcaption>${cap}</figcaption></figure>`;
+
+  // ---------------------------------------------------------------- the advice's figures: portraits for labels, numbers on hover
+  // Colours keep one meaning each: blue is good for you, red is bad for you, and three muted hues (--r0..--r2) are the roles.
+  const RC = ["var(--r0)", "var(--r1)", "var(--r2)"], RN = ["vanguard", "duelist", "strategist"];
+  const sum = a => a.reduce((x, y) => x + y, 0), mean = a => sum(a) / a.length, IDX = new Map(NAMES.map((n, i) => [n, i]));
+  const nm = h => SHORT[NAMES[h]] || NAMES[h];
+  const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
+  document.addEventListener("mousemove", ev => {
+    const el = ev.target.closest ? ev.target.closest("[data-tip]") : null; if (!el) { tip.classList.remove("on"); return; }
+    tip.innerHTML = el.getAttribute("data-tip"); const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + 14, y = ev.clientY + 16; if (x + w > innerWidth - 8) x = ev.clientX - w - 14; if (y + h > innerHeight - 8) y = ev.clientY - h - 12;
+    tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
+  });
+  const T_ = html => ` data-tip="${esc(html)}"`;
+  const pic = (h, cx, cy, r, cls = "") => `<image href="${img(h)}" x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#cc)" preserveAspectRatio="xMidYMid slice"${cls ? ` class="${cls}"` : ""}/>`;
+  function ticks(lo, hi, n = 4) { const raw = (hi - lo) / n || .001, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p, s_ = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; const o = []; for (let t = Math.ceil(lo / s_) * s_; t <= hi + 1e-12; t += s_) o.push(+t.toFixed(10)); return o; }
+  function spread(ys, gap, lo, hi) {                   // 1-D label placement: keep the order, push apart to at least `gap`, stay inside [lo, hi]
+    const o = ys.slice(); for (let i = 1; i < o.length; i++) o[i] = Math.max(o[i], o[i - 1] + gap);
+    if (o.length && o[o.length - 1] > hi) { o[o.length - 1] = hi; for (let i = o.length - 2; i >= 0; i--) o[i] = Math.min(o[i], o[i + 1] - gap); }
+    for (let i = 0; i < o.length; i++) o[i] = Math.max(o[i], lo + i * gap); return o;
+  }
+  const band = (x0, y0a, y0b, x1, y1a, y1b) => { const xm = (x0 + x1) / 2; return `M${x0},${y0a}C${xm},${y0a} ${xm},${y1a} ${x1},${y1a}L${x1},${y1b}C${xm},${y1b} ${xm},${y0b} ${x0},${y0b}Z`; };
+  const figW = () => Math.max(340, Math.min(820, ($("adviceBody").clientWidth || 640) - 4));
+  const hs = t => t ? `<span class="hs">${t}</span>` : "";
+  // ---- the ban board: every ban as its portrait, placed by its value (a beeswarm, so none overlap); rare bans greyed; click to ban
+  function banBoard(W) {
+    const R = RES, best = R.best, items = R.cands.map(h => ({ h, v: R.V[h] })).sort((a, b) => b.v - a.v).slice(0, 22);
+    if (!items.some(i => i.h === best)) items.push({ h: best, v: R.V[best] });
+    items.sort((a, b) => (b.h === best) - (a.h === best) || b.v - a.v);
+    const mb = R.Q.map(q => q[best] - R.base), PAD = 30, vs = items.map(i => i.v).concat(mb), vlo = Math.min(0, ...vs), vhi = Math.max(...vs), span = vhi - vlo || .001, lo = vlo - span * .05, hi = vhi + span * .06;
+    const X = v => PAD + (v - lo) / (hi - lo) * (W - 2 * PAD), rb = W < 560 ? 21 : 25, rs = W < 560 ? 11 : 13, placed = [];
+    for (const it of items) {
+      it.r = it.h === best ? rb : rs; it.x = X(it.v); it.y = 0;
+      for (let k = 0; k < 400; k++) { const dy = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 2; if (!placed.some(p => Math.hypot(p.x - it.x, p.y - dy) < p.r + it.r + 2)) { it.y = dy; break; } }
+      placed.push(it);
+    }
+    const ext = Math.max(...items.map(i => Math.abs(i.y) + i.r)) + 4, cy = ext + 28, base = cy + ext + 18, Hh = base + 36, mv = h => R.Q.map(q => q[h] - R.base);
+    let g = ticks(lo, hi, W < 560 ? 3 : 5).map(t => `<line x1="${X(t)}" x2="${X(t)}" y1="14" y2="${base}" stroke="var(--hair)"/><text x="${X(t)}" y="${base + 15}" font-size="11" text-anchor="middle" class="faint">${pp(t, t && Math.abs(t) < .01 ? 2 : 1)}</text>`).join("");
+    g += `<line x1="${X(0)}" x2="${X(0)}" y1="14" y2="${base}" stroke="var(--ink)" stroke-dasharray="2 3"/><text x="${X(0)}" y="${base + 29}" font-size="11" text-anchor="middle" class="faint">a typical ban</text>`;
+    g += `<text x="${W - PAD}" y="${base + 29}" font-size="11" text-anchor="end" class="faint">points against a typical ban →</text>`;
+    const b0 = items[0], m = mv(best);
+    const my = base - 8;                                 // the three networks' values for the advice, on a line of their own under the board
+    g += `<g${T_(`the three networks put ${esc(NAMES[best])} at ${m.map(u => pp(u)).join(", ")}`)}><line x1="${X(Math.min(...m))}" x2="${X(Math.max(...m))}" y1="${my}" y2="${my}" stroke="var(--blue)" stroke-width="1.5"/>`
+      + m.map(u => `<circle cx="${X(u)}" cy="${my}" r="3" fill="var(--blue)"/>`).join("") + `<rect x="${X(Math.min(...m)) - 4}" y="${my - 6}" width="${X(Math.max(...m)) - X(Math.min(...m)) + 8}" height="12" fill="transparent"/></g>`;
+    for (const it of items.slice().reverse()) {
+      const h = it.h, rare = !R.supported.has(h), isB = h === best, x = it.x, y = cy + it.y, v = mv(h);
+      const tipH = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">the three networks: ${v.map(u => pp(u)).join(", ")}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${LU ? `<br>they open it: ${pct(LU.pt[h])} · you: ${pct(LU.pu[h])}` : ""}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`;
+      g += `<g data-ban="${h}"${T_(tipH)}>${pic(h, x, y, it.r, rare ? "rare" : "")}<circle class="ring" cx="${x}" cy="${y}" r="${it.r}" fill="none" stroke="${isB ? "var(--blue)" : "var(--paper)"}" stroke-width="${isB ? 3 : 1.5}"/></g>`;
+    }
+    g += `<text x="${b0.x}" y="${cy + b0.y - b0.r - 8}" font-size="13" font-weight="600" text-anchor="middle" class="us">${esc(nm(best))}</text>`;
+    return `<svg viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg>`;
+  }
+  // ---- where the banned hero's mains go: a Sankey, each flow in the colour of the role it ends in
+  function subsFlow(h, W) {
+    const r = SUB.get(NAMES[h]); if (!r || !r.top.length || r.same_role === null) return null;
+    const role = ROLES[h], tops = r.top.slice(0, 6).map(([n, p]) => ({ h: IDX.get(n), p })), same = tops.filter(t => ROLES[t.h] === role), oth = tops.filter(t => ROLES[t.h] !== role);
+    const remS = Math.max(0, r.same_role - sum(same.map(t => t.p))), remO = Math.max(0, 1 - r.same_role - sum(oth.map(t => t.p)));
+    const nodes = same.sort((a, b) => b.p - a.p).concat(remS > .005 ? [{ other: `other ${RN[role]}s`, p: remS, role }] : [])
+      .concat(oth.sort((a, b) => ROLES[a.h] - ROLES[b.h] || b.p - a.p)).concat(remO > .005 ? [{ other: "another role", p: remO, role: -1 }] : []);
+    const Hh = 290, top = 12, gap = 7, avail = Hh - 2 * top - gap * (nodes.length - 1), x0 = 96, nw = 11, x1 = Math.min(W - 180, x0 + 230);
+    let y = top, yl = top + gap * (nodes.length - 1) / 2, g = ""; const ys = [];
+    nodes.forEach(n => { const hgt = Math.max(1.5, n.p * avail); n.y0 = y; n.y1 = y + hgt; n.l0 = yl; n.l1 = yl + n.p * avail; y += hgt + gap; yl += n.p * avail; ys.push((n.y0 + n.y1) / 2); });
+    const col = n => n.other ? (n.role >= 0 ? RC[n.role] : "var(--faint)") : RC[ROLES[n.h]];
+    for (const n of nodes) {
+      g += `<path d="${band(x0 + nw, n.l0, n.l1, x1, n.y0, n.y1)}" fill="${col(n)}" opacity="${n.other ? .32 : .55}"${T_(`${esc(NAMES[h])} mains → <b>${esc(n.other || NAMES[n.h])}</b> ${pct(n.p)}`)}/>`
+        + `<rect x="${x1}" y="${n.y0}" width="${nw}" height="${n.y1 - n.y0}" fill="${col(n)}"/>`;
+    }
+    const cyl = top + gap * (nodes.length - 1) / 2 + avail / 2;
+    g += `<rect x="${x0}" y="${top + gap * (nodes.length - 1) / 2}" width="${nw}" height="${avail}" fill="${RC[role]}"/>` + pic(h, x0 - 38, cyl, 28)
+      + `<text x="${x0 - 38}" y="${cyl + 45}" font-size="11" text-anchor="middle" class="faint">${fmt(r.mains)} mains</text>`;
+    const ly = spread(ys, 23, top + 8, Hh - top - 8);
+    nodes.forEach((n, i) => { const yy = ly[i], x = x1 + nw + 8;
+      if (Math.abs(yy - ys[i]) > 3) g += `<line x1="${x1 + nw + 1}" x2="${x - 2}" y1="${ys[i]}" y2="${yy}" stroke="var(--hair)"/>`;
+      g += n.other ? `<text x="${x + 2}" y="${yy + 4}" font-size="12" class="faint">${esc(n.other)} <tspan font-weight="600">${pct(n.p)}</tspan></text>`
+                   : pic(n.h, x + 10, yy, 10) + `<text x="${x + 25}" y="${yy + 4}" font-size="12.5">${esc(nm(n.h))} <tspan font-weight="600">${pct(n.p)}</tspan></text>`; });
+    return { svg: `<svg viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg>`, leave: 1 - r.same_role, role };
+  }
+  // ---- their ban as one strip: width is its chance, colour what it does to you (red hurts, blue helps)
+  function forecastStrip(T, W) {
+    const top = T.cands.slice().sort((a, b) => T.pe[b] - T.pe[a]), seg = []; let cum = 0;
+    for (const h of top) { if (seg.length >= 11 || (cum > .8 && seg.length >= 6)) break; seg.push(h); cum += T.pe[h]; }
+    const d = h => T.mu[h] - T.base, ok = !isNaN(d(seg[0])), dmax = ok ? Math.max(.001, ...seg.map(h => Math.abs(d(h)))) : 1, sh = W < 600 ? 54 : 64, y0 = 4, Hh = sh + 58;
+    let x = 0, g = "";
+    for (const h of seg) {
+      const w = T.pe[h] * W, dv = ok ? d(h) : 0, op = ok ? (.14 + .78 * Math.min(1, Math.abs(dv) / dmax)).toFixed(2) : .3, r = Math.min(sh / 2 - 6, w / 2 - 4);
+      g += `<g${T_(`<b>${esc(NAMES[h])}</b> ${pct(T.pe[h])} chance${ok ? `<br><span class="d">if they ban it, your win chance ${pp(dv)} against their typical ban</span>` : ""}`)}>`
+        + `<rect x="${x + .5}" y="${y0}" width="${Math.max(0, w - 1)}" height="${sh}" fill="${!ok ? "var(--faint)" : dv < 0 ? "var(--red)" : "var(--blue)"}" fill-opacity="${op}"/>${r >= 9 ? pic(h, x + w / 2, y0 + sh / 2, r) : ""}</g>`;
+      if (w >= 56) g += `<text x="${x + 3}" y="${y0 + sh + 15}" font-size="12">${esc(nm(h))}</text><text x="${x + 3}" y="${y0 + sh + 29}" font-size="12" font-weight="600">${pct(T.pe[h])}</text>`;
+      x += w;
+    }
+    g += `<rect x="${x + .5}" y="${y0}" width="${Math.max(0, W - x - 1)}" height="${sh}" fill="var(--panel)"${T_(`${top.length - seg.length} other heroes, ${pct(1 - cum)} together`)}/>`;
+    if (W - x >= 56) g += `<text x="${x + 3}" y="${y0 + sh + 15}" font-size="12" class="faint">others</text><text x="${x + 3}" y="${y0 + sh + 29}" font-size="12" class="faint">${pct(1 - cum)}</text>`;
+    if (ok) g += `<defs><linearGradient id="dv"><stop offset="0" stop-color="var(--red)"/><stop offset=".5" stop-color="var(--red)" stop-opacity=".1"/><stop offset=".5" stop-color="var(--blue)" stop-opacity=".1"/><stop offset="1" stop-color="var(--blue)"/></linearGradient></defs>`
+      + `<rect x="${W - 170}" y="${Hh - 13}" width="90" height="8" fill="url(#dv)"/><text x="${W - 176}" y="${Hh - 5}" font-size="11" text-anchor="end" class="faint">hurts you</text><text x="${W - 74}" y="${Hh - 5}" font-size="11" class="faint">helps you</text>`;
+    const worst = ok ? seg.filter(h => T.pe[h] >= .04).sort((a, b) => d(a) - d(b))[0] : undefined;
+    return { svg: `<svg viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg>`, top: top[0], worst };
+  }
+  // ---- two-ban turns: first ban (rows) then second (columns), colour only, the best pair outlined with its value; click a cell to ban both
+  function pairGrid(P, W) {
+    const rows = [], seen = new Set(); for (const p of P) if (!seen.has(p.a)) { seen.add(p.a); rows.push(p.a); }
+    const val = new Map(P.map(p => [p.a + "," + p.b, p])), colBest = new Map(); for (const p of P) colBest.set(p.b, Math.max(colBest.get(p.b) ?? -9, p.V));
+    const cs = W < 560 ? 40 : 48, L = cs + 10, T = cs + 14, nc = Math.max(4, Math.min(10, Math.floor((W - L) / cs))), cols = Array.from(colBest.keys()).sort((a, b) => colBest.get(b) - colBest.get(a)).slice(0, nc);
+    const best = P[0], mx = Math.max(...P.map(p => Math.abs(p.V))), Wd = L + cols.length * cs + 4, Hh = T + rows.length * cs + 4, r = cs * .38;
+    let g = cols.map((h, j) => `<g${T_(`then: <b>${esc(NAMES[h])}</b>`)}>${pic(h, L + j * cs + cs / 2, cs / 2 + 2, r)}</g>`).join("") + rows.map((h, i) => `<g${T_(`first: <b>${esc(NAMES[h])}</b>`)}>${pic(h, cs / 2 + 2, T + i * cs + cs / 2, r)}</g>`).join("");
+    g += `<text x="${L - 4}" y="${T - 4}" font-size="10.5" text-anchor="end" class="faint">first ↓ then →</text>`;
+    rows.forEach((a, i) => cols.forEach((b, j) => { const p = val.get(a + "," + b), x = L + j * cs, y = T + i * cs;
+      if (!p) { g += `<rect x="${x + 2}" y="${y + 2}" width="${cs - 4}" height="${cs - 4}" fill="var(--panel)"/>`; return; }
+      const op = (.1 + .82 * Math.min(1, Math.abs(p.V) / mx)).toFixed(2), isB = p === best;
+      g += `<rect data-pair="${a},${b}" x="${x + 2}" y="${y + 2}" width="${cs - 4}" height="${cs - 4}" fill="${p.V >= 0 ? "var(--blue)" : "var(--red)"}" fill-opacity="${op}" style="cursor:pointer"${isB ? ' stroke="var(--ink)" stroke-width="2.5"' : ""}${T_(`<b>${esc(NAMES[a])}</b>, then <b>${esc(NAMES[b])}</b>: ${pp(p.V)}<br><span class="d">the three networks: ${p.mv.map(u => pp(u)).join(", ")}</span><br>click to ban both`)}/>`;
+      if (isB) g += `<text x="${x + cs / 2}" y="${y + cs / 2 + 4}" font-size="${cs < 44 ? 11 : 12.5}" font-weight="700" text-anchor="middle" style="fill:var(--paper)" pointer-events="none">${pp(p.V)}</text>`; }));
+    return `<svg viewBox="0 0 ${Wd} ${Hh}" width="${Wd}">${g}</svg>`;
+  }
+  // ---- where mains go when their hero is banned, every hero: one small Sankey per role; hover a hero to follow it
+  function roleFlows() {
+    const shares = r => { const role = ROLES[IDX.get(r.hero)], o = [0, 0, 0]; o[role] = r.same_role; const lst = [0, 0, 0];
+      for (const [n, p] of r.top) { const q = ROLES[IDX.get(n)]; if (q !== role) lst[q] += p; }
+      const others = [0, 1, 2].filter(q => q !== role), rest = Math.max(0, 1 - r.same_role - sum(others.map(q => lst[q]))), tot = sum(others.map(q => lst[q]));
+      for (const q of others) o[q] = lst[q] + rest * (tot > 0 ? lst[q] / tot : .5); return o; };
+    return [0, 1, 2].map(role => {
+      const rows = SUBS.table.filter(r => r.same_role !== null && ROLES[IDX.get(r.hero)] === role).map(r => ({ r, h: IDX.get(r.hero), s: shares(r) })).sort((a, b) => b.r.same_role - a.r.same_role);
+      const rh = 12, rg = 3, n = rows.length, Lw = Math.max(...rows.map(x => tw(NAMES[x.h], 11.5))) + 8, x0 = Lw + 4, nw = 5, x1 = x0 + 150, W = x1 + 104, top = 6, Hh = top + n * (rh + rg) + 10;
+      const tot = [0, 1, 2].map(q => sum(rows.map(x => x.s[q]))), ng = 16, avail = n * rh, nodeY = []; let y = top + (n * (rh + rg) - rg - avail - 2 * ng) / 2;
+      for (const q of [0, 1, 2]) { nodeY[q] = { y0: y, y1: y + tot[q] / n * avail }; y = nodeY[q].y1 + ng; }
+      const fill = [0, 1, 2].map(q => nodeY[q].y0); let g = "";
+      rows.forEach((x, i) => {
+        const ry = top + i * (rh + rg); let yy = ry;
+        for (const q of [0, 1, 2]) { const hL = x.s[q] * rh, hR = x.s[q] / n * avail; if (hL < .05) continue;
+          g += `<path class="flow" data-hero="${x.h}" d="${band(x0 + nw, yy, yy + hL, x1, fill[q], fill[q] + hR)}" fill="${RC[q]}" opacity=".6"/>`; yy += hL; fill[q] += hR; }
+        g += `<g class="rowlab" data-hero="${x.h}"${T_(`<b>${esc(NAMES[x.h])}</b>: ${pct(x.r.same_role)} of ${fmt(x.r.mains)} mains stay ${RN[role]}<br><span class="d">first choices: ${x.r.top.slice(0, 4).map(([a, p]) => `${esc(SHORT[a] || a)} ${pct(p)}`).join(", ")}</span>`)}>`
+          + `<rect x="0" y="${ry - 1}" width="${x0 + nw}" height="${rh + 2}" fill="transparent"/><rect x="${x0}" y="${ry}" width="${nw}" height="${rh}" fill="${RC[role]}"/><text x="${x0 - 5}" y="${ry + rh - 2}" font-size="11.5" text-anchor="end">${esc(NAMES[x.h])}</text></g>`;
+      });
+      for (const q of [0, 1, 2]) { const ny = nodeY[q], cyq = (ny.y0 + ny.y1) / 2;
+        g += `<rect x="${x1}" y="${ny.y0}" width="${nw + 2}" height="${Math.max(1, ny.y1 - ny.y0)}" fill="${RC[q]}"/><text x="${x1 + nw + 8}" y="${cyq}" font-size="12" font-weight="600">${ROLE_NAMES[q]}</text><text x="${x1 + nw + 8}" y="${cyq + 14}" font-size="12" class="faint">${pct(tot[q] / n)}</text>`; }
+      const stay = mean(rows.map(x => x.r.same_role));
+      return `<div><p class="head"><span class="n" style="color:${RC[role]}">${pct(stay)}</span> of ${RN[role]} mains stay ${RN[role]}</p><svg class="sk" viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg></div>`;
+    }).join("");
+  }
+  function wireSankeys(root) {
+    root.querySelectorAll("svg.sk").forEach(sv => {
+      sv.addEventListener("mouseover", ev => { const el = ev.target.closest("[data-hero]"); if (!el) return; const h = el.dataset.hero; sv.classList.add("hl"); sv.querySelectorAll("[data-hero]").forEach(x => x.classList.toggle("on", x.dataset.hero === h)); });
+      sv.addEventListener("mouseleave", () => { sv.classList.remove("hl"); sv.querySelectorAll(".on").forEach(x => x.classList.remove("on")); });
+    });
+  }
 
   // ---------------------------------------------------------------- advice
-  let lastVerdict = "";
   function winLine() {                                 // your win chance as things stand: following the advice, and if both teams ban as usual
     if (!WIN) return "";
-    const o = WIN.opt.reduce((a, b) => a + b, 0) / WIN.opt.length, b = WIN.beh ? WIN.beh[0] : null;
-    return `<div class="vtb">Win chance ${nextBan() >= 6 ? "after these bans" : "from here"}: <b>${pct1(o)}</b>${nextBan() < 6 ? " if you follow the advice" : ""}${b !== null && nextBan() < 6 ? `, ${pct1(b)} if both teams ban as usual` : ""}</div>`;
-  }
-  function headline() {
-    const sug = suggested(); if (!sug.length) return "";
-    const cnt = turnCount(), pair = cnt === 2 && sug.length === 2, hs = sug.map(x => x.h), x = hs[0], key = hs.join("+");
-    const fresh = key !== lastVerdict; lastVerdict = key;
-    const V = pair ? sug[0].pair.V : RES.V[x], mv = pair ? null : memberV(x);
-    const runner = topBans(3).find(h => h !== x);
-    let judge = "";
-    if (!pair && runner !== undefined) {
-      const d = RES.Q.map(q => q[x] - q[runner]), k = d.filter(v => v > 0).length, M = d.length;
-      judge = k === M ? `Ahead of ${esc(NAMES[runner])} (${pp(RES.V[runner])}) in all ${M} model members` : `Close to ${esc(NAMES[runner])} (${pp(RES.V[runner])}): ahead in ${k} of ${M} model members`;
-    }
-    const rare = RES.pe[x] < .01 ? `Typical teams ban ${esc(NAMES[x])} here ${RES.pe[x] < .001 ? "almost never" : `about ${(100 * RES.pe[x]).toFixed(1)}% of the time`}` : "";
-    let rob = "";
-    if (!pair && E.ready("aux")) { const R = robustCheck(x); if (R) rob = R; }
-    const name = pair ? `<span class="vname">${esc(NAMES[hs[0]])}</span> then <span class="vname">${esc(NAMES[hs[1]])}</span>` : `<span class="vname">${esc(NAMES[x])}</span>`;
-    const spread = pair ? `members ${pp(Math.min(...sug[0].pair.mv))} to ${pp(Math.max(...sug[0].pair.mv))}` : `members ${pp(Math.min(...mv))} to ${pp(Math.max(...mv))}`;
-    return `<div class="verdict${pair ? " pair" : ""}${fresh ? " fresh" : ""}"><div class="vpics">${hs.map(h => `<img src="${img(h)}" alt="">`).join("")}</div>
-      <div class="vtext"><div class="vcall">Ban ${name}</div>
-        <div class="vest" title="Change in your team's win probability, in points, against ${pair ? "a typical first ban (then the best second ban)" : "a typical ban"}, both followed by the advice"><span class="vnum">${pp(V)}</span> points${pair ? " for the pair" : ""} <span class="vci">${spread}</span></div>
-        <div class="vjudge">${[judge, rare, rob].filter(Boolean).join(". ")}</div>${winLine()}</div></div>`;
-  }
-  function robustCheck(x) {                            // does the ban hold up if they ban as badly for you as they plausibly can?
-    const s = lobby(), R = E.children(s, RES.e, RES.cands, true, "robust"); if (!R) return "";
-    const Q = R[0], pool = RES.cands.filter(h => RES.supported.has(h)), order = pool.slice().sort((a, b) => Q[b] - Q[a]), rk = order.indexOf(x) + 1;
-    return rk <= 3 ? `Also ${rk === 1 ? "the best" : `number ${rk}`} against a worst-case opponent` : `Against a worst-case opponent it ranks ${rk}, behind ${esc(NAMES[order[0]])}`;
-  }
-  function pairTable(P) {
-    return `<div style="overflow-x:auto"><table style="width:100%"><caption>Best pairs for this turn, in the order to ban them (the second ban's value depends on the first). After each of the six best first bans,
-      every second ban is scored by the network one position further on. Value: change in your team's win probability, in points, against a typical first ban followed by the best second ban.
-      Click a row to ban both.</caption><tr><th>#</th><th>First, then second</th><th class="r">Value</th><th class="r">Members</th></tr>` +
-      P.slice(0, 8).map((p, k) => `<tr class="pickpair" data-a="${p.a}" data-b="${p.b}" title="Ban ${esc(NAMES[p.a])}, then ${esc(NAMES[p.b])}"><td class="num">${k + 1}</td>
-        <td><img class="mini" src="${img(p.a)}" alt=""><img class="mini" src="${img(p.b)}" alt=""> ${esc(NAMES[p.a])}, then ${esc(NAMES[p.b])}</td>
-        <td class="r">${pp(p.V)}</td><td class="r">${pp(Math.min(...p.mv))} to ${pp(Math.max(...p.mv))}</td></tr>`).join("") + `</table></div>`;
-  }
-  function subsFig(h) {                                // where a hero's mains go when it is banned (the pick model)
-    const r = SUB.get(NAMES[h]); if (!r || !r.top.length) return "";
-    const idx = new Map(NAMES.map((n, i) => [n, i])), rows = r.top.slice(0, 6).map(([n, p]) => ({ h: idx.get(n), p, cls: ROLES[idx.get(n)] === ROLES[h] ? "them" : "faint" }));
-    return colFig(probChart(rows, "them", 290), `Where players whose main is ${esc(NAMES[h])} go when it is banned: the pick model's average first choice, over maps and sides, for
-      the ${fmt(r.mains)} players in the stand-in pool whose main it is. ${pct(r.same_role)} stay in the same role (red bars).`);
+    const o = mean(WIN.opt), b = WIN.beh ? WIN.beh[0] : null;
+    return nextBan() >= 6 ? `<p class="winl">Win chance after these bans: <b>${pct1(o)}</b></p>`
+      : `<p class="winl">Win chance <b>${pct1(o)}</b> if you follow the advice${b !== null ? ` · ${pct1(b)} if both teams ban as usual` : ""}</p>`;
   }
   const quiet = html => html.replace(/<(figcaption|caption)>([\s\S]*?)<\/\1>/g, (m, t, x) => `<${t}><details class="more"><summary>How to read this</summary>${x}</details></${t}>`);
+  const more = (label, body) => `<details class="more" style="margin:2px 0 10px 0"><summary>${label}</summary>${body}</details>`;
+  function openers() {
+    if (!LU) return "";
+    const bans = bannedSet(), revs = teamSet();
+    const them = Array.from(LU.pt.keys()).filter(h => !bans.has(h)).sort((a, b) => LU.pt[b] - LU.pt[a]).slice(0, 10);
+    const us = Array.from(LU.pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => LU.pu[b] - LU.pu[a]).slice(0, 10);
+    return `<figure>${butterfly(them, us, LU.pt, LU.pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows (the previous model's lineup network:
+      the new model's drafts live inside its value networks).</figcaption></figure>`;
+  }
   function renderAdvice() {
-    const e = nextBan(); let html = "";
-    if (e >= 6) html += `<h2>Ban phase complete</h2>${winLine() ? `<div class="verdict"><div class="vtext">${winLine()}</div></div>` : ""}<p class="small">All six bans are in. Below: what each team is now likely to open.</p>`;
+    const e = nextBan(), W = figW(); let html = "";
+    if (e >= 6) html += `<h2>Ban phase complete</h2>${winLine()}${more("Likely openers", openers())}`;
     else if (ourTurn() && RES) {
-      const cnt = turnCount(), top = topBans(10), sug = suggested();
-      html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>` + headline();
-      if (cnt === 2) html += PAIRS ? pairTable(PAIRS) : `<p class="small">Scoring pairs&hellip;</p>`;
-      html += rankTable(top, [
-        { th: "Typical", td: h => RES.pe[h] < .001 ? "&lt;0.1%" : pct1(RES.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
-        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban (also followed by the advice). The dot is the
-        average of the three model members and the ticks are the members. Rows are in the advice's order: the average minus half the members' spread. Typical: how often a typical team in
-        your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the chance each team opens the hero if it stays
-        available (the previous model's lineup network). Click a row, or press 1 to 8, to ban.`);
-      const h0 = sug.length ? sug[0].h : top[0];
-      const sf = subsFig(h0); if (sf) html += `<h2>If you ban ${esc(NAMES[h0])}, where its mains go</h2><div class="cols">${sf}</div>`;
+      const cnt = turnCount(), R = RES, pair = cnt === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null;
+      const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], k = runner === undefined ? 0 : R.Q.filter(q => q[R.best] > q[runner]).length;
+      html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
+      html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("scored as a pair")}</p>`
+        : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : k === R.Q.length ? `clear of ${esc(nm(runner))} in all three networks` : `close call with ${esc(nm(runner))}`)}</p>`;
+      html += winLine() + `<div class="fig8">${banBoard(W)}</div>`;
+      if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div>` : `<p class="small">Scoring pairs&hellip;</p>`);
+      const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
+      if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n t">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
+      if (cnt === 1 && REPLY) { const F = forecastStrip(REPLY, W);
+        html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}`)}` : ""}</p><div class="fig8">${F.svg}</div>`; }
+      html += more("All bans as a table", rankTable(topBans(12), [
+        { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
+        `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Ticks: the three networks. Typical: how often a
+        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's lineup network.`));
+      html += more("Likely openers", openers());
     } else if (THEM) {
-      const T = THEM, top = T.cands.slice().sort((a, b) => T.pe[b] - T.pe[a]), nx = top.slice(1, 4).map(h => `${esc(NAMES[h])} ${pct(T.pe[h])}`);
-      html += `<h2>Their ban #${e + 1}</h2><div class="verdict them"><div class="vpics"><img src="${img(top[0])}" alt=""></div>
-        <div class="vtext"><div class="vcall">Likeliest: <span class="vname">${esc(NAMES[top[0]])}</span></div>
-        <div class="vest"><span class="vnum">${pct(T.pe[top[0]])}</span> <span class="vci">then ${nx.join(", ")}</span></div>${winLine()}</div></div>`;
-      const rows = top.slice(0, 10).map(h => ({ h, p: T.pe[h], d: T.mu[h] - T.base }));
-      html += `<div class="cols">${colFig(whySplit(T), `Why a typical team in their seat would ban each hero next: the ban model's reasons against an average hero (log-odds, so only the
-        lengths relative to each other matter). "Your team plays it": teams go after the heroes the other team's players play, and the heroes your team shows say who your players are.
-        The percentage is the chance of ban #${e + 1}.`, "Why they would ban it")}
-        ${isNaN(rows[0].d) ? "" : colFig(diverge(rows), `What each of their likely bans does to your win chance, in points, against their typical ban (the value networks, with your later
-        bans as advised). Enter what they actually ban, or click the faded box if they banned the likeliest hero.`, "What their ban does to your win chance")}</div>`;
-    }
-    if (LU) {
-      const bans = bannedSet(), revs = teamSet();
-      const them = Array.from(LU.pt.keys()).filter(h => !bans.has(h)).sort((a, b) => LU.pt[b] - LU.pt[a]).slice(0, 10);
-      const us = Array.from(LU.pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => LU.pu[b] - LU.pu[a]).slice(0, 10);
-      html += `<h2>Likely openers</h2><figure>${butterfly(them, us, LU.pt, LU.pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows
-        (the previous model's lineup network: the new model's drafts live inside its value networks). The ten likeliest for each team, on one list.</figcaption></figure>`;
+      const T = THEM, F = forecastStrip(T, W);
+      html += `<h2>Their ban #${e + 1}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}, ${pp(T.mu[F.worst] - T.base)} for you`)}` : ""}</p>`;
+      html += winLine() + `<div class="fig8">${F.svg}</div>`;
+      html += more("Why they would ban these", `<figure>${whySplit(T)}<figcaption>The ban model's reasons against an average hero (log-odds). "Your team plays it": teams go after the heroes the
+        other team's players play, and the heroes your team shows say who your players are.</figcaption></figure>`);
+      html += more("Likely openers", openers());
     }
     $("adviceBody").innerHTML = quiet(html);
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
-    $("adviceBody").querySelectorAll("tr.pickpair").forEach(el => el.onclick = () => { if (ourTurn() && turnCount() === 2) banBoth(+el.dataset.a, +el.dataset.b); });
+    $("adviceBody").querySelectorAll("[data-ban]").forEach(el => el.onclick = () => { if (ourTurn()) { st.active = { kind: "ban" }; place(+el.dataset.ban); } });
+    $("adviceBody").querySelectorAll("[data-pair]").forEach(el => el.onclick = () => { if (ourTurn() && turnCount() === 2) { const [a, b] = el.dataset.pair.split(",").map(Number); banBoth(a, b); } });
   }
+  let REPLY = null;
+  window.addEventListener("resize", () => { clearTimeout(window.__rz); window.__rz = setTimeout(() => { if (RES || THEM || DONE) renderAdvice(); }, 150); });
 
   // ---------------------------------------------------------------- update loop
   let pending = 0;
@@ -419,8 +512,9 @@
     setTimeout(() => {
       if (my !== pending) return;
       const s = lobby(), e = s.bans.length;
-      RES = PAIRS = THEM = PATH = null; DONE = e >= 6 ? true : null;
+      RES = PAIRS = THEM = PATH = REPLY = null; DONE = e >= 6 ? true : null;
       if (e < 6 && ours(e)) RES = E.ourTurn(s); else if (e < 6) THEM = E.theirTurn(s);
+      if (RES && turnCount() === 1 && e + 1 < 6) REPLY = E.theirTurn(Object.assign({}, s, { bans: s.bans.concat([RES.best]) }));
       WIN = { opt: E.winNow(s), beh: E.ready("aux") ? E.winNow(s, "behaviour") : null }; if (!WIN.opt) WIN = null;
       PATH = e < 6 ? E.path(s) : null;
       const s7 = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: v7map(st.map), r0: META.tiers[st.tier] };
@@ -428,7 +522,7 @@
       renderBans(); renderRoster(); renderAdvice(); $("mainEl").classList.remove("busy");
       if (RES && turnCount() === 2) setTimeout(() => {                      // pairs take about half a second: after the first render
         if (my !== pending) return;
-        PAIRS = (E.pairs(s, RES) || []).slice(0, 12); renderBans(); renderRoster(); renderAdvice();
+        PAIRS = E.pairs(s, RES, 6, true) || []; renderBans(); renderRoster(); renderAdvice();
       }, 20);
     }, 15);
   }
@@ -441,11 +535,6 @@
     const out8 = t.outcome_recalibrated || t.outcome.v8, out7 = t.outcome["v7.2"], banT = t.ban;
     const slopes = Object.values(bc).map(v => v.slope), sLo = Math.min(...slopes).toFixed(2), sHi = Math.max(...slopes).toFixed(2);
     const fb = C.first_ban_by_role;
-    const idx = new Map(NAMES.map((n, i) => [n, i]));
-    const panel = r => {                                // share of each hero's mains who stay in the role when it is banned
-      const rows = SUBS.table.filter(x => x.same_role !== null && ROLES[idx.get(x.hero)] === r).map(x => ({ h: idx.get(x.hero), p: x.same_role })).sort((a, b) => b.p - a.p);
-      return `<div><h3>${ROLE_NAMES[r]}</h3>${probChart(rows, "them", 250)}</div>`;
-    };
     $("method").innerHTML = `<details class="how"><summary>How it works, and how well it holds up</summary><div class="mgrid"><div class="mcol"><h2>Method</h2>
       <p>A ban removes a hero from both teams, you usually don't know who is on the other side, and a ban changes what both teams draft. So the model plays lobbies out. It simulates
       ${fmt(R.world_model.lobbies)} lobbies like yours: stand-in players near the lobby's rank, drawn from the real players who play there and following the heroes your team shows, the rest of the ban phase,
@@ -491,9 +580,11 @@
         <li>The three networks' spread shows where they disagree, not a full interval: refitting everything on other matches would move the values more.</li>
         <li>God Quarry is left out (7 matches in the data).</li>
       </ul></div></div></details>
-      <h2>When a hero is banned, how many of its mains stay in the role</h2>
-      <figure><div class="cols">${[0, 1, 2].map(panel).join("")}</div>
-        <figcaption>The pick model's average first choice for players whose main (30% or more of their minutes) is banned, before teammates pick: the share that picks another hero of the same role.</figcaption></figure>`;
+      <h2>Where mains go when their hero is banned</h2>
+      <div class="roles">${roleFlows()}</div>
+      <p class="small">Each row is a hero. Its mains (30% or more of their minutes on it) flow to the role they pick when it is banned, before teammates pick (the pick model's average over
+      maps and sides). The colour is the role they end up in. Hover a hero to follow it.</p>`;
+    wireSankeys($("method"));
   }
   const SPL = REP.splits, day = t => new Date(t.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" });
   const fitN = SPL.train.n + SPL.validation.n;

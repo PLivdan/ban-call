@@ -20,6 +20,11 @@ if v7.exists():
     s = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', v7.read_text(encoding="utf-8")); v7.write_text(s, encoding="utf-8")
     p7 = root / "v7" / "index.html"; sub_script(p7, "engine.js", "engine.js", "../"); t7 = sub_script(p7, "app.js", "v7/app.js")
     print("stamped v7:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t7)))
+# the lab page (figure options for the v8 model)
+lab = root / "lab" / "index.html"
+if lab.exists():
+    sub_script(lab, "engine.js", "engine.js", "../"); sub_script(lab, "engine8.js", "engine8.js", "../"); tl = sub_script(lab, "lab.js", "lab/lab.js")
+    print("stamped lab:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tl)))
 # the studio page uses the same engine and worker
 st_js = root / "studio" / "studio.js"
 if st_js.exists():

@@ -12,18 +12,21 @@
     --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6;
     --blue: #2a4bad; --red: #b0382d; --safe: #1e6b30;
     --active: #eceef2; --cf: #f6f2e4; --hover: #e8edf8; --wash: #dfe6f7;
+    --r0: #7a5ba8; --r1: #d27a1e; --r2: #1f9481;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
       --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
       --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+      --r0: #b7a0e6; --r1: #f0a45a; --r2: #5cc8b4;
     }
   }
   :root[data-theme="dark"] {
     --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
     --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
     --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+    --r0: #b7a0e6; --r1: #f0a45a; --r2: #5cc8b4;
   }
   * { box-sizing: border-box; }
   body { background: var(--paper); color: var(--ink); margin: 0;
@@ -90,6 +93,20 @@
   .vjudge { font-size: 12.5px; color: var(--faint); margin-top: 4px; max-width: 70ch; }
   .verdict.fresh { animation: settle .9s ease-out; }
   @keyframes settle { from { background: var(--wash); } to { background: var(--panel); } }
+  /* the advice's figures: a headline number, portraits for labels, numbers on hover */
+  .head { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 108%; font-size: 19px; font-weight: 700; margin: 6px 0 4px 0; line-height: 1.25; }
+  .head .n { font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin-right: 3px; } .head .u { color: var(--blue); } .head .t { color: var(--red); }
+  .head .hs { font-size: 14px; font-weight: 600; color: var(--faint); }
+  .winl { font-size: 13px; color: var(--faint); margin: 0 0 8px 0; } .winl b { color: var(--ink); font-weight: 600; }
+  .fig8 { margin: 6px 0 18px 0; } .fig8 svg { overflow: visible; }
+  svg image.rare { filter: grayscale(1); opacity: .42; } svg [data-ban] { cursor: pointer; } svg [data-ban]:hover .ring { stroke-width: 2.5; }
+  .sk .flow { transition: opacity .15s; } .sk.hl .flow { opacity: .06 !important; } .sk.hl .flow.on { opacity: .92 !important; }
+  .sk .rowlab { transition: opacity .15s; } .sk.hl .rowlab { opacity: .35; } .sk.hl .rowlab.on { opacity: 1; font-weight: 600; }
+  .roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; align-items: start; }
+  .roles .head { font-size: 16px; } .roles .head .n { font-size: 26px; }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12.5px; line-height: 1.45; padding: 7px 9px; max-width: 300px; opacity: 0;
+         transition: opacity .1s; z-index: 50; } .tip.on { opacity: 1; } .tip b { font-weight: 600; } .tip .d { opacity: .72; }
+  @media (max-width: 1000px) { .roles { grid-template-columns: minmax(0, 1fr); } }
   /* tables */
   table { border-collapse: collapse; }
   caption { caption-side: bottom; text-align: left; font-size: 12px; line-height: 1.45; color: var(--faint); padding-top: 6px; max-width: 78ch; }
@@ -307,12 +324,13 @@
 <section class="method" id="method"></section>
 
 <div id="statusbar" class="tonly" aria-hidden="true"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs></svg>
 <footer class="small">
   <span id="fitted"></span> The models run in your browser. <a href="v7/">The previous model (v7.2)</a> is kept as a backup. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
 <script src="engine.js?v=e939ae1125"></script>
-<script src="engine8.js?v=01f3bfb38a"></script>
-<script src="app8.js?v=10305e2072"></script>
+<script src="engine8.js?v=1eee496bc9"></script>
+<script src="app8.js?v=ed2d010a38"></script>
 </html>

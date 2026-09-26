@@ -158,7 +158,7 @@
     }
     /* A two-ban turn: after each of the top first bans x, every second ban y from network e + 2. Values against the same
        typical-first-ban baseline as the single bans (a typical first ban, then the best second ban). */
-    pairs(s, R, nFirst = 6) {
+    pairs(s, R, nFirst = 6, bothOrders = false) {
       const e = R.e, H = this.H, first = R.cands.slice().sort((a, b) => (R.mu[b] - this.KAPPA * R.sd[b]) - (R.mu[a] - this.KAPPA * R.sd[a])).slice(0, nFirst), out = [];
       for (const x of first) {
         const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), Q = this.children(s2, e + 1, cands, true); if (!Q) return null;
@@ -167,6 +167,7 @@
           out.push({ a: x, b: y, mu: a, sd: Math.sqrt(v / Q.length), V: a - R.base, mv: Q.map(q => q[y] - R.base) });
         }
       }
+      if (bothOrders) return out.sort((p, q) => (q.mu - this.KAPPA * q.sd) - (p.mu - this.KAPPA * p.sd));
       const seen = new Set(), uniq = [];
       for (const p of out.sort((p, q) => (q.mu - this.KAPPA * q.sd) - (p.mu - this.KAPPA * p.sd))) { const k = Math.min(p.a, p.b) + "," + Math.max(p.a, p.b); if (!seen.has(k)) { seen.add(k); uniq.push(p); } }
       return uniq;
