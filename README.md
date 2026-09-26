@@ -75,7 +75,7 @@ The models are fitted in the ban-solver notebook (Colab). This repo only serves 
     python tools/check_ref.py             # engine.js against the numpy reference, and the notebook's embedded copy
     python tools/check_histories.py       # own-ban averaging uses legal histories only
     git add model && git commit -m "Model <stamp>" && git push
-If `sim.js` or `sim-worker.js` change, bump the `sim-worker.js?v=N` tag in `app.js` so browsers drop the cached worker.
+Before committing any script change, run `python tools/stamp.py`: it stamps every script address (and the worker's) with a hash of its content, so browsers never mix a new page with a cached old script.
 Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
 
 ## Run locally

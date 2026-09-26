@@ -71,8 +71,8 @@
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
   const themeNow = () => document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const setThemeLabel = () => $("themeBtn").textContent = themeNow() === "dark" ? "Light" : "Dark";
-  $("chartsBtn").onclick = () => { setView("charts"); renderAdvice(); };
-  $("termBtn").onclick = () => { setView("term"); renderAdvice(); };
+  $("chartsBtn").onclick = () => { setView("charts"); if (RES) renderAdvice(); };
+  $("termBtn").onclick = () => { setView("term"); if (RES) renderAdvice(); };
   $("themeBtn").onclick = () => { document.documentElement.dataset.theme = themeNow() === "dark" ? "light" : "dark"; try { localStorage.setItem("bancall-theme", document.documentElement.dataset.theme); } catch (e) {} setThemeLabel(); };
   try { const t = localStorage.getItem("bancall-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   setThemeLabel();
@@ -130,14 +130,14 @@
           : f ? (i === e ? `their likeliest ban here. Click if they banned ${esc(NAMES[f[0].h])}` : "their likeliest ban here if their earlier boxes go as shown") : "click, then pick the banned hero"}">
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
-    $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => {
-      const i = +el.dataset.i;
-      if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; }
-      else if (el.classList.contains("sug")) { const s = suggested(turnCount())[i - nextBan()]; st.active = { kind: "ban" }; if (i === nextBan() && s) return place(s.h); }
-      else if (el.classList.contains("fc") && i === nextBan()) { st.active = { kind: "ban" }; return place((THEIRS ? top2(THEIRS) : FC.top[i])[0].h); }
-      else st.active = { kind: "ban" };
-      update();
-    });
+    $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => banClick(+el.dataset.i, el.classList));
+  }
+  function banClick(i, cls) {                         // a ban box (picture or text lobby): undo, take the suggestion or forecast, or make it the target
+    if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; }
+    else if (cls.contains("sug")) { const s = suggested(turnCount())[i - nextBan()]; st.active = { kind: "ban" }; if (i === nextBan() && s) return place(s.h); }
+    else if (cls.contains("fc") && i === nextBan()) { st.active = { kind: "ban" }; return place((THEIRS ? top2(THEIRS) : FC.top[i])[0].h); }
+    else st.active = { kind: "ban" };
+    update();
   }
   function renderTurnHint() {
     const e = nextBan(), a = st.active;
@@ -160,13 +160,14 @@
       }).join("") + "</div>";
     }).join("");
     $("roster").querySelectorAll(".tile").forEach(el => el.onclick = () => { if (!el.classList.contains("banned")) place(+el.dataset.h); });
+    if (typeof VIEW !== "undefined" && VIEW === "term") renderLobbyTerm();
   }
   const searchMatches = () => { const q = $("search").value.trim().toLowerCase(); if (!q) return [];
     const b = bannedSet(); return NAMES.map((n, h) => h).filter(h => !b.has(h) && (NAMES[h].toLowerCase().includes(q) || (SHORT[NAMES[h]] || "").toLowerCase().includes(q)))
       .sort((a, b2) => ((NAMES[a].toLowerCase().startsWith(q) ? 0 : 1) - (NAMES[b2].toLowerCase().startsWith(q) ? 0 : 1)) || NAMES[a].length - NAMES[b2].length); };
   function renderMatches() {
     const m = searchMatches().slice(0, 4);
-    $("matches").innerHTML = m.length ? "Enter → " + m.map((h, k) => `<a href="#" data-h="${h}"${k ? "" : " style=\"font-weight:600\""}>${esc(NAMES[h])}</a>`).join(", ") : "";
+    $("matches").innerHTML = m.length ? "Enter: " + m.map((h, k) => `<a href="#" data-h="${h}"${k ? "" : " style=\"font-weight:600\""}>${esc(NAMES[h])}</a>`).join(", ") : "";
     $("matches").querySelectorAll("a").forEach(el => el.onclick = ev => { ev.preventDefault(); place(+el.dataset.h); });
   }
   $("search").oninput = () => { renderRoster(); renderMatches(); };
@@ -177,7 +178,9 @@
   };
   document.addEventListener("keydown", ev => {
     if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-    if (ev.key.length === 1 && /[a-z&]/i.test(ev.key)) { $("search").focus(); }
+    if (ev.key === "/") { $("search").focus(); ev.preventDefault(); }
+    else if (/^[1-9]$/.test(ev.key) && ourTurn()) { const h = topBans(9)[+ev.key - 1]; if (h !== undefined) { st.active = { kind: "ban" }; place(h); } ev.preventDefault(); }
+    else if (ev.key.length === 1 && /[a-z&]/i.test(ev.key)) { $("search").focus(); }
     else if (ev.key === "Backspace" && st.bans.length) { st.bans.pop(); update(); ev.preventDefault(); }
   });
 
@@ -315,7 +318,8 @@
   // ---------------------------------------------------------------- terminal view: the same results as plain text, drawn with characters
   let VIEW = "charts"; try { VIEW = localStorage.getItem("bancall-view") === "term" ? "term" : "charts"; } catch (e) {}
   const setView = v => { VIEW = v; document.documentElement.dataset.view = v; try { localStorage.setItem("bancall-view", v); } catch (e) {}
-    $("chartsBtn").classList.toggle("on", v === "charts"); $("termBtn").classList.toggle("on", v === "term"); };
+    $("chartsBtn").classList.toggle("on", v === "charts"); $("termBtn").classList.toggle("on", v === "term");
+    if (RES) { renderRoster(); renderStatusBar(); } };
   const padR = (x, n) => { x = String(x); return x.length >= n ? x.slice(0, n) : x + " ".repeat(n - x.length); };
   const padL = (x, n) => { x = String(x); return x.length >= n ? x.slice(0, n) : " ".repeat(n - x.length) + x; };
   const bar = (f, n) => { const w = Math.max(0, f) * n, k = Math.floor(w), r = w - k; return "█".repeat(k) + (r > .66 ? "▊" : r > .33 ? "▌" : r > .05 ? "▎" : ""); };
@@ -332,13 +336,13 @@
   }
   const line = (txt, h, cls = "") => h === undefined ? `${txt}\n` : `<span class="tl${cls}" data-h="${h}">${txt}</span>\n`;
   function termRanking(top, V, se, extra) {         // the ranking: value, 95% interval as characters, and one extra column
-    const n = 34, lo = Math.min(0, ...top.map(h => V[h] - 1.96 * se[h])), hi = Math.max(0, ...top.map(h => V[h] + 1.96 * se[h]));
-    let o = line(`${padL("#", 3)}  ${padR("ban", 22)} ${padL("value", 6)}  ${padR("95% interval", 16)}  ${axisRow(lo, hi, n)}  ${extra.th}`);
-    top.forEach((h, k) => { o += line(esc(`${padL(k + 1, 3)}  ${padR(NAMES[h], 22)} ${padL(pp(V[h]), 6)}  ${padR(`${pp(V[h] - 1.96 * se[h])} to ${pp(V[h] + 1.96 * se[h])}`, 16)}  ${ciRow(V[h], se[h], lo, hi, n)}  ${extra.td(h)}`), h); });
+    const n = 22, lo = Math.min(0, ...top.map(h => V[h] - 1.96 * se[h])), hi = Math.max(0, ...top.map(h => V[h] + 1.96 * se[h]));
+    let o = line(`${padL("#", 2)} ${padR("ban", 21)} ${padL("value", 6)}  ${padR("95% interval", 16)}  ${axisRow(lo, hi, n)}  ${extra.th}`);
+    top.forEach((h, k) => { o += line(esc(`${padL(k + 1, 2)} ${padR(NAMES[h], 21)} ${padL(pp(V[h]), 6)}  ${padR(`${pp(V[h] - 1.96 * se[h])} to ${pp(V[h] + 1.96 * se[h])}`, 16)}  ${ciRow(V[h], se[h], lo, hi, n)}  ${extra.td(h)}`), h, k === 0 ? " best" : ""); });
     return o;
   }
   function termBars(rows, title) {                  // label, percentage, bar
-    const mx = Math.max(...rows.map(r => r.p), 1e-9); let o = line(title);
+    const mx = Math.max(...rows.map(r => r.p), 1e-9); let o = title ? line(title) : "";
     rows.forEach(r => { o += line(esc(`  ${padR(NAMES[r.h], 22)} ${padL(pct(r.p), 4)}  ${bar(r.p / mx, 30)}`)); }); return o;
   }
   function termOpeners(them, us, P1, P2, shown) {   // back to back: their chance on the left, ours on the right
@@ -348,36 +352,79 @@
     hs.forEach(h => { const l = bar(P1[h] / mx, w), r = shown.has(h) ? "shown" : `${bar(P2[h] / mx, w)} ${pct(P2[h])}`;
       o += line(esc(`${padL(pct(P1[h]), 4)} ${padL(l, w)}   ${padR(NAMES[h], 22)}   ${r}`)); }); return o;
   }
+  const rule = t => `<span class="tsh">── ${t} ${"─".repeat(Math.max(3, 80 - t.length))}</span>\n`;   // section rule in characters
+  const kv = (k, v) => `<span class="tp">${padR(k, 11)}</span>${v}\n`;
   function termAdvice() {
     const e = nextBan(), R = RES, sim = st.model === "sim"; let o = "";
-    const prompt = t => `<span class="tp">$</span> ${t}\n`;
+    const prompt = t => `<span class="tp">$</span> ${t}\n\n`;
     if (e < 6 && ourTurn()) {
       const cnt = turnCount();
       o += prompt(`ban-call --rank "${esc(st.tier)}" --ban ${e + 1}${cnt === 2 ? `,${e + 2}` : ""} --model ${sim ? `simulator --runs ${st.runs}` : "value"}`);
-      if (sim && (!SIM || SIM.prelim)) return `<pre class="term">${o}${line("simulating ...")}</pre><div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
+      if (sim && (!SIM || SIM.prelim)) return `<pre class="term">${o}${line("simulating the rest of the ban phase for every legal ban")}</pre><div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
       const S = sim ? SIM : R, top = topBans(15), sug = suggested(cnt).filter(Boolean);
       if (sug.length) {
         const x = sug[0], names = cnt === 2 && sug[1] ? `${NAMES[sug[0].h]} + ${NAMES[sug[1].h]}` : NAMES[x.h];
         const r2 = topBans(2)[1], tied = r2 !== undefined && !(cnt === 2 && sug[1]) && x.V - 1.96 * x.se <= S.V[r2] + 1.96 * S.se[r2];
-        o += `\n<span class="tv">&gt; ban ${esc(names)}</span>   ${pp(x.V)} points   95% interval ${pp(x.V - 1.96 * x.se)} to ${pp(x.V + 1.96 * x.se)}`;
-        o += tied ? `\n  its interval overlaps ${esc(NAMES[r2])} (${pp(S.V[r2])}): close to tied\n\n` : r2 !== undefined && !(cnt === 2 && sug[1]) ? `\n  its interval sits above ${esc(NAMES[r2])} (${pp(S.V[r2])}): the clear pick\n\n` : "\n\n";
+        o += rule("recommendation");
+        o += kv("ban", `<span class="tv">${esc(names)}</span>`);
+        o += kv("value", `${pp(x.V)} points of win probability, against ${cnt === 2 && sug[1] ? "two typical bans" : "a typical ban"}`);
+        o += kv("95% ci", `${pp(x.V - 1.96 * x.se)} to ${pp(x.V + 1.96 * x.se)}`);
+        if (r2 !== undefined && !(cnt === 2 && sug[1])) o += kv("vs next", `${esc(NAMES[r2])} ${pp(S.V[r2])}: ${tied ? "intervals overlap, close to tied" : "intervals do not overlap, clear pick"}`);
+        if (sim) o += kv("baseline", `${(100 * S.base).toFixed(1)}% win chance after a typical ban`);
+        o += "\n";
       }
       const Pp = sim ? SIMP : R.pairs;
-      if (cnt === 2 && Array.isArray(Pp)) { o += line("best pairs, scored together"); Pp.slice(0, 5).forEach((p, k) => { o += `<span class="tl tp2" data-a="${p.a}" data-b="${p.b}">${esc(`${padL(k + 1, 3)}  ${padR(`${NAMES[p.a]} + ${NAMES[p.b]}`, 40)} ${padL(pp(p.V), 6)}  ± ${(196 * p.se).toFixed(2)}`)}</span>\n`; }); o += "\n"; }
-      o += termRanking(top, S.V, S.se, sim ? { th: "they switch to", td: h => { let b = -1, bv = 0; for (let y = 0; y < H; y++) { if (y === h) continue; const d = S.co[h][y] - S.baseCo[y]; if (d > bv) { bv = d; b = y; } } return b < 0 ? "" : `${NAMES[b]} +${(100 * bv).toFixed(0)}`; } }
+      if (cnt === 2 && Array.isArray(Pp)) { o += rule("best pairs, scored together"); Pp.slice(0, 5).forEach((p, k) => { o += `<span class="tl tp2" data-a="${p.a}" data-b="${p.b}">${esc(`${padL(k + 1, 3)}  ${padR(`${NAMES[p.a]} + ${NAMES[p.b]}`, 40)} ${padL(pp(p.V), 6)}  ± ${(196 * p.se).toFixed(2)}`)}</span>\n`; }); o += "\n"; }
+      o += rule("all bans, value and 95% interval   (press 1-9 or click a row to ban)") + termRanking(top, S.V, S.se, sim ? { th: "they switch to", td: h => { let b = -1, bv = 0; for (let y = 0; y < H; y++) { if (y === h) continue; const d = S.co[h][y] - S.baseCo[y]; if (d > bv) { bv = d; b = y; } } return b < 0 ? "" : `${NAMES[b]} +${(100 * bv).toFixed(0)}`; } }
                                                         : { th: "they open", td: h => padL(pct(R.Pt[h]), 4) });
-      o += line("\nclick a row to ban that hero");
+      o += "\n";
     } else if (e < 6) {
       const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 10);
       o += prompt(`ban-call --their-ban ${e + 1}`);
-      o += `\n<span class="tv">&gt; likeliest ${esc(NAMES[top[0]])}</span>   ${pct(THEIRS[top[0]])}\n\n`;
-      o += termBars(top.map(h => ({ h, p: THEIRS[h] })), "chance of their next ban");
-    } else o += prompt("ban-call --done") + line("\nall six bans are in");
+      o += rule("their next ban") + kv("likeliest", `<span class="tv">${esc(NAMES[top[0]])}</span>  ${pct(THEIRS[top[0]])}`) + "\n";
+      o += termBars(top.map(h => ({ h, p: THEIRS[h] })), "") + "\n";
+    } else o += prompt("ban-call --done") + line("all six bans are in\n");
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(R.Pt.keys()).filter(h => !bans.has(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 10);
     const us = Array.from(R.Pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => R.Pu[b] - R.Pu[a]).slice(0, 10);
-    o += "\n" + line("likely openers") + termOpeners(them, us, R.Pt, R.Pu, revs);
+    o += rule("likely openers") + termOpeners(them, us, R.Pt, R.Pu, revs);
     return `<pre class="term">${o}</pre>`;
+  }
+  function renderLobbyTerm() {                       // the lobby as text: slots as rows, the ban track as a list, heroes in three role columns
+    const e = nextBan(), cnt = turnCount(), sug = ourTurn() && RES ? suggested(cnt) : [], bans = bannedSet(), team = teamSet();
+    const q = $("search").value.trim().toLowerCase(), rank = new Map(); if (ourTurn() && RES) topBans(3).forEach((h, k) => rank.set(h, k + 1));
+    let t = `<div class="tsec">team <span class="tdim">click a row, then a hero</span></div>`;
+    st.team.forEach((h, i) => { const act = st.active.kind === "team" && st.active.i === i;
+      t += `<div class="trow${act ? " sel" : ""}" data-team="${i}">${act ? "&gt;" : " "} ${padR(i === 0 ? "you" : "mate " + (i + 1), 8)} ${h >= 0 ? esc(NAMES[h]) : '<span class="tdim">_</span>'}${h >= 0 ? ` <span class="tx" data-clear="${i}">[x]</span>` : ""}</div>`; });
+    t += `<div class="tsec">ban phase <span class="tdim">${e >= 6 ? "complete" : `next: ban ${e + 1} (${ours(e) ? "us" : "them"})`}</span></div>`;
+    for (let i = 0; i < 6; i++) {
+      const h = st.bans[i], side = ours(i) ? "us" : "them", isNext = i === e && st.active.kind === "ban";
+      const sg = h === undefined && i >= e && i < e + sug.length && ours(i) ? sug[i - e] : undefined, s_ = sg ? sg.h : undefined;
+      const f = h === undefined && !ours(i) && FC && FC.top[i] && FC.top[i].length ? (i === e && THEIRS ? top2(THEIRS) : FC.top[i]) : null;
+      const body = h !== undefined ? esc(NAMES[h]) : s_ !== undefined ? `${esc(NAMES[s_])}? <span class="tdim">suggested</span>`
+                 : f ? `<span class="tdim">${esc(NAMES[f[0].h])}? ${pct(f[0].p)}${f[1] ? `, then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}` : ""}</span>` : '<span class="tdim">_</span>';
+      t += `<div class="trow ban ${side}${isNext ? " sel" : ""}${s_ !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-ban="${i}">${isNext ? "&gt;" : " "} ${i + 1} ${padR(side, 5)} ${body}</div>`;
+    }
+    $("lobbyTerm").innerHTML = t;
+    let r = `<div class="tcols">`;
+    [0, 1, 2].forEach(k => {
+      const hs = NAMES.map((n, h) => h).filter(h => META.roles[h] === k).sort((a, b) => NAMES[a].localeCompare(NAMES[b]));
+      r += `<div><div class="tsec">${ROLE_NAMES[k].toLowerCase()}</div>` + hs.map(h => {
+        const b = bans.has(h), o = team.has(h), dim = q && !NAMES[h].toLowerCase().includes(q) && !(SHORT[NAMES[h]] || "").toLowerCase().includes(q);
+        return `<div class="thero${b ? " banned" : ""}${o ? " ours" : ""}${dim ? " dim" : ""}" data-h="${h}">${rank.has(h) ? rank.get(h) : b ? "x" : o ? "*" : " "} ${esc(NAMES[h])}</div>`;
+      }).join("") + `</div>`;
+    });
+    $("rosterTerm").innerHTML = r + `</div>`;
+    $("lobbyTerm").querySelectorAll("[data-team]").forEach(el => el.onclick = ev => {
+      const i = +el.dataset.team; if (ev.target.dataset.clear !== undefined) st.team[i] = -1;
+      st.active = { kind: "team", i }; update(ev.target.dataset.clear !== undefined); });
+    $("lobbyTerm").querySelectorAll("[data-ban]").forEach(el => el.onclick = () => banClick(+el.dataset.ban, el.classList));
+    $("rosterTerm").querySelectorAll(".thero").forEach(el => el.onclick = () => { if (!el.classList.contains("banned")) place(+el.dataset.h); });
+  }
+  function renderStatusBar() {                       // the terminal view's bottom line: state on the left, keys on the right
+    const busy = $("mainEl").classList.contains("busy") ? $("busy").textContent : "ready";
+    $("statusbar").innerHTML = `<span><b>ban-call</b>  ${esc(st.tier)}  ${esc(MAPS.find(m => m.i === st.map).name)}  ${st.first ? "we ban first" : "we ban second"}  ${st.model === "sim" ? `simulator ${st.runs} runs` : "value model"}  <span class="tdim">${esc(busy)}</span></span>
+      <span class="tkeys"><b>1-9</b> ban row  <b>/</b> search  <b>enter</b> pick  <b>backspace</b> undo  <b>esc</b> clear</span>`;
   }
   // notes stay one click away: every caption, and the column definitions, collapse behind "How to read this"
   const quiet = html => html
@@ -425,6 +472,7 @@
       <figure>${butterfly(them, us, R.Pt, R.Pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows.
       The ten likeliest for each team, on one list. Where both bars are long, a ban costs both teams. Teams protect their own heroes and ban what beats them, so their bans shift the left side.</figcaption></figure>`;
     if (VIEW === "term") html = termAdvice();
+    renderStatusBar();
     $("adviceBody").innerHTML = quiet(html);
     $("adviceBody").querySelectorAll(".tl[data-h]").forEach(el => el.onclick = () => { if (ourTurn()) { st.active = { kind: "ban" }; place(+el.dataset.h); } });
     $("adviceBody").querySelectorAll(".tl.tp2").forEach(el => el.onclick = () => {
@@ -477,7 +525,7 @@
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const PAIRS = 10;                                               // two-ban turns: pairs among the best PAIRS single bans
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=7"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("sim-worker.js?v=afa32dfd43"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
     if (!RUN || RUN.finished) return; RUN.finished = true;
@@ -532,6 +580,7 @@
     if (el) el.style.width = (100 * f).toFixed(1) + "%";
     const t = $("simCount"); if (t) t.textContent = `${fmt(RUN.ticks)} of ${fmt(RUN.total)} ban phases simulated`;
     $("busy").textContent = `simulating ${Math.round(100 * f)}%`;
+    if (VIEW === "term") renderStatusBar();
   }
   function summarize(R) {
     const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), win = new Float64Array(H).fill(NaN), n = new Int32Array(H), co = {}, cu = {};

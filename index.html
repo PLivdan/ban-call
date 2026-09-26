@@ -157,26 +157,68 @@
   details.more[open] { max-width: 78ch; }
   details.how { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 8px; }
   details.how > summary { font-size: 15px; font-weight: 600; color: var(--ink); }
-  /* terminal view: black on white, one monospace face, results drawn with characters */
-  :root[data-view="term"] { --paper: #ffffff; --ink: #000000; --faint: #5a5a5a; --hair: #b8b8b8; --panel: #ffffff;
-    --blue: #1d3a9a; --red: #9e2a1f; --active: #f0f0f0; --hover: #ececec; --wash: #e4e4e4; }
+  /* terminal view: black on white, one monospace face on a character grid, boxed panels with inset titles,
+     inverse video for selection, a status line with key hints */
+  .tonly { display: none; }
+  :root[data-view="term"] { --paper: #ffffff; --ink: #000000; --faint: #6b6b6b; --hair: #000000; --panel: #ffffff;
+    --blue: #000000; --red: #000000; --active: #ffffff; --hover: #e9e9e9; --wash: #e9e9e9; }
+  [data-view="term"] .tonly { display: block; } [data-view="term"] .conly { display: none !important; }
   [data-view="term"] body, [data-view="term"] input, [data-view="term"] select, [data-view="term"] button,
-  [data-view="term"] .wide, [data-view="term"] h1, [data-view="term"] svg text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-stretch: normal; }
-  [data-view="term"] body { font-size: 12.5px; }
-  [data-view="term"] h1 { font-size: 24px; font-weight: 600; letter-spacing: 0; }
-  [data-view="term"] h1::before { content: "$ "; color: var(--faint); font-weight: 400; }
-  [data-view="term"] h2 { font-size: 13px; }
-  [data-view="term"] #lobby { border: 1px solid var(--ink); }
-  [data-view="term"] .slot .who, [data-view="term"] .tile, [data-view="term"] .slot .lab { font-size: 10px; }
-  [data-view="term"] .tile { width: 66px; } [data-view="term"] .tile .nm { overflow-wrap: normal; }
-  [data-view="term"] .ctrl button, [data-view="term"] .ctrl select { font-size: 11.5px; padding: 0 8px; } [data-view="term"] .ctrl { gap: 8px 16px; }
-  pre.term { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; margin: 14px 0 0 0;
+  [data-view="term"] .wide, [data-view="term"] h1, [data-view="term"] .vname, [data-view="term"] .vnum,
+  [data-view="term"] svg text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-stretch: normal; }
+  [data-view="term"] body { font-size: 13px; line-height: 20px; }
+  [data-view="term"] main { padding-bottom: 60px; }
+  [data-view="term"] h1 { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+  [data-view="term"] h1::before { content: "$ "; font-weight: 400; }
+  [data-view="term"] .lede, [data-view="term"] #status { font-size: 13px; color: var(--faint); }
+  [data-view="term"] .top { padding-bottom: 8px; }
+  [data-view="term"] .ctrl { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); gap: 4px 3ch; padding: 6px 0; }
+  [data-view="term"] .ctrl .lab { font-size: 13px; color: var(--faint); }
+  [data-view="term"] .ctrl .lab::after { content: ":"; }
+  [data-view="term"] button { border: 0; height: 20px; padding: 0 2px; font-size: 13px; background: none; }
+  [data-view="term"] button::before { content: "["; } [data-view="term"] button::after { content: "]"; }
+  [data-view="term"] button.on { background: var(--ink); color: var(--paper); }
+  [data-view="term"] button:hover:not(.on) { background: var(--hover); }
+  [data-view="term"] .seg button + button { margin-left: 1ch; }
+  [data-view="term"] #themeBtn { display: none; }
+  [data-view="term"] select, [data-view="term"] input[type=text] { font-size: 13px; height: 22px; border: 1px solid var(--ink); }
+  [data-view="term"] :focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  /* panels: a 1px frame with the title set into the top edge */
+  [data-view="term"] #lobby, [data-view="term"] #advice { position: relative; border: 1px solid var(--ink); background: none; padding: 16px 2ch 14px 2ch; margin-top: 10px; }
+  [data-view="term"] #lobby::before, [data-view="term"] #advice::before { content: attr(data-title); position: absolute; top: -11px; left: 1.5ch;
+    background: var(--paper); padding: 0 1ch; font-weight: 600; }
+  [data-view="term"] h2 { font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ink); }
+  [data-view="term"] #adviceBody > h2:first-child { margin-top: 0; }
+  .tsec { font-weight: 600; margin: 12px 0 2px 0; border-bottom: 1px solid var(--ink); }
+  .tsec:first-child { margin-top: 0; }
+  .tdim { color: var(--faint); font-weight: 400; }
+  .trow, .thero { white-space: pre; cursor: pointer; overflow: hidden; text-overflow: clip; }
+  .trow:hover, .thero:hover { background: var(--hover); }
+  .trow.sel { background: var(--ink); color: var(--paper); } .trow.sel .tdim { color: var(--paper); }
+  .tx { color: var(--faint); } .trow.sel .tx { color: var(--paper); }
+  .tcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 2ch; }
+  .thero.banned { color: var(--faint); text-decoration: line-through; cursor: default; }
+  .thero.ours { font-weight: 600; }
+  .thero.dim { opacity: .25; }
+  [data-view="term"] .howto { margin: 12px 0 4px 0; font-size: 13px; }
+  [data-view="term"] .howto input { width: 26ch; }
+  [data-view="term"] #matches a { color: var(--ink); text-decoration: underline; }
+  [data-view="term"] details.how { border-top: 1px solid var(--ink); }
+  [data-view="term"] details.more summary, [data-view="term"] details.how > summary { font-size: 13px; }
+  [data-view="term"] footer { font-size: 12px; }
+  #statusbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ink); color: var(--paper);
+               font-size: 12.5px; line-height: 24px; padding: 0 24px; white-space: nowrap; overflow: hidden; }
+  [data-view="term"] #statusbar { display: flex; justify-content: space-between; gap: 3ch; }
+  #statusbar .tdim { color: #bdbdbd; } #statusbar b { font-weight: 600; }
+  pre.term { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; margin: 0;
              white-space: pre; overflow-x: auto; color: var(--ink); }
-  pre.term .tl { cursor: default; }
   pre.term .tl[data-h], pre.term .tl.tp2 { cursor: pointer; }
   pre.term .tl[data-h]:hover, pre.term .tl.tp2:hover { background: var(--hover); }
-  pre.term .tv { font-weight: 600; font-size: 14px; }
+  pre.term .tl.best { background: var(--ink); color: var(--paper); }
+  pre.term .tv { font-weight: 600; }
   pre.term .tp { color: var(--faint); }
+  pre.term .tsh { font-weight: 600; }
+  @media (max-width: 720px) { [data-view="term"] .tkeys { display: none; } .tcols { grid-template-columns: repeat(2, minmax(0, 1fr)); } #statusbar { padding: 0 12px; } }
   /* method */
   .method { margin-top: 12px; }
   .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
@@ -220,31 +262,36 @@
 </div>
 
 <div class="mainRow">
-<section id="lobby">
+<section id="lobby" data-title="lobby">
+  <div class="conly">
   <h2>Your team <span class="small">&nbsp;your hero first, then any teammate hovers</span></h2>
   <div class="slots" id="teamSlots"></div>
   <h2>Ban phase <span class="small">&nbsp;in order, <span class="sideB">us</span> and <span class="sideR">them</span></span></h2>
   <div class="slots" id="banSlots"></div>
   <p class="small" id="turnHint"></p>
-  <h2>Heroes</h2>
+  </div>
+  <div class="tonly" id="lobbyTerm"></div>
+  <h2 class="conly">Heroes</h2>
   <p class="howto"><input type="text" id="search" placeholder="Type a hero, then Enter" autocomplete="off" aria-label="Type a hero"
       title="Enter picks the first match. Backspace on an empty box undoes the last ban.">
     <span class="small" id="matches"></span> <span id="target"></span></p>
-  <div id="roster"></div>
+  <div id="roster" class="conly"></div>
+  <div id="rosterTerm" class="tonly"></div>
 </section>
 
-<section id="advice" aria-live="polite">
+<section id="advice" aria-live="polite" data-title="result">
   <div id="adviceBody"></div>
 </section>
 </div>
 
 <section class="method" id="method"></section>
 
+<div id="statusbar" class="tonly" aria-hidden="true"></div>
 <footer class="small">
   Data: public PC ranked matches from rivalsmeta.com, Season 10. The models run in your browser. <a href="https://github.com/PLivdan/ban-call">Code on GitHub</a>. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
-<script src="engine.js"></script>
-<script src="app.js"></script>
+<script src="engine.js?v=de3cb77edd"></script>
+<script src="app.js?v=6414f6f928"></script>
 </html>
