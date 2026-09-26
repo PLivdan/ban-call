@@ -241,6 +241,18 @@
     for (let i = e; i < 6; i++) { if (ours(i)) continue; const L = i === e && THEIRS ? top2(THEIRS) : E.forecast(RES, fix)[i]; top[i] = L; if (L && L.length) fix[i] = L[0].h; }
     return { top };
   }
+  /* Is the call clearly better than the runner-up? Judged on their difference over the same rollouts (value model) or the
+     same runs (simulator, clustered by stand-in draw), not by comparing two separate intervals. a, b: hero or [x, y]. */
+  function pairedDiff(a, b) {
+    if (st.model === "sim") {
+      const src = Array.isArray(a) ? SIMP : SIM, A = src && src.vals && src.vals[String(a)], B = src && src.vals && src.vals[String(b)]; if (!A || !B) return null;
+      const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]), m = d.reduce((p, q) => p + q, 0) / d.length;
+      return { d: m, se: cse(js, d, m) };
+    }
+    return RES ? E.diff(RES, a, b) : null;
+  }
+  const clearOf = (a, b, x, r) => { const pd = pairedDiff(a, b); return pd && isFinite(pd.se) ? { clear: pd.d - 1.96 * pd.se > 0, pd } : { clear: x.V - 1.96 * x.se > r.V + 1.96 * r.se, pd: null }; };
+  const diffTxt = pd => pd ? `, difference ${pp(pd.d)} ± ${(196 * pd.se).toFixed(2)}` : "";
   function suggested(cnt) {
     const h1 = topBans(1)[0]; if (h1 === undefined) return [];
     const S1 = st.model === "sim" ? SIM : RES, one = { h: h1, V: S1.V[h1], se: S1.se[h1] };
@@ -337,12 +349,13 @@
     else if (ourTurn()) {
       const cnt = turnCount(), sug = suggested(cnt).filter(Boolean), top = topBans(6), pairs = cnt === 2 && sug[1], x = sug[0];
       let runner = null, rname = "";
-      if (pairs && R.pairs && R.pairs[1]) { runner = R.pairs[1]; rname = `${short(runner.a)} and ${short(runner.b)}`; }
-      else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: R.V[r], se: R.se[r] }; rname = short(r); } }
-      const clear = runner && x.V - 1.96 * x.se > runner.V + 1.96 * runner.se, hs = pairs ? [sug[0].h, sug[1].h] : [x.h];
+      let rkey = null;
+      if (pairs && R.pairs && R.pairs[1]) { runner = R.pairs[1]; rkey = [runner.a, runner.b]; rname = `${short(runner.a)} and ${short(runner.b)}`; }
+      else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: R.V[r], se: R.se[r] }; rkey = r; rname = short(r); } }
+      const cj = runner ? clearOf(pairs ? [x.pair.a, x.pair.b] : x.h, rkey, x, runner) : null, clear = cj && cj.clear, hs = pairs ? [sug[0].h, sug[1].h] : [x.h];
       html += `<p class="eyebrowless">${pairs ? `Your bans ${e + 1} and ${e + 2} of 6, chosen together` : `Your ban ${e + 1} of 6`}</p>`;
       html += verdictHtml(hs, "us", "Ban", `<div class="big">${pp(x.V)}<small>points of win chance</small></div>`,
-        `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clearly better than ${esc(rname)} (${pp(runner.V)}).` : `About as good as ${esc(rname)} (${pp(runner.V)}). Either is a sound ban.`) : ""}</div>`);
+        `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clearly better than ${esc(rname)} (${pp(runner.V)}${diffTxt(cj.pd)}).` : `About as good as ${esc(rname)} (${pp(runner.V)}${diffTxt(cj.pd)}). Either is a sound ban.`) : ""}</div>`);
       html += `<p class="reason">${pairs ? `The two are scored as a pair, so heroes that replace each other are not counted twice. ${reasonFor(hs[0], R)}` : reasonFor(x.h, R)}</p>`;
       html += `<div class="go"><button class="btn us" id="doBan"><img src="${img(hs[0])}" alt="">${pairs ? `Ban both` : `Ban ${esc(short(x.h))}`}<span class="kb">${pairs ? "Enter" : "1"}</span></button></div>`;
       if (pairs) { const P = R.pairs.slice(1, 6), mx = Math.max(...R.pairs.slice(0, 6).map(p => p.V), 1e-9);
@@ -495,12 +508,12 @@
     const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), bj = Object.keys(R.base), bm = bj.reduce((a, j) => a + R.base[j], 0) / bj.length;
     for (const h of R.cands) { const v = R.vals[h]; if (!v) continue; const d = Object.keys(v).map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
       V[h] = m; se[h] = cse(Object.keys(v), d, m); }
-    return { V, se, base: bm, total: R.total };
+    return { vals: R.vals, V, se, base: bm, total: R.total };
   }
   function summarizePairs(R) {
     const out = []; for (const p of R.cands) { const v = R.vals[String(p)]; if (!v) continue; const d = Object.keys(v).map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
       out.push({ a: p[0], b: p[1], V: m, se: cse(Object.keys(v), d, m) }); }
-    return out.sort((x, y) => y.V - x.V);
+    out.vals = R.vals; return out.sort((x, y) => y.V - x.V);
   }
   function progress() {
     const f = Math.min(1, RUN.ticks / RUN.total), bar = $("simBar"); if (bar) bar.style.width = (100 * f).toFixed(1) + "%";
@@ -534,11 +547,12 @@
       return html + `<div><p class="q">Scoring pairs</p><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p>
         <p class="reason" style="margin-top:12px">Your two bans are chosen together: ${PAIRS * (PAIRS - 1) / 2} pairs among the ${PAIRS} best single bans, ${st.runs} runs each. Best single so far: <b>${esc(short(top[0]))}</b> (${pp(SIM.V[top[0]])}). It may not be in the best pair.</p></div>` + cloud;
     let runner = null, rname = "";
-    if (pairs && Array.isArray(SIMP) && SIMP[1]) { runner = SIMP[1]; rname = `${short(SIMP[1].a)} and ${short(SIMP[1].b)}`; }
-    else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: SIM.V[r], se: SIM.se[r] }; rname = short(r); } }
-    const clear = runner && x.V - 1.96 * x.se > runner.V + 1.96 * runner.se;
+    let rkey = null;
+    if (pairs && Array.isArray(SIMP) && SIMP[1]) { runner = SIMP[1]; rkey = [SIMP[1].a, SIMP[1].b]; rname = `${short(SIMP[1].a)} and ${short(SIMP[1].b)}`; }
+    else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: SIM.V[r], se: SIM.se[r] }; rkey = r; rname = short(r); } }
+    const cj = runner ? clearOf(pairs ? [x.pair.a, x.pair.b] : x.h, rkey, x, runner) : null, clear = cj && cj.clear;
     html += verdictHtml(pairs ? [sug[0].h, sug[1].h] : [x.h], "us", "Ban", `<div class="big">${pp(x.V)}<small>points of win chance</small></div>`,
-      `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clear of ${esc(rname)} (${pp(runner.V)}).` : `Tied with ${esc(rname)} (${pp(runner.V)}). Either is a sound ban.`) : ""}${cnt === 2 && !pairs ? " Scoring pairs next." : ""}</div>`);
+      `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clearly better than ${esc(rname)} (${pp(runner.V)}${diffTxt(cj.pd)}).` : `About as good as ${esc(rname)} (${pp(runner.V)}${diffTxt(cj.pd)}). Either is a sound ban.`) : ""}${cnt === 2 && !pairs ? " Scoring pairs next." : ""}</div>`);
     const mx = Math.max(...top.map(h => SIM.V[h]), 1e-9), hs = pairs ? [sug[0].h, sug[1].h] : [x.h];
     html += `<div class="go"><button class="btn us" id="doBan" data-hs="${hs.join(",")}"><img src="${img(hs[0])}" alt="">${pairs ? "Ban both" : `Ban ${esc(short(x.h))}`}<span class="kb">${pairs ? "Enter" : "1"}</span></button></div>`;
     return html + cloud + `<div><h3>Other good bans</h3><div class="ladder">${top.filter(h => h !== x.h).slice(0, 5).map((h, k) => rung({ h, v: SIM.V[h] }, k + 2, "us", mx, v => pp(v))).join("")}</div></div>`;
@@ -677,7 +691,7 @@
     if (TREE.key !== key && RES) {                           // a new lobby: restart the worker on it
       TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
       if (treeW) treeW.terminate();
-      treeW = new Worker("tree-worker.js?v=18be8c7c53");
+      treeW = new Worker("tree-worker.js?v=da08f6083a");
       treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
       const cnt = turnCount(), S = st.model === "sim" && SIM && !SIM.prelim ? SIM : RES;
       const opts = cnt === 2 && RES.pairs ? RES.pairs.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: S.V[h] }));

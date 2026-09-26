@@ -264,33 +264,47 @@
         return Wn;
       };
       const PLb = new Float64Array(H), Wb = Wof([], seq => { for (const y of seq) PLb[y] += 1 / NS; });
-      const compare = (Wx, xs) => {                    // value against the typical bans, its model spread and its simulation error (all heroes banned now)
+      const WK = {}, EK = {};                          // per candidate: W per network and rollout, and its removal-cost / own-lineup variance terms (for paired differences)
+      const compare = (Wx, xs, key) => {               // value against the typical bans, its model spread and its simulation error (all heroes banned now)
         const Vn = Wx.map((a, k) => { let t = 0; for (let s = 0; s < NS; s++) t += a[s] - Wb[k][s]; return t / NS; });
         const V = Vn.reduce((p, q) => p + q, 0) / NN, vm = Vn.reduce((p, q) => p + (q - V) ** 2, 0) / NN;
         let m1 = 0, m2 = 0; for (let s = 0; s < NS; s++) { let d = 0; for (let k = 0; k < NN; k++) d += (Wx[k][s] - Wb[k][s]) / NN; m1 += d; m2 += d * d; }
         m1 /= NS; const mc = Math.sqrt(Math.max(0, m2 / NS - m1 * m1) / Math.max(1, NS - 1));
         let rs2 = 0, so2 = 0;
         for (const x of xs) { rs2 += ((1 - PLb[x]) * (L.pt[x] - L.pu[x]) * Rsd[x]) ** 2; so2 += ((1 - PLb[x]) * (R0[x] + adjS[x]) * L.sePu[x]) ** 2; }   // so: averaging our lineup over typical own bans
+        if (key !== undefined) { WK[key] = Wx; EK[key] = { rs2, so2 }; }
         return { V, seModel: Math.sqrt(vm + rs2), seMC: Math.sqrt(mc * mc + so2) };
       };
       const V = new Float64Array(H).fill(NaN), se = new Float64Array(H).fill(NaN), seModel = new Float64Array(H).fill(NaN), seMC = new Float64Array(H).fill(NaN);
       const direct = new Float64Array(H).fill(NaN), other = new Float64Array(H).fill(NaN), cand = new Uint8Array(H);
       for (let x = 0; x < H; x++) {
         if (!c0.legal[x] || c.rv[x]) continue;
-        cand[x] = 1; const r = compare(Wof([x]), [x]);
+        cand[x] = 1; const r = compare(Wof([x]), [x], String(x));
         V[x] = r.V; seModel[x] = r.seModel; seMC[x] = r.seMC; se[x] = Math.sqrt(r.seModel ** 2 + r.seMC ** 2);
         direct[x] = (1 - PLb[x]) * wm[x]; other[x] = V[x] - direct[x];
       }
-      Object.assign(out, { V, se, seModel, seMC, direct, other, R: R0.map((r, x) => r + adjC[x]), Rus: R0.map((r, x) => r + adjS[x]), PL: PLb, cand, w: wm, _rc: rc, _L: L, _pre: pre });
+      Object.assign(out, { _W: WK, _E: EK, V, se, seModel, seMC, direct, other, R: R0.map((r, x) => r + adjC[x]), Rus: R0.map((r, x) => r + adjS[x]), PL: PLb, cand, w: wm, _rc: rc, _L: L, _pre: pre });
       if (cnt === 2) {                                 // two bans now: score the shortlist's pairs jointly, never by adding two values
         const sl = Array.from(V.keys()).filter(h => cand[h]).sort((a, b) => V[b] - V[a]).slice(0, st.short || this.SHORT), pairs = [];
         for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) {
-          const a = sl[i], b = sl[j], r = compare(Wof([a, b]), [a, b]);
+          const a = sl[i], b = sl[j], r = compare(Wof([a, b]), [a, b], String([a, b]));
           pairs.push({ a, b, V: r.V, seModel: r.seModel, seMC: r.seMC, se: Math.sqrt(r.seModel ** 2 + r.seMC ** 2) });
         }
         out.pairs = pairs.sort((p, q) => q.V - p.V); out.shortlist = sl;
       }
       return out;
+    }
+    /* The difference between two scored candidates (heroes, or [a, b] pairs from the same turn), estimated on the same
+       rollouts and networks: far more precise than comparing two separate intervals. The removal-cost and own-lineup
+       terms of both are added as if independent (conservative when they are positively correlated). */
+    diff(res, a, b) {
+      const A = res._W && res._W[String(a)], B = res._W && res._W[String(b)]; if (!A || !B) return null;
+      const NN = A.length, NS = A[0].length;
+      const Dn = A.map((row, k) => { let t = 0; for (let s = 0; s < NS; s++) t += row[s] - B[k][s]; return t / NS; });
+      const d = Dn.reduce((p, q) => p + q, 0) / NN, vm = Dn.reduce((p, q) => p + (q - d) ** 2, 0) / NN;
+      let m1 = 0, m2 = 0; for (let s = 0; s < NS; s++) { let x = 0; for (let k = 0; k < NN; k++) x += (A[k][s] - B[k][s]) / NN; m1 += x; m2 += x * x; }
+      m1 /= NS; const mc2 = Math.max(0, m2 / NS - m1 * m1) / Math.max(1, NS - 1), ea = res._E[String(a)], eb = res._E[String(b)];
+      return { d, se: Math.sqrt(vm + mc2 + ea.rs2 + eb.rs2 + ea.so2 + eb.so2) };
     }
     // ---- their ban in each later position (for the ban-phase boxes); fix[ep] holds bans already assumed
     forecast(res, fix) {

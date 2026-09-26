@@ -336,6 +336,18 @@
   function niceStep(span, n = 5) { const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 
   // ---------------------------------------------------------------- advice
+  /* Is the call clearly better than the runner-up? Judged on their difference over the same rollouts (value model) or the
+     same runs (simulator, clustered by stand-in draw), not by comparing two separate intervals. a, b: hero or [x, y]. */
+  function pairedDiff(a, b) {
+    if (st.model === "sim") {
+      const src = Array.isArray(a) ? SIMP : SIM, A = src && src.vals && src.vals[String(a)], B = src && src.vals && src.vals[String(b)]; if (!A || !B) return null;
+      const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]), m = d.reduce((p, q) => p + q, 0) / d.length;
+      return { d: m, se: cse(js, d, m) };
+    }
+    return RES ? E.diff(RES, a, b) : null;
+  }
+  const clearOf = (a, b, x, r) => { const pd = pairedDiff(a, b); return pd && isFinite(pd.se) ? { clear: pd.d - 1.96 * pd.se > 0, pd } : { clear: x.V - 1.96 * x.se > r.V + 1.96 * r.se, pd: null }; };
+  const diffTxt = pd => pd ? `, difference ${pp(pd.d)} ± ${(196 * pd.se).toFixed(2)}` : "";
   function suggested(cnt) {                          // our suggested ban(s) this turn; on a two-ban turn the best pair, scored jointly (null while the simulator scores pairs)
     const tb = tbFor();
     if (tb && tb.decisive) {                                         // the simulator broke the value model's tie
@@ -366,11 +378,11 @@
     if (!sug.length) return "";
     const lo = x => x.V - 1.96 * x.se, hi = x => x.V + 1.96 * x.se, ci = null;
     const S1 = st.model === "sim" ? SIM : RES, P = st.model === "sim" ? SIMP : RES.pairs, pairs = cnt === 2 && sug[1];
-    let runner = null, rname = "";
-    if (pairs && Array.isArray(P) && P[1]) { runner = P[1]; rname = `${esc(NAMES[P[1].a])} and ${esc(NAMES[P[1].b])}`; }
-    else if (!pairs) { const r = topBans(3).find(h => h !== sug[0].h); if (r !== undefined) { runner = { V: S1.V[r], se: S1.se[r] }; rname = esc(NAMES[r]); } }
-    const x = sug[0], judge = !runner ? "" : lo(x) > hi(runner)
-      ? `Clear of ${rname} (${pp(runner.V)})` : `${tbFor() && tbFor().decisive ? "Value model: tied" : "Tied"} with ${rname} (${pp(runner.V)})`;
+    let runner = null, rname = "", rkey = null;
+    if (pairs && Array.isArray(P) && P[1]) { runner = P[1]; rkey = [P[1].a, P[1].b]; rname = `${esc(NAMES[P[1].a])} and ${esc(NAMES[P[1].b])}`; }
+    else if (!pairs) { const r = topBans(3).find(h => h !== sug[0].h); if (r !== undefined) { runner = { V: S1.V[r], se: S1.se[r] }; rkey = r; rname = esc(NAMES[r]); } }
+    const x = sug[0], cj = runner ? clearOf(pairs ? [x.pair.a, x.pair.b] : x.h, rkey, x, runner) : null, judge = !runner ? "" : cj.clear
+      ? `Clear of ${rname} (${pp(runner.V)}${diffTxt(cj.pd)})` : `${tbFor() && tbFor().decisive ? "Value model: tied" : "Tied"} with ${rname} (${pp(runner.V)}${diffTxt(cj.pd)})`;
     const hs = pairs ? [sug[0].h, sug[1].h] : [x.h], key = hs.join("+") + st.model;
     const fresh = key !== lastVerdict; lastVerdict = key;
     const name = pairs ? `<span class="vname">${esc(NAMES[hs[0]])}</span> and <span class="vname">${esc(NAMES[hs[1]])}</span>`
@@ -623,9 +635,9 @@
     if (st.model !== "value" || !ourTurn() || !RES) return null;
     const lo = x => x.V - 1.96 * x.se, hi = x => x.V + 1.96 * x.se;
     if (turnCount() === 2) { const P = RES.pairs; if (!P || P.length < 2) return null;
-      const t = P.slice(0, TB_MAX).filter((p, i) => i === 0 || hi(p) >= lo(P[0])); return t.length > 1 ? t.map(p => [p.a, p.b]) : null; }
+      const t = P.slice(0, TB_MAX).filter((p, i) => i === 0 || !clearOf([P[0].a, P[0].b], [p.a, p.b], P[0], p).clear); return t.length > 1 ? t.map(p => [p.a, p.b]) : null; }
     const top = topBans(TB_MAX), x0 = { V: RES.V[top[0]], se: RES.se[top[0]] };
-    const t = top.filter((h, i) => i === 0 || hi({ V: RES.V[h], se: RES.se[h] }) >= lo(x0)); return t.length > 1 ? t : null;
+    const t = top.filter((h, i) => i === 0 || !clearOf(top[0], h, x0, { V: RES.V[h], se: RES.se[h] }).clear); return t.length > 1 ? t : null;
   }
   function stopTieBreak() { if (TB && !TB.finished) { TB.finished = true; ensurePool(true); } }
   function startTieBreak() {
@@ -708,7 +720,7 @@
       se[h] = cse(js, d, m);
       co[h] = R.cs[h].o.map(x => x / R.cs[h].n); cu[h] = R.cs[h].u.map(x => x / R.cs[h].n);
     }
-    return { V, se, win, n, base: bm, co, cu, baseCo: R.bcs.o.map(x => x / R.bcs.n), baseCu: R.bcs.u.map(x => x / R.bcs.n), total: R.total };
+    return { vals: R.vals, V, se, win, n, base: bm, co, cu, baseCo: R.bcs.o.map(x => x / R.bcs.n), baseCu: R.bcs.u.map(x => x / R.bcs.n), total: R.total };
   }
   function summarizePairs(R) {
     const out = [];
@@ -716,7 +728,7 @@
       const k = String(p), v = R.vals[k]; if (!v) continue; const js = Object.keys(v), d = js.map(j => v[j] - R.base[j]), m = d.reduce((a, b) => a + b, 0) / d.length;
       out.push({ a: p[0], b: p[1], V: m, n: d.length, se: cse(js, d, m) });
     }
-    out.ms = performance.now() - R.t0; return out.sort((x, y) => y.V - x.V);
+    out.ms = performance.now() - R.t0; out.vals = R.vals; return out.sort((x, y) => y.V - x.V);
   }
 
   // ---------------------------------------------------------------- update loop
