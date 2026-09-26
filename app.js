@@ -124,7 +124,7 @@
                 : s !== undefined ? `<img src="${img(s)}" alt="suggested ${esc(NAMES[s])}">`
                 : f ? `<img src="${img(f[0].h)}" alt="" style="opacity:.4">` : wait ? "…" : (i + 1);
       const lab = h !== undefined ? esc(short(h)) : s !== undefined ? `<i>${esc(short(s))}?</i>` : wait ? `<span class="alt">scoring pairs</span>`
-                : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}${f[1] ? `<span class="alt">then ${esc(NAMES[f[1].h])} ${pct(f[1].p)}</span>` : ""}` : "";
+                : f ? `<span class="pct">${pct(f[0].p)}</span> ${esc(NAMES[f[0].h])}` : "";
       return `<div class="slot ${side}${h === undefined ? " empty" : ""}${isNext ? " active" : ""}${s !== undefined ? " sug" : ""}${f ? " fc" : ""}" data-i="${i}"
         title="${h !== undefined ? "click to undo this ban and the ones after it" : s !== undefined ? "click to ban " + esc(NAMES[s])
           : f ? (i === e ? `their likeliest ban here. Click if they banned ${esc(NAMES[f[0].h])}` : "their likeliest ban here if their earlier boxes go as shown") : "click, then pick the banned hero"}">
@@ -143,10 +143,7 @@
     const e = nextBan(), a = st.active;
     const dest = a.kind === "team" ? `<b>${a.i === 0 ? "You" : "Mate " + (a.i + 1)}</b>`
                : e < 6 ? `<b>ban #${e + 1}</b> (${ours(e) ? "us" : "them"})` : "nowhere";
-    $("target").innerHTML = "Next pick: " + dest;
-    $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." :
-      ourTurn() ? `Next: <span class="sideB">our ban #${e + 1}</span>${turnCount() === 2 ? ` and #${e + 2}` : ""}. Click the dashed box to use the suggestion.`
-                : `Next: <span class="sideR">their ban #${e + 1}</span>. Click the hero they ban.`;
+    $("target").innerHTML = ""; $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." : "";
   }
   function renderRoster() {
     const q = $("search").value.trim().toLowerCase(), bans = bannedSet(), team = teamSet();
@@ -222,7 +219,7 @@
     const cell = h => { const neg = V[h] < 0;
       return `<svg width="${CW}" height="16" viewBox="0 0 ${CW} 16" style="display:inline-block;vertical-align:middle"><line class="grid" x1="${X(0)}" x2="${X(0)}" y1="0" y2="16"/>
         <line class="whisk" x1="${X(V[h] - 1.96 * se[h])}" x2="${X(V[h] + 1.96 * se[h])}" y1="8" y2="8"/><circle cx="${X(V[h])}" cy="8" r="3.6" class="${neg ? "them" : "us"}"/></svg>`; };
-    return `<div style="overflow-x:auto"><table><caption>${cap}</caption>
+    return `<div style="overflow-x:auto"><table style="width:100%"><caption>${cap}</caption>
       <tr><th>#</th><th></th><th>Ban</th><th class="r">Value</th><th><svg width="${CW}" height="13" viewBox="0 0 ${CW} 13" style="display:block">${ticks}</svg></th>${cols.map(c => `<th${c.r === false ? "" : ' class="r"'}>${c.th}</th>`).join("")}</tr>` +
       top.map((h, k) => `<tr class="pick" data-h="${h}" title="${esc(NAMES[h])}: ${pp(V[h])} ± ${(196 * se[h]).toFixed(2)} points. Click to ban."><td class="num">${k + 1}</td><td><img class="mini" src="${img(h)}" alt=""></td>
         <td class="nmc">${esc(NAMES[h])}</td><td class="r">${pp(V[h])}</td><td>${cell(h)}</td>${cols.map(c => `<td${c.r === false ? "" : ' class="r"'}>${c.td(h)}</td>`).join("")}</tr>`).join("") + `</table></div>`;
@@ -285,23 +282,22 @@
   let lastVerdict = "";
   function headline(sug, cnt, tail = "") {           // the verdict: what to ban, the estimate with its interval, and how it compares with the runner-up
     if (!sug.length) return "";
-    const lo = x => x.V - 1.96 * x.se, hi = x => x.V + 1.96 * x.se, ci = x => `95% interval ${pp(lo(x))} to ${pp(hi(x))}`;
+    const lo = x => x.V - 1.96 * x.se, hi = x => x.V + 1.96 * x.se, ci = null;
     const S1 = st.model === "sim" ? SIM : RES, P = st.model === "sim" ? SIMP : RES.pairs, pairs = cnt === 2 && sug[1];
     let runner = null, rname = "";
     if (pairs && Array.isArray(P) && P[1]) { runner = P[1]; rname = `${esc(NAMES[P[1].a])} and ${esc(NAMES[P[1].b])}`; }
     else if (!pairs) { const r = topBans(2)[1]; if (r !== undefined) { runner = { V: S1.V[r], se: S1.se[r] }; rname = esc(NAMES[r]); } }
     const x = sug[0], judge = !runner ? "" : lo(x) > hi(runner)
-      ? `Clear of the next best${pairs ? " pair" : ""}, ${rname} (${pp(runner.V)}): the intervals do not overlap.`
-      : `Close to tied with ${rname} (${pp(runner.V)}): the intervals overlap, so either is a sound ban.`;
+      ? `Clear of ${rname} (${pp(runner.V)})` : `Tied with ${rname} (${pp(runner.V)})`;
     const hs = pairs ? [sug[0].h, sug[1].h] : [x.h], key = hs.join("+") + st.model;
     const fresh = key !== lastVerdict; lastVerdict = key;
     const name = pairs ? `<span class="vname">${esc(NAMES[hs[0]])}</span> and <span class="vname">${esc(NAMES[hs[1]])}</span>`
                        : `<span class="vname">${esc(NAMES[x.h])}</span>`;
-    const against = pairs ? "against two typical bans" : cnt === 2 ? `with a typical second ban (the best pairs are still being scored)` : "against a typical ban";
+    const against = pairs ? "for the pair" : cnt === 2 ? "scoring pairs" : "";
     return `<div class="verdict${pairs ? " pair" : ""}${fresh ? " fresh" : ""}"><div class="vpics">${hs.map(h => `<img src="${img(h)}" alt="">`).join("")}</div>
       <div class="vtext"><div class="vcall">Ban ${name}</div>
-        <div class="vest"><span class="vnum">${pp(x.V)}</span> points of win probability ${against}${pairs ? ", together" : ""}. <span class="vci">${ci(x)}.</span></div>
-        <div class="vjudge">${judge}${tail ? ` ${tail.replace(/^\.\s*/, "")}.` : ""}</div></div></div>`;
+        <div class="vest" title="Change in your team's win probability, in points, against ${pairs ? "two typical bans" : "a typical ban"}"><span class="vnum">${pp(x.V)}</span> points${against ? ` ${against}` : ""} <span class="vci">95% CI ${pp(lo(x))} to ${pp(hi(x))}</span></div>
+        <div class="vjudge">${[judge, tail].filter(Boolean).join(". ")}</div></div></div>`;
   }
   function pairTable(P, nShort) {                     // two-ban turns: the best pairs, each scored as a pair
     return `<div style="overflow-x:auto"><table style="width:100%"><caption>Best pairs for this turn. The ${nShort} best single bans are paired every way and each pair is scored together, so heroes that replace each other are not
@@ -436,19 +432,14 @@
     if (e >= 6) html += `<h2>Ban phase complete</h2><p class="small">All six bans are in. Below: what each team is now likely to open.</p>`;
     else if (ourTurn() && st.model === "sim") html += simAdvice();
     else if (ourTurn()) {
-      const cnt = turnCount(), top = topBans(15), sug = suggested(cnt).filter(Boolean), best = sug.map(x => x.h);
+      const cnt = turnCount(), top = topBans(10), sug = suggested(cnt).filter(Boolean), best = sug.map(x => x.h);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
       html += headline(sug, cnt);
       if (cnt === 2 && R.pairs) html += pairTable(R.pairs, R.shortlist.length);
       html += rankTable(top, R.V, R.se, [
-        { th: "They open", td: h => pct(R.Pt[h]) }, { th: "You open", td: h => pct(R.Pu[h]) }, { th: "Cost to lose", td: h => (100 * R.R[h]).toFixed(1) },
-        { th: "Banned anyway", td: h => pct(R.PL[h]) }, { th: "Rest of the phase", td: h => pp(R.other[h]) }],
-        `The fifteen best ${cnt === 2 ? "single bans (the other ban of the turn is a typical one)" : "bans"}. Value: change in your team's win probability, in points,
-        from banning the hero instead of what a typical team would ban here. The rest of the ban phase is simulated ${fmt(E.NS)} times, with the same random draws for every ban.
-        The dot and whisker show a 95% interval over the four networks, the removal-cost bootstrap and the simulated ban phases. It takes the fitted models as given.`);
-      html += `<p class="small defs">They open, you open: chance each team opens the hero if it stays available. Cost to lose: points the team that would open it loses without it,
-        averaged over real players who open it at your rank and adjusted for the heroes your team shows. Banned anyway: chance it goes in this ban phase if you ban as a typical team would.
-        Rest of the phase: how the value of the other bans changes, including the typical ban you give up and the other team's replies. Click a row to ban it.</p>`;
+        { th: "They open", td: h => pct(R.Pt[h]) }, { th: "You open", td: h => pct(R.Pu[h]) }, { th: "Cost to lose", td: h => (100 * R.R[h]).toFixed(1) }],
+        `Value: change in your team's win probability, in points, against the ban a typical team would make, with its 95% interval. They open, you open: chance each team
+        opens the hero if it stays available. Cost to lose: points the team that would open it loses without it. Click a row, or press 1 to 9, to ban.`);
       const t8 = top.slice(0, 8);
       html += `<h2>${esc(NAMES[best[0]])} leads mostly by ${(1 - R.PL[best[0]]) * R.Pt[best[0]] * R.R[best[0]] >= R.V[best[0]] * .5 ? "denying them" : "protecting your team"}</h2>
         <figure>${splitBars(t8, R)}<figcaption>Each ban's value split into its parts, in points: what it takes from the other team (their chance of opening the hero times
@@ -460,8 +451,8 @@
       const nx = top.slice(1, 4).map(h => `${esc(NAMES[h])} ${pct(THEIRS[h])}`);
       html += `<h2>Their ban #${e + 1}</h2><div class="verdict them"><div class="vpics"><img src="${img(top[0])}" alt=""></div>
         <div class="vtext"><div class="vcall">Likeliest: <span class="vname">${esc(NAMES[top[0]])}</span></div>
-        <div class="vest"><span class="vnum">${pct(THEIRS[top[0]])}</span> chance, then ${nx.slice(0, -1).join(", ")} and ${nx[nx.length - 1]}.</div>
-        <div class="vjudge">Enter what they actually ban in the ban phase, or click their faded box if they banned ${esc(NAMES[top[0]])}.</div></div></div>
+        <div class="vest"><span class="vnum">${pct(THEIRS[top[0]])}</span> <span class="vci">then ${nx.join(", ")}</span></div>
+        </div></div>
         <figure>${whySplit(s, THEIRS)}<figcaption>Why a typical team in their position would ban each hero next: the ban model's reasons, measured against an average hero
         (log-odds, so only the lengths relative to each other matter). The percentage is the chance of ban #${e + 1}. They cannot see your hovers.
         Enter what they actually ban in the ban phase, or click the faded box if they banned the likeliest hero.</figcaption></figure>`;
@@ -469,7 +460,7 @@
     const bans = bannedSet(), revs = teamSet();
     const them = Array.from(R.Pt.keys()).filter(h => !bans.has(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 10);
     const us = Array.from(R.Pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => R.Pu[b] - R.Pu[a]).slice(0, 10);
-    html += `<h2>Most likely openers: ${esc(NAMES[them[0]])} for them, ${esc(NAMES[us[0]])} for you</h2>
+    html += `<h2>Likely openers</h2>
       <figure>${butterfly(them, us, R.Pt, R.Pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows.
       The ten likeliest for each team, on one list. Where both bars are long, a ban costs both teams. Teams protect their own heroes and ban what beats them, so their bans shift the left side.</figcaption></figure>`;
     if (VIEW === "term") html = termAdvice();
@@ -494,21 +485,15 @@
     const e = nextBan(), cnt = turnCount(); let html = `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""} (re-draft simulator)</h2>`;
     const bar = `<div class="prog"><span id="simProg"></span></div><p class="small" id="simMsg"><span id="simCount"></span></p>`;
     if (RUN && RUN.failed) return html + `<p class="small">The simulator stopped with an error in this browser. Reload the page to try again. The ban value model still works.</p>`;
-    if (!SIM || SIM.prelim) return html + bar + `<p class="small">Every legal ban gets ${FIRST[st.runs]} simulated continuations of the ban phase, each re-drafting 48 of your lineups against 96 of theirs.
-      The ${TOP2} best then get ${st.runs - FIRST[st.runs]} more, for ${st.runs} runs each.</p>`;
-    const S = SIM, top = topBans(15), sug = suggested(cnt), best = sug.filter(Boolean).map(x => x.h);
-    html += headline(sug.filter(Boolean), cnt, `. Your chance of winning after ${cnt === 2 ? "two typical bans" : "a typical ban"}: ${(100 * S.base).toFixed(1)}%`);
+    if (!SIM || SIM.prelim) return html + bar;
+    const S = SIM, top = topBans(10), sug = suggested(cnt), best = sug.filter(Boolean).map(x => x.h);
+    html += headline(sug.filter(Boolean), cnt, `Baseline win chance ${(100 * S.base).toFixed(1)}%`);
     if (cnt === 2 && Array.isArray(SIMP)) html += pairTable(SIMP, PAIRS);
-    html += `<p class="small">${fmt(S.total)} simulated ban phases in ${(S.ms / 1000).toFixed(1)} s on ${pool.length} thread${pool.length > 1 ? "s" : ""}.</p>`;
     const repl = h => { let b = -1, bv = 0; for (let x = 0; x < H; x++) { if (x === h) continue; const d = S.co[h][x] - S.baseCo[x]; if (d > bv) { bv = d; b = x; } } return b < 0 ? "" : `${esc(NAMES[b])} +${(100 * bv).toFixed(0)}`; };
     html += rankTable(top, S.V, S.se, [
-      { th: "Win if banned", td: h => (100 * S.win[h]).toFixed(1) + "%" }, { th: "They draft it", td: h => pct(S.baseCo[h]) },
-      { th: "They switch to", td: repl, r: false }, { th: "Runs", td: h => S.n[h] }],
-      `The fifteen best ${cnt === 2 ? "single bans by simulation (the other ban of the turn is a typical one)" : "bans by simulation"}. Value: change in your team's win probability, in points, from banning the hero instead of what a typical team would ban here.
-      The runs are split over four independent draws of stand-in players, and every ban faces the same draws. The dot and whisker show a 95% interval over those runs, so it covers
-      both the stand-ins and the simulated continuations. It takes the fitted models as given.`);
-    html += `<p class="small defs">They draft it: share of the other team's simulated drafts that include the hero after a typical ban. They switch to: the hero whose share of their drafts rises most
-      when you ban it, in points. Runs: simulated continuations of the ban phase behind the value. Click a row to ban it.</p>`;
+      { th: "They draft it", td: h => pct(S.baseCo[h]) }, { th: "They switch to", td: repl, r: false }],
+      `Value: change in your team's win probability, in points, against a typical ban, with its 95% interval over ${fmt(S.total)} simulated ban phases.
+      They draft it: share of their simulated drafts with the hero after a typical ban. They switch to: the hero whose share rises most when you ban it.`);
     const h = best[0], dO = [], dU = [];
     for (let x = 0; x < H; x++) { dO.push({ h: x, d: S.co[h][x] - S.baseCo[x] }); dU.push({ h: x, d: S.cu[h][x] - S.baseCu[x] }); }
     const big = a => a.filter(r => Math.abs(r.d) >= .005).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 10).sort((a, b) => b.d - a.d);
@@ -689,16 +674,16 @@
         <li>Pairs are searched among the ten best single bans, not every pair.</li>
         <li>Intervals take the fitted models as given. They do not include the uncertainty from refitting the models on other matches, which is larger.</li>
       </ul></div></div></details>
-      <h2>What losing each hero costs, by lobby rank</h2>
+      <h2>Cost of losing each hero, by rank</h2>
       <figure><div class="cols">${[0, 1, 2].map(panel).join("")}</div>
-        <figcaption>Points of win probability, averaged over maps: ${lg}. Below zero, the team does better on its next choice.</figcaption></figure>`;
+        <figcaption>Win-probability points. ${lg}</figcaption></figure>`;
   }
 
   // the fitting period comes from the model file's split manifest (training + validation matches) when it has one
   const SPL = META.validation && META.validation.splits, day = t => new Date(t.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" });
   const fitN = SPL ? SPL.train.n + SPL.validation.n : 243143;
   const fitDates = SPL ? `${day(SPL.train.first_utc)} to ${day(SPL.validation.last_utc)} ${new Date(SPL.validation.last_utc.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}` : "11 to 21 September 2026";
-  $("status").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}).`;
+  $("status").textContent = ""; $("fitted").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}).`;
   setView(VIEW); renderMethod(); update();
   document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES) renderAdvice(); });
 })();

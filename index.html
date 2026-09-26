@@ -35,6 +35,7 @@
   .wide, h1, .vname, .vnum { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; }
   h1 { font-size: 30px; font-weight: 800; line-height: 1; margin: 0; letter-spacing: -.02em; }
   .lede { font-size: 15px; margin: 0; }
+  #status:empty { display: none; }
   #status { flex-basis: 100%; margin: 2px 0 0 0; font-size: 12px; color: var(--faint); }
   .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 18px;
           border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair);
@@ -265,9 +266,9 @@
 <div class="mainRow">
 <section id="lobby" data-title="lobby">
   <div class="conly">
-  <h2>Your team <span class="small">&nbsp;your hero first, then any teammate hovers</span></h2>
+  <h2>Your team</h2>
   <div class="slots" id="teamSlots"></div>
-  <h2>Ban phase <span class="small">&nbsp;in order, <span class="sideB">us</span> and <span class="sideR">them</span></span></h2>
+  <h2>Ban phase</h2>
   <div class="slots" id="banSlots"></div>
   <p class="small" id="turnHint"></p>
   </div>
@@ -289,10 +290,10 @@
 
 <div id="statusbar" class="tonly" aria-hidden="true"></div>
 <footer class="small">
-  Data: public PC ranked matches from rivalsmeta.com, Season 10. The models run in your browser. <a href="https://github.com/PLivdan/ban-call">Code on GitHub</a>. Not affiliated with NetEase Games or Marvel.
+  <span id="fitted"></span> Data: public PC ranked matches from rivalsmeta.com. The models run in your browser. <a href="https://github.com/PLivdan/ban-call">Code on GitHub</a>. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
 <script src="engine.js?v=de3cb77edd"></script>
-<script src="app.js?v=1660c916f5"></script>
+<script src="app.js?v=281cdcfb83"></script>
 </html>
