@@ -23,110 +23,147 @@
     --blue: #809be8; --red: #d98a8a; --safe: #74c284;
     --active: #222736; --cf: #2c2820; --hover: #2b3350;
   }
-  body { background: var(--paper); color: var(--ink);
+  * { box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); margin: 0;
          font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif;
-         font-size: 13px; line-height: 1.3; margin: 14px 12px; }
-  main { max-width: 1480px; margin: 0 auto; }
-  .mainRow { display: flex; gap: 30px; flex-wrap: wrap; align-items: flex-start; }
-  #lobby { flex: 1 1 560px; min-width: 330px; }
-  #advice { flex: 1 1 600px; min-width: 330px; }
-  h1 { font-size: 17px; font-weight: 600; margin: 0 0 2px 0; }
-  h2 { font-size: 13px; font-weight: 600; margin: 18px 0 4px 0;
-       border-bottom: 1px solid var(--ink); padding-bottom: 2px; }
-  h3 { font-size: 11.5px; font-weight: 600; margin: 8px 0 2px 0; color: var(--faint); }
-  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-weight: 600; border-bottom: 1px solid var(--ink);
-       padding: 1px 8px 1px 0; font-size: 12px; }
-  td { border-bottom: 1px solid var(--hair); padding: 2px 8px 2px 0;
-       font-size: 12.5px; vertical-align: middle; }
-  td.r, th.r { text-align: right; }
-  input[type=text], select { font-family: inherit; font-size: 12.5px; padding: 1px 2px;
-       background: var(--paper); color: var(--ink); border: 1px solid var(--hair); }
-  input:focus, select:focus, button:focus { outline: 2px solid var(--blue); }
-  button { font-family: inherit; font-size: 12px; background: var(--paper);
-           color: var(--ink); border: 1px solid var(--ink); padding: 1px 8px; cursor: pointer; }
+         font-size: 13.5px; line-height: 1.42; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px 24px; }
+  /* header and toolbar */
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding-bottom: 10px; }
+  h1 { font-size: 26px; font-weight: 600; line-height: 1.1; margin: 0; letter-spacing: -.01em; }
+  .lede { font-size: 15px; margin: 0; }
+  #status { flex-basis: 100%; margin: 2px 0 0 0; font-size: 12px; color: var(--faint); }
+  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 4px;
+          border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair); }
+  .ctrl > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .ctrl .lab { font-size: 12px; color: var(--faint); }
+  .ctrl .push { margin-left: auto; gap: 6px; }
+  .seg { display: inline-flex; }
+  .seg button + button { margin-left: -1px; }
+  input[type=text], select { font-family: inherit; font-size: 13px; height: 26px; padding: 0 4px;
+       background: var(--paper); color: var(--ink); border: 1px solid var(--hair); border-radius: 0; }
+  button { font-family: inherit; font-size: 12.5px; height: 26px; background: var(--paper);
+           color: var(--ink); border: 1px solid var(--ink); padding: 0 10px; cursor: pointer; border-radius: 0; }
   button:hover { background: var(--active); }
   button.on { background: var(--ink); color: var(--paper); }
-  .small { font-size: 11.5px; color: var(--faint); }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  /* layout */
+  .mainRow { display: flex; gap: 36px; flex-wrap: wrap; align-items: flex-start; }
+  #lobby { flex: 1 1 540px; min-width: 320px; }
+  #advice { flex: 1 1 620px; min-width: 320px; }
+  h2 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 24px 0 8px 0;
+       border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
+  h2 .small { font-weight: 400; }
+  #lobby > h2:first-child, #adviceBody > h2:first-child { margin-top: 14px; }
+  h3 { font-size: 12px; font-weight: 600; margin: 10px 0 4px 0; color: var(--faint); }
+  p { margin: 6px 0; }
+  .small { font-size: 12px; color: var(--faint); }
+  #adviceBody p.small { max-width: 78ch; line-height: 1.45; }
   .sideB { color: var(--blue); font-weight: 600; }
   .sideR { color: var(--red); font-weight: 600; }
-  .num { color: var(--faint); font-size: 11px; }
-  figure { margin: 8px 0 4px 0; }
-  figcaption { font-size: 11.5px; color: var(--faint); margin-top: 3px; max-width: 640px; }
-  caption { caption-side: top; text-align: left; font-size: 11.5px; color: var(--faint); padding-bottom: 3px; max-width: 700px; }
+  .num { color: var(--faint); font-size: 11.5px; }
+  /* the recommendation: the one large element */
+  .big { font-size: 22px; line-height: 1.25; margin: 4px 0 10px 0; }
+  .big b { font-weight: 600; }
+  .big .small { display: block; font-size: 13px; line-height: 1.4; margin-top: 2px; }
+  /* tables */
+  table { border-collapse: collapse; }
+  caption { caption-side: bottom; text-align: left; font-size: 12px; line-height: 1.45; color: var(--faint); padding-top: 6px; max-width: 78ch; }
+  th { text-align: left; font-weight: 600; font-size: 12px; line-height: 1.2; vertical-align: bottom;
+       border-bottom: 1px solid var(--ink); padding: 2px 10px 4px 0; }
+  td { border-bottom: 1px solid var(--hair); padding: 3px 10px 3px 0; font-size: 13px; vertical-align: middle; }
+  td.r, th.r { text-align: right; }
+  td.nmc { white-space: nowrap; }
+  tr.pick, tr.pickpair { cursor: pointer; } tr.pick:hover td, tr.pickpair:hover td { background: var(--hover); }
+  td img.mini { width: 22px; height: 22px; vertical-align: middle; border: 1px solid var(--hair); }
+  .bar { display: inline-block; height: 7px; background: var(--blue); vertical-align: baseline; }
+  /* charts */
+  figure { margin: 8px 0 6px 0; }
+  figcaption { font-size: 12px; line-height: 1.45; color: var(--faint); margin-top: 6px; max-width: 78ch; }
   svg { max-width: 100%; height: auto; display: block; }
   svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; fill: var(--ink); }
   svg .faint { fill: var(--faint); } svg .us { fill: var(--blue); } svg .them { fill: var(--red); }
   svg .axis { stroke: var(--ink); stroke-width: 1; } svg .grid { stroke: var(--hair); stroke-width: 1; }
   svg .whisk { stroke: var(--ink); stroke-width: 1; }
-  .ctrl { margin: 8px 0 2px 0; } .ctrl > span { margin-right: 14px; white-space: nowrap; }
+  .cols { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .cols > figure { flex: 0 1 auto; margin-top: 4px; min-width: 0; }
+  .eq td { border-bottom: none; padding: 0 8px 0 0; }
+  .eq td.op { color: var(--faint); }
+  .prog { height: 3px; background: var(--hair); max-width: 620px; margin: 8px 0 4px 0; }
+  .prog > span { display: block; height: 3px; width: 0; background: var(--blue); transition: width .1s linear; }
+  #busy { visibility: hidden; font-size: 12px; color: var(--faint); } main.busy #busy { visibility: visible; }
   /* slots: your team and the ban phase */
-  .slots { display: flex; gap: 6px; flex-wrap: wrap; }
-  .slot { width: 66px; text-align: center; cursor: pointer; user-select: none; }
-  .slot .pic { width: 58px; height: 58px; border: 1px solid var(--hair); background: var(--active);
+  .slots { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slot { width: 68px; text-align: center; cursor: pointer; user-select: none; }
+  .slot .pic { width: 60px; height: 60px; border: 1px solid var(--hair); background: var(--active);
                display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative; }
-  .slot .pic img { width: 58px; height: 58px; display: block; }
+  .slot .pic img { width: 60px; height: 60px; display: block; }
   .slot.empty .pic { border-style: dashed; color: var(--faint); font-size: 18px; }
   .slot.active .pic { outline: 2px solid var(--blue); outline-offset: 1px; }
-  .slot .lab { font-size: 10.5px; color: var(--faint); margin-top: 1px; line-height: 1.12; overflow-wrap: anywhere; }
-  .slot .lab + .lab { color: var(--ink); min-height: 24px; }
-  .slot .who { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+  .slot .lab { font-size: 11px; color: var(--faint); margin-top: 2px; line-height: 1.15; overflow-wrap: anywhere; }
+  .slot .lab + .lab { color: var(--ink); min-height: 26px; }
+  .slot .who { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
   .slot.us .who { color: var(--blue); } .slot.them .who { color: var(--red); }
   .slot.us .pic { border-top: 3px solid var(--blue); } .slot.them .pic { border-top: 3px solid var(--red); }
-  .slot .x { position: absolute; top: -1px; right: 1px; font-size: 11px; color: var(--faint); display: none; }
+  .slot .x { position: absolute; top: 0; right: 2px; font-size: 11px; color: var(--faint); display: none; }
   .slot:not(.empty):hover .x { display: block; }
   .slot.sug .pic { border-style: dashed; border-color: var(--blue); }
   .slot.sug .pic img { opacity: .45; }
   .slot.fc .pic { border-style: dashed; border-color: var(--red); }
   .slot .pct { font-weight: 600; color: var(--red); }
-  .slot .alt { display: block; font-size: 9.5px; color: var(--faint); }
+  .slot .alt { display: block; font-size: 10px; color: var(--faint); }
+  #turnHint { margin-top: 8px; }
   /* roster */
-  .grid { display: flex; flex-wrap: wrap; gap: 5px 3px; align-items: flex-start; }
-  .tile { width: 56px; text-align: center; cursor: pointer; font-size: 9.5px; line-height: 1.1; position: relative; user-select: none; }
-  .tile img { width: 46px; height: 46px; display: block; margin: 0 auto; border: 1px solid var(--hair); background: var(--active); }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px 4px; align-items: flex-start; }
+  .tile { width: 58px; text-align: center; cursor: pointer; font-size: 10.5px; line-height: 1.12; position: relative; user-select: none; }
+  .tile img { width: 48px; height: 48px; display: block; margin: 0 auto 2px auto; border: 1px solid var(--hair); background: var(--active); }
   .tile:hover img { border-color: var(--ink); }
-  .tile .nm { display: block; color: var(--faint); margin-top: 1px; overflow-wrap: anywhere; }
+  .tile .nm { display: block; color: var(--faint); overflow-wrap: anywhere; }
   .tile.banned img { filter: grayscale(1); opacity: .3; }
-  .tile.banned::after { content: "✕"; position: absolute; top: 9px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
+  .tile.banned::after { content: "✕"; position: absolute; top: 10px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
   .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
-  .tile.dim { opacity: .25; }
-  .tile .rk { position: absolute; top: 0; left: 5px; background: var(--red); color: #fff; font-size: 9.5px;
-              font-weight: 600; padding: 0 3px; }
+  .tile.dim { opacity: .22; }
+  .tile .rk { position: absolute; top: 0; left: 5px; background: var(--red); color: #fff; font-size: 10px; font-weight: 600; padding: 0 3px; }
+  .howto { font-size: 12px; color: var(--faint); margin: 2px 0 8px 0; line-height: 1.7; }
   #search { width: 190px; }
   #matches a { color: var(--blue); text-decoration: none; } #matches a:hover { text-decoration: underline; }
-  #target { font-size: 12px; }
-  /* results */
-  .big { font-size: 15px; margin: 4px 0 2px 0; }
-  .big b { font-weight: 600; }
-  tr.pick { cursor: pointer; } tr.pick:hover td { background: var(--hover); }
-  td img.mini { width: 20px; height: 20px; vertical-align: middle; border: 1px solid var(--hair); }
-  .bar { display: inline-block; height: 7px; background: var(--blue); vertical-align: baseline; }
-  .cols { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-  .cols > figure { flex: 0 1 auto; margin-top: 4px; min-width: 0; }
-  .eq td { border-bottom: none; padding: 0 8px 0 0; }
-  .eq td.op { color: var(--faint); }
-  .prog { height: 3px; background: var(--hair); max-width: 600px; margin: 6px 0 2px 0; }
-  .prog > span { display: block; height: 3px; width: 0; background: var(--blue); transition: width .1s linear; }
-  #busy { visibility: hidden; } main.busy #busy { visibility: visible; }
-  .method p, .method li { max-width: 760px; }
-  .method ul { padding-left: 18px; margin: 4px 0; }
-  .formula { font-family: "Times New Roman", Times, serif; font-size: 15px; margin: 6px 0 6px 12px; }
-  footer { margin-top: 22px; border-top: 1px solid var(--hair); padding-top: 4px; }
+  #target { color: var(--ink); }
+  /* method */
+  .method { margin-top: 12px; }
+  .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
+  .mcol > h2:first-child { margin-top: 24px; }
+  .mcol table { width: 100%; }
+  .method p, .method li { max-width: 76ch; }
+  .method ul { padding-left: 18px; margin: 6px 0; }
+  .method li { margin-bottom: 4px; }
+  .formula { font-family: "Times New Roman", Times, serif; font-size: 16px; margin: 10px 0 10px 16px; }
+  footer { margin-top: 32px; border-top: 1px solid var(--hair); padding-top: 6px; }
   kbd { font-family: inherit; border: 1px solid var(--hair); padding: 0 3px; font-size: 11px; }
+  @media (max-width: 1000px) { .mgrid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 720px) {
+    main { padding: 16px 16px 32px 16px; }
+    h1 { font-size: 22px; } .lede { font-size: 13.5px; }
+    .ctrl { gap: 8px 16px; } .ctrl .push { margin-left: 0; }
+    .big { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .prog > span { transition: none; } }
 </style>
 
 <main id="mainEl">
-<h1>Ban Call <span class="small">&nbsp;which hero to ban in Marvel Rivals ranked</span></h1>
-<p class="small" id="status">Loading the model&hellip;</p>
+<header class="top">
+  <h1>Ban Call</h1>
+  <p class="lede">Which hero to ban in Marvel Rivals ranked</p>
+  <p id="status">Loading the model&hellip;</p>
+</header>
 
 <div class="ctrl">
-  <span>Rank <select id="tierSel"></select></span>
-  <span>Map <select id="mapSel"></select></span>
-  <span>We ban <button id="firstBtn">first</button><button id="secondBtn">second</button></span>
-  <span>Model <button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span>
-  <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer.">Runs <button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button></span>
-  <span><button id="resetBtn">Reset</button> <button id="linkBtn">Copy link</button> <button id="themeBtn">Dark</button></span>
-  <span class="small" id="busy">computing</span>
+  <span><span class="lab">Rank</span><select id="tierSel" aria-label="Rank"></select></span>
+  <span><span class="lab">Map</span><select id="mapSel" aria-label="Map"></select></span>
+  <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
+  <span><span class="lab">Model</span><span class="seg"><button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span></span>
+  <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer."><span class="lab">Runs</span><span class="seg"><button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button></span></span>
+  <span id="busy">computing</span>
+  <span class="push"><button id="resetBtn">Reset</button><button id="linkBtn">Copy link</button><button id="themeBtn">Dark</button></span>
 </div>
 
 <div class="mainRow">
@@ -137,14 +174,14 @@
   <div class="slots" id="banSlots"></div>
   <p class="small" id="turnHint"></p>
   <h2>Heroes</h2>
-  <p class="small">Click a hero to fill the highlighted slot, or type a name:
+  <p class="howto">Click a hero to fill the highlighted slot, or type a name:
     <input type="text" id="search" placeholder="type a hero, Enter" autocomplete="off">
     <span class="small" id="matches"></span><br>
     <span id="target"></span> &nbsp;<kbd>Enter</kbd> picks the first match, <kbd>Backspace</kbd> on an empty box undoes the last ban.</p>
   <div id="roster"></div>
 </section>
 
-<section id="advice">
+<section id="advice" aria-live="polite">
   <div id="adviceBody"></div>
 </section>
 </div>
