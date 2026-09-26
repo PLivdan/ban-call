@@ -79,8 +79,8 @@ Before committing any script change, run `python tools/stamp.py`: it stamps ever
 Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
 
 ## Studio (studio/)
-A second interface on the same models, at `studio/`. Every hero is a prism on its role's plate, and the prism's height is
-the model's answer for the current step (chance your team opens it, value of banning it, chance they ban it next). It
+A second interface on the same models, at `studio/`: a step bar for the lobby, one answer card with a primary action, and a
+fixed hero board whose bars show the model's answer for the current step. It
 loads `../engine.js`, `../model/*` and `../sim-worker.js`, so there is one backend. `tools/stamp.py` stamps its scripts too.
 
 ## Run locally

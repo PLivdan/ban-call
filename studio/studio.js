@@ -138,10 +138,12 @@
     const m = matches().slice(0, 4);
     $("hits").innerHTML = m.length ? "Enter: " + m.map((h, k) => `<a href="#" data-h="${h}"${k ? "" : ' style="font-weight:700"'}>${esc(NAMES[h])}</a>`).join(", ") : "";
     $("hits").querySelectorAll("a").forEach(a => a.onclick = ev => { ev.preventDefault(); place(+a.dataset.h); });
-    LAND.query = $("search").value.split(",").pop().trim().toLowerCase(); LAND.dirty = true; kick();
+    QUERY = $("search").value.split(",").pop().trim().toLowerCase(); if (TILES.length) paintBoard();
+    if (!m.length && !$("search").value) $("hits").textContent = "Press / to type. Commas enter several.";
   }
   $("search").oninput = renderHits;
   $("search").onkeydown = ev => {
+    if (ev.key === "Enter" && !$("search").value.trim() && $("doBan")) { $("doBan").click(); ev.preventDefault(); return; }
     if (ev.key === "Enter") {
       const parts = $("search").value.split(",").map(x => x.trim()).filter(Boolean);
       if (parts.length > 1) {
@@ -160,175 +162,56 @@
     else if (ev.key === "Backspace" && st.bans.length) { st.bans.pop(); update(); ev.preventDefault(); }
   });
 
-  // ================================================================ the landscape
-  // World: one unit per plot. Three plates (Vanguard, Duelist, Strategist), each hero on its own plot, the most played at the
-  // back so the tallest towers stand behind the rest. Camera: azimuth th and elevation ph, drifting a little with the pointer.
-  const svg = $("land"), wrap = $("landWrap");
-  const el = (tag, attrs, parent) => { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
-  const LAND = { cells: [], th: 31 * Math.PI / 180, ph: 45 * Math.PI / 180, thT: 31 * Math.PI / 180, phT: 45 * Math.PI / 180, S: 40, ox: 0, oy: 0, W: 800, Hh: 520,
-                 plates: [], tagsOn: true, dirty: true, query: "", metricMax: 1, unit: null, running: false };
-  const COLS = [3, 4, 3], GAP = 1, FOOT = .7, HMAX = 2.3;
-  const defs = el("defs", {}, svg);
-  const pat = el("pattern", { id: "hatch", width: 5, height: 5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
-  el("rect", { width: 5, height: 5, fill: "var(--plate)" }, pat); el("line", { x1: 0, y1: 0, x2: 0, y2: 5, stroke: "var(--graphite)", "stroke-width": 1.2 }, pat);
-  const gPlates = el("g", {}, svg), gPr = el("g", {}, svg), gTags = el("g", {}, svg), gScale = el("g", { class: "scale" }, svg);
-
-  function layout() {                                       // plots by role, most played first (back rows), fixed per rank
-    const pop = popularity(); let x0 = 0; const rowsMax = Math.max(...[0, 1, 2].map(r => Math.ceil(ROLE.filter(q => q === r).length / COLS[r])));
-    LAND.plates = [];
-    for (let r = 0; r < 3; r++) {
-      const hs = NAMES.map((n, h) => h).filter(h => ROLE[h] === r).sort((a, b) => pop[b] - pop[a]), C = COLS[r], R = Math.ceil(hs.length / C), y0 = (rowsMax - R) / 2;
-      hs.forEach((h, i) => { const c = LAND.cells[h] || (LAND.cells[h] = { h, z: 0, v: 0, t: 0, delay: 0 }); c.gx = x0 + (i % C); c.gy = y0 + Math.floor(i / C); });
-      LAND.plates.push({ r, x0, y0, x1: x0 + C, y1: y0 + R }); x0 += C + GAP;
-    }
-    LAND.WX = x0 - GAP; LAND.WY = rowsMax;
+  // ================================================================ the board: every hero in a fixed place, the model's answer as a bar
+  // Roles side by side, most played first, so a hero is always where you last saw it. The bar and the number badges change
+  // with the step you are on; the order never does (it only follows the rank).
+  const board = $("board"), TILES = [], BCOLS = [3, 5, 3];
+  function mkTile(h) {
+    const el = document.createElement("button"); el.className = "tile"; el.dataset.h = h; el.setAttribute("aria-label", NAMES[h]);
+    el.innerHTML = `<span class="pic"><img src="${img(h)}" alt="" loading="lazy"><span class="k"></span></span><span class="nm">${esc(short(h))}</span><span class="bar"><i></i></span><span class="v"></span>`;
+    el.onclick = () => { hideTip(); if (!st.bans.includes(h)) place(h); };
+    el.onmouseenter = ev => showTip(h, ev); el.onmousemove = moveTip; el.onmouseleave = hideTip;
+    return { el, k: el.querySelector(".k"), bar: el.querySelector(".bar i"), v: el.querySelector(".v") };
   }
-  const proj = (x, y, z) => { const c = Math.cos(LAND.th), s = Math.sin(LAND.th), xr = x * c - y * s, yr = x * s + y * c;
-    return [LAND.ox + xr * LAND.S, LAND.oy + (yr * Math.sin(LAND.ph) - z * Math.cos(LAND.ph)) * LAND.S]; };
-  const depth = (x, y) => x * Math.sin(LAND.th) + y * Math.cos(LAND.th);
-  const poly = pts => "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join("L") + "Z";
-  function fit() {                                          // scale and offset so the whole model (towers included) fits the frame
-    if (LAND.WX === undefined) return;
-    const r = wrap.getBoundingClientRect(); LAND.W = r.width; LAND.Hh = Math.max(380, r.height); svg.setAttribute("viewBox", `0 0 ${LAND.W} ${LAND.Hh}`);
-    LAND.tagsOn = LAND.W > 620;
-    const colW = LAND.tagsOn ? 200 : 0, top = 70, bottom = 18;
-    const save = [LAND.S, LAND.ox, LAND.oy]; LAND.S = 1; LAND.ox = 0; LAND.oy = 0;
-    let xs = [], ys = [];
-    for (const [x, y] of [[0, 0], [LAND.WX, 0], [0, LAND.WY + 1.4], [LAND.WX, LAND.WY + 1.4]]) for (const z of [-.35, HMAX * .8]) { const p = proj(x, y, z); xs.push(p[0]); ys.push(p[1]); }
-    const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys);
-    const S = Math.min((LAND.W - colW - 34) / bw, (LAND.Hh - top - bottom) / bh);
-    LAND.S = S; LAND.ox = 22 + (LAND.W - colW - 34 - bw * S) / 2 - Math.min(...xs) * S; LAND.oy = top + (LAND.Hh - top - bottom - bh * S) / 2 - Math.min(...ys) * S;
-    void save; LAND.dirty = true;
+  function buildBoard() {
+    const pop = popularity();
+    board.innerHTML = [0, 1, 2].map(r => `<div class="role"><h4>${ROLE_NAMES[r]}</h4><div class="tiles" style="grid-template-columns:repeat(${BCOLS[r]}, minmax(0, 1fr))"></div></div>`).join("");
+    const boxes = board.querySelectorAll(".tiles");
+    for (let r = 0; r < 3; r++) NAMES.map((n, h) => h).filter(h => ROLE[h] === r).sort((a, b) => pop[b] - pop[a])
+      .forEach(h => boxes[r].appendChild((TILES[h] || (TILES[h] = mkTile(h))).el));
   }
-
-  function buildPlates() {
-    gPlates.innerHTML = "";
-    for (const P of LAND.plates) {
-      P.edgeX = el("path", { class: "plateEdge" }, gPlates); P.edgeY = el("path", { class: "plateEdge" }, gPlates); P.top = el("path", { class: "plate" }, gPlates);
-      P.lab = el("text", { class: "dist", "font-size": 60 }, gPlates); P.lab.textContent = ROLE_NAMES[P.r];
-    }
-  }
-  function drawPlates() {
-    const T = .32;
-    for (const P of LAND.plates) {
-      const x0 = P.x0 - .12, y0 = P.y0 - .12, x1 = P.x1 + .12, y1 = P.y1 + .12;
-      P.top.setAttribute("d", poly([proj(x0, y0, 0), proj(x1, y0, 0), proj(x1, y1, 0), proj(x0, y1, 0)]));
-      P.edgeX.setAttribute("d", poly([proj(x1, y0, 0), proj(x1, y1, 0), proj(x1, y1, -T), proj(x1, y0, -T)]));
-      P.edgeY.setAttribute("d", poly([proj(x0, y1, 0), proj(x1, y1, 0), proj(x1, y1, -T), proj(x0, y1, -T)]));
-      // the role's name lettered on the plate's front strip, in the plane of the ground
-      const o = proj(x0 + .02, y1 + .95, -.32), ex = proj(x0 + 1.02, y1 + .95, -.32), ey = proj(x0 + .02, y1 + 1.95, -.32), k = .0072;
-      P.lab.setAttribute("transform", `matrix(${(ex[0] - o[0]) * k} ${(ex[1] - o[1]) * k} ${(ey[0] - o[0]) * k} ${(ey[1] - o[1]) * k} ${o[0]} ${o[1]})`);
-    }
-  }
-  function buildPrisms() {
-    gPr.innerHTML = "";
-    for (const c of LAND.cells) {
-      c.g = el("g", { class: "pr", "data-h": c.h, tabindex: -1 }, gPr);
-      c.sa = el("path", { class: "sa" }, c.g); c.sb = el("path", { class: "sb" }, c.g); c.rf = el("path", { class: "rf" }, c.g);
-      c.im = el("image", { href: img(c.h), width: 1, height: 1, preserveAspectRatio: "none" }, c.g);
-      c.ol = el("path", { class: "ol" }, c.g);
-      c.g.addEventListener("mouseenter", ev => showTip(c.h, ev)); c.g.addEventListener("mousemove", moveTip); c.g.addEventListener("mouseleave", hideTip);
-      c.g.addEventListener("click", () => { hideTip(); if (!st.bans.includes(c.h)) place(c.h); });
-    }
-  }
-  function drawPrisms() {
-    const f = (1 - FOOT) / 2;
-    const order = LAND.cells.slice().sort((a, b) => depth(a.gx, a.gy) - depth(b.gx, b.gy));
-    let k = 0; for (const c of order) { if (gPr.children[k] !== c.g) gPr.insertBefore(c.g, gPr.children[k] || null); k++; }
-    for (const c of LAND.cells) {
-      const x0 = c.gx + f, y0 = c.gy + f, x1 = x0 + FOOT, y1 = y0 + FOOT, z = Math.max(.015, c.z);
-      c.sa.setAttribute("d", poly([proj(x1, y0, 0), proj(x1, y1, 0), proj(x1, y1, z), proj(x1, y0, z)]));
-      c.sb.setAttribute("d", poly([proj(x0, y1, 0), proj(x1, y1, 0), proj(x1, y1, z), proj(x0, y1, z)]));
-      const roof = poly([proj(x0, y0, z), proj(x1, y0, z), proj(x1, y1, z), proj(x0, y1, z)]); c.rf.setAttribute("d", roof); c.ol.setAttribute("d", roof);
-      const o = proj(x0, y0, z), ex = proj(x1, y0, z), ey = proj(x0, y1, z);
-      c.im.setAttribute("transform", `matrix(${ex[0] - o[0]} ${ex[1] - o[1]} ${ey[0] - o[0]} ${ey[1] - o[1]} ${o[0]} ${o[1]})`);
-      c.top = proj(x0 + FOOT / 2, y0 + FOOT / 2, z);
-    }
-  }
-  function drawTags() {                                     // numbered callouts for the eight tallest, set in a column like drawing annotations
-    gTags.innerHTML = ""; const q = quickList(); if (!q.length) return;
-    const sd = side(), items = q.map((x, k) => ({ ...x, k: k + 1, p: LAND.cells[x.h].top }));
-    if (!LAND.tagsOn) {                                    // narrow screens: a numbered square on each roof instead
-      for (const it of items) { const g = el("g", { class: "tag " + sd }, gTags); el("rect", { class: "k", x: it.p[0] - 8, y: it.p[1] - 26, width: 16, height: 16 }, g);
-        const t = el("text", { class: "kn", x: it.p[0], y: it.p[1] - 14, "text-anchor": "middle" }, g); t.textContent = it.k; }
-      return;
-    }
-    const colX = LAND.W - 190, top = 96, gap = Math.min(34, (LAND.Hh - top - 40) / items.length);
-    const sorted = items.slice().sort((a, b) => a.p[1] - b.p[1]);
-    sorted.forEach((it, i) => {
-      const y = top + i * gap, g = el("g", { class: "tag " + sd, "data-h": it.h }, gTags), kx = colX;
-      el("path", { class: "lead " + sd, d: `M${it.p[0].toFixed(1)} ${it.p[1].toFixed(1)}V${Math.min(it.p[1], y).toFixed(1)}L${(kx - 10).toFixed(1)} ${y.toFixed(1)}H${kx - 2}` }, g);
-      el("circle", { class: "dot", cx: it.p[0], cy: it.p[1], r: 2.4 }, g);
-      el("rect", { class: "k", x: kx, y: y - 9, width: 18, height: 18 }, g);
-      const tk = el("text", { class: "kn", x: kx + 9, y: y + 4, "text-anchor": "middle" }, g); tk.textContent = it.k;
-      const tn = el("text", { class: "nm", x: kx + 25, y: y + 4.5 }, g); tn.textContent = short(it.h);
-      const tv = el("text", { class: "v", x: LAND.W - 14, y: y + 4.5, "text-anchor": "end" }, g); tv.textContent = it.lab;
-      g.addEventListener("click", () => place(it.h)); g.addEventListener("mouseenter", () => LAND.cells[it.h].g.classList.add("hover")); g.addEventListener("mouseleave", () => LAND.cells[it.h].g.classList.remove("hover"));
-    });
-  }
-  function drawScale() {                                    // a scale bar: how tall one unit of the answer stands
-    gScale.innerHTML = ""; if (!LAND.unit) return;
-    const u = LAND.unit, hz = u.v / LAND.metricMax * HMAX, px = hz * Math.cos(LAND.ph) * LAND.S, a = [26, LAND.Hh - 26], b = [26, LAND.Hh - 26 - px];
-    if (!isFinite(px) || px <= 0) return;
-    el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], "stroke-width": 1.5 }, gScale);
-    for (const p of [a, b]) el("line", { x1: p[0] - 4, y1: p[1], x2: p[0] + 4, y2: p[1] }, gScale);
-    const t = el("text", { x: a[0] + 8, y: (a[1] + b[1]) / 2 + 4 }, gScale); t.textContent = u.lab;
-  }
-  function frame() {                                        // springs for the towers, easing for the camera
-    const now = performance.now(); let moving = false;
-    LAND.th += (LAND.thT - LAND.th) * .08; LAND.ph += (LAND.phT - LAND.ph) * .08;
-    if (Math.abs(LAND.thT - LAND.th) > 1e-4 || Math.abs(LAND.phT - LAND.ph) > 1e-4) moving = true;
-    for (const c of LAND.cells) {
-      if (now < c.delay) { moving = true; continue; }
-      if (REDUCED) { c.z = c.t; continue; }
-      c.v = c.v * .74 + (c.t - c.z) * .11; c.z += c.v;
-      if (Math.abs(c.v) > 1e-4 || Math.abs(c.t - c.z) > 1e-4) moving = true; else c.z = c.t;
-    }
-    if (moving || LAND.dirty) { drawPlates(); drawPrisms(); drawTags(); drawScale(); LAND.dirty = false; }
-    LAND.running = moving; if (moving) requestAnimationFrame(frame);
-  }
-  const kick = () => { if (!LAND.running) { LAND.running = true; requestAnimationFrame(frame); } };
-  wrap.addEventListener("pointermove", ev => { if (REDUCED || ev.pointerType !== "mouse") return; const r = wrap.getBoundingClientRect();
-    LAND.thT = (31 + ((ev.clientX - r.left) / r.width - .5) * 12) * Math.PI / 180; LAND.phT = (45 + ((ev.clientY - r.top) / r.height - .5) * -8) * Math.PI / 180; kick(); });
-  wrap.addEventListener("pointerleave", () => { LAND.thT = 31 * Math.PI / 180; LAND.phT = 45 * Math.PI / 180; kick(); });
-  new ResizeObserver(() => { fit(); kick(); }).observe(wrap);
-  const rootStyle = document.documentElement.style;             // the stage fills the window between the masthead and the dock
-  new ResizeObserver(() => { rootStyle.setProperty("--dockH", $("dock").offsetHeight + "px"); rootStyle.setProperty("--mastH", document.querySelector(".mast").offsetHeight + "px"); }).observe(document.querySelector(".mast")); new ResizeObserver(() => rootStyle.setProperty("--dockH", $("dock").offsetHeight + "px")).observe($("dock"));
-
-  // what the towers show at this step of the lobby
+  // what the bars show at this step of the lobby
   function metric() {
-    const bans = bannedSet(), team = teamSet(), e = nextBan();
+    const bans = bannedSet(), team = teamSet(), e = nextBan(), P = x => pct(x), PT = x => pp(x);
     if (st.active.kind === "team") {
-      const P = st.active.i === 0 || !RES ? popularity() : RES.Pu;
-      return { v: h => P[h], q: st.active.i === 0 ? "Which hero are you playing?" : `Who is teammate ${st.active.i + 1} playing?`,
-               m: st.active.i === 0 ? "Height: how often players at this rank open each hero." : "Height: the chance your team opens each hero, given who you have entered.",
-               unit: x => ({ v: x, lab: pct(x) }), ok: h => !bans.has(h) && !team.has(h) };
+      const Pm = st.active.i === 0 || !RES ? popularity() : RES.Pu;
+      return { v: h => Pm[h], f: P, q: "Pick the hero", m: st.active.i === 0 ? "Bars: how often players at this rank open each hero." : "Bars: the chance your team opens each hero, given who you have entered.",
+               ok: h => !bans.has(h) && !team.has(h) };
     }
-    if (e >= 6) return { v: h => RES.Pt[h], q: "The ban phase is done.", m: "Height: the chance the other team opens each hero now.", unit: x => ({ v: x, lab: pct(x) }), ok: h => !bans.has(h) };
+    if (e >= 6) return { v: h => RES.Pt[h], f: P, q: "What they will likely play", m: "Bars: the chance the other team opens each hero now.", ok: h => !bans.has(h) };
     if (ourTurn()) {
-      const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES.V;
-      if (!V) return { v: h => RES.V[h], q: `Simulating your ban ${e + 1}`, m: "Every legal ban is being played out against re-drafted teams. Until it finishes, the towers show the ban value model.",
-                       unit: x => ({ v: x, lab: (100 * x).toFixed(dec(x)) + " pts" }), ok: h => !bans.has(h) && !team.has(h) && !isNaN(RES.V[h]) };
-      return { v: h => V[h], q: `${turnCount() === 2 ? `Your bans ${e + 1} and ${e + 2}` : `Your ban ${e + 1}`}: what is each ban worth?`,
-               m: "Height: the win chance your team gains by banning the hero, against the ban a typical team would make.", unit: x => ({ v: x, lab: (100 * x).toFixed(dec(x)) + " pts" }), ok: h => !bans.has(h) && !team.has(h) && !isNaN(V[h]) };
+      const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES.V, W = V || RES.V;
+      return { v: h => W[h], f: PT, q: "Click a hero to ban it", m: V ? "Bars: the win chance your team gains by banning each hero, in points, against the ban a typical team would make."
+               : "Bars: the ban value model's answer while the simulator runs.", ok: h => !bans.has(h) && !team.has(h) && !isNaN(W[h]) };
     }
-    return { v: h => THEIRS ? THEIRS[h] : 0, q: `Their ban ${e + 1}: what will they take?`, m: "Height: the chance they ban each hero next, from the ban model fitted on every Season 10 ban.",
-             unit: x => ({ v: x, lab: pct(x) }), ok: h => !bans.has(h) };
+    return { v: h => THEIRS ? THEIRS[h] : 0, f: P, q: "Click the hero they banned", m: "Bars: the chance they ban each hero next, from the ban model fitted on every Season 10 ban.", ok: h => !bans.has(h) };
   }
-  function setTowers(first) {
-    const M = metric(), bans = bannedSet(), team = teamSet(), sd = side(), q = quickList(), hot = new Set(q.map(x => x.h)), best = q.length ? q[0].h : -1;
-    const vals = LAND.cells.map(c => M.ok(c.h) ? Math.max(0, M.v(c.h)) : 0), mx = Math.max(1e-9, ...vals); LAND.metricMax = mx;
-    const now = performance.now();
-    for (const c of LAND.cells) {
-      c.t = bans.has(c.h) ? .015 : M.ok(c.h) ? .06 + Math.max(0, M.v(c.h)) / mx * HMAX : team.has(c.h) ? .35 : .04;
-      const cls = ["pr"]; if (bans.has(c.h)) cls.push("gone"); else if (team.has(c.h) && st.active.kind !== "team") cls.push("mine");
-      if (hot.has(c.h)) cls.push("hot", sd); if (c.h === best) cls.push("best", sd);
-      if (LAND.query && !NAMES[c.h].toLowerCase().includes(LAND.query) && !short(c.h).toLowerCase().includes(LAND.query)) cls.push("dim");
-      c.g.setAttribute("class", cls.join(" "));
-      if (first) c.delay = now + 120 + depth(c.gx, c.gy) * 45;
+  let QUERY = "";
+  function paintBoard() {
+    const M = metric(), bans = bannedSet(), team = teamSet(), sd = side(), q = quickList(), rank = new Map(q.map((x, k) => [x.h, k + 1])), best = q.length ? q[0].h : -1;
+    let mx = 1e-9; for (let h = 0; h < H; h++) if (M.ok(h)) mx = Math.max(mx, M.v(h));
+    for (let h = 0; h < H; h++) {
+      const t = TILES[h], ok = M.ok(h), cls = ["tile", sd];
+      if (bans.has(h)) cls.push("gone"); else if (team.has(h)) cls.push("mine");
+      if (rank.has(h)) cls.push("top"); if (h === best) cls.push("best");
+      if (QUERY && !NAMES[h].toLowerCase().includes(QUERY) && !short(h).toLowerCase().includes(QUERY)) cls.push("dim");
+      t.el.className = cls.join(" ");
+      t.bar.style.width = ok ? (100 * Math.max(0, M.v(h)) / mx).toFixed(1) + "%" : "0%";
+      t.v.textContent = ok ? M.f(M.v(h)) : bans.has(h) ? "banned" : team.has(h) ? "your team" : "";
+      t.k.textContent = rank.get(h) || "";
+      t.el.title = bans.has(h) ? `${NAMES[h]}: banned` : NAMES[h];
     }
-    if (M.unit) { const step = niceStep(mx, 2); LAND.unit = M.unit(step); } else LAND.unit = null;
-    $("landQ").textContent = M.q; $("landM").textContent = M.m; LAND.dirty = true; kick();
+    $("boardQ").textContent = M.q; $("boardM").textContent = M.m;
   }
 
   // tooltip: the numbers behind a tower
@@ -405,7 +288,7 @@
       if (r.dataset.b !== undefined) { for (const h of [+r.dataset.h, +r.dataset.b]) { for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1; if (!st.bans.includes(h)) st.bans.push(h); } st.active = { kind: "ban" }; update(); }
       else place(+r.dataset.h); });
     root.querySelectorAll("[data-place]").forEach(b => b.onclick = () => place(+b.dataset.place));
-    root.querySelectorAll(".rung").forEach(r => { const c = LAND.cells[+r.dataset.h]; r.onmouseenter = () => c.g.classList.add("hover"); r.onmouseleave = () => c.g.classList.remove("hover"); });
+    root.querySelectorAll(".rung").forEach(r => { const t = TILES[+r.dataset.h]; if (!t) return; r.onmouseenter = () => t.el.classList.add("hover"); r.onmouseleave = () => t.el.classList.remove("hover"); });
   }
   function verdictHtml(hs, sd, act, value, extra) {
     return `<div class="verdict ${sd}"><div class="pics">${hs.map(h => `<img src="${img(h)}" alt="">`).join("")}</div><div>
@@ -431,47 +314,72 @@
     let kx = 0, ky = rs.length * rowH + 18; g += key.map(([t, c, o]) => { const s = `<rect x="${kx}" y="${ky - 9}" width="10" height="10" fill="${c}" opacity="${o}"/><text x="${kx + 14}" y="${ky}">${t}</text>`; kx += 20 + t.length * 5.6; if (kx > 300) { kx = 0; ky += 16; } return s; }).join("");
     return `<svg viewBox="0 0 ${Wd} ${ky + 6}" width="100%" style="max-width:${Wd}px;font-size:11.5px;font-stretch:78%;fill:var(--text)">${g}</svg>`;
   }
+  function reasonFor(h, R) {                                // the value in one sentence, from the same terms as the breakdown
+    const l = 1 - R.PL[h], them = l * R.Pt[h], us = l * R.Pu[h];
+    return `They open ${esc(short(h))} <b>${pct(them)}</b> of the time, and losing it costs them <b>${(100 * R.R[h]).toFixed(1)} points</b> of win chance when they do. ` +
+      (us >= .03 ? `Your team would open it ${pct(us)} of the time, so the ban costs you a little too.` : `Your team rarely opens it, so the ban costs you almost nothing.`);
+  }
+  const REASONS = ["it is popular on this map and rank", "they do not play it themselves", "it beats what they play", "of the bans so far"];
   function renderCall() {
     const e = nextBan(), R = RES; let html = "";
     if (st.active.kind === "team") {
-      const q = quickList(), mx = Math.max(...q.map(x => x.v), 1e-9), who = st.active.i === 0 ? "you" : `teammate ${st.active.i + 1}`;
-      html += `<p class="eyebrowless">Step ${st.active.i + 1} of 6 before the bans. Skip teammates you do not know.</p>
-        <div><div class="big" style="font-size:34px">${st.active.i === 0 ? "Which hero are you playing?" : `Who is ${who} playing?`}</div><p class="note">Click a tower, type a name, or press a number. ${st.active.i === 0 ? "Your hero is remembered for next time." : "Teammates you enter shape the lineups the model expects from your team."}</p></div>
+      const i = st.active.i, q = quickList().slice(0, 6), mx = Math.max(...q.map(x => x.v), 1e-9);
+      html += `<p class="eyebrowless">Before the bans, step ${i + 1} of 6</p><p class="q">${i === 0 ? "Which hero are you playing?" : `Who is teammate ${i + 1} playing?`}</p>
+        <p class="reason">Click the hero on the board, type the name, or press its number. ${i === 0 ? "Your hero is remembered for next time." : "Skip teammates you do not know. Each one you add sharpens what the model expects from your team."}</p>
         <div class="ladder">${q.map((x, k) => rung({ h: x.h, v: x.v }, k + 1, "us", mx, () => x.lab)).join("")}</div>
-        ${st.active.i > 0 ? `<button class="pill" id="toBans">Go to the bans</button>` : ""}`;
+        <div class="go">${i > 0 ? `<button class="btn2" id="toBans">Skip to the bans</button>` : ""}</div>`;
     } else if (e >= 6) {
-      const top = Array.from(R.Pt.keys()).filter(h => !st.bans.includes(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 8), mx = R.Pt[top[0]];
-      html += `<p class="eyebrowless">All six bans are in.</p>${verdictHtml([top[0]], "them", "Their most likely opener", `<div class="big">${pct(R.Pt[top[0]])}<small>chance they open it</small></div>`)}
-        <div><h3>What they will likely play</h3><div class="ladder">${top.map((h, k) => rung({ h, v: R.Pt[h] }, k + 1, "them", mx, pct)).join("")}</div></div>
-        <button class="pill" id="again">Start the next lobby</button>`;
+      const top = Array.from(R.Pt.keys()).filter(h => !st.bans.includes(h)).sort((a, b) => R.Pt[b] - R.Pt[a]).slice(0, 6), mx = R.Pt[top[0]];
+      html += `<p class="eyebrowless">All six bans are in</p>${verdictHtml([top[0]], "them", "They will most likely play", `<div class="big">${pct(R.Pt[top[0]])}<small>chance</small></div>`)}
+        <div><h3>Their other likely heroes</h3><div class="ladder">${top.slice(1).map((h, k) => rung({ h, v: R.Pt[h] }, k + 2, "them", mx, pct)).join("")}</div></div>
+        <div class="go"><button class="btn" id="again">Start the next lobby</button></div>`;
     } else if (ourTurn() && st.model === "sim") html += simCall();
     else if (ourTurn()) {
-      const cnt = turnCount(), sug = suggested(cnt).filter(Boolean), top = topBans(8);
-      const pairs = cnt === 2 && sug[1], x = sug[0];
+      const cnt = turnCount(), sug = suggested(cnt).filter(Boolean), top = topBans(6), pairs = cnt === 2 && sug[1], x = sug[0];
       let runner = null, rname = "";
       if (pairs && R.pairs && R.pairs[1]) { runner = R.pairs[1]; rname = `${short(runner.a)} and ${short(runner.b)}`; }
       else if (!pairs) { const r = top.find(h => h !== x.h); if (r !== undefined) { runner = { V: R.V[r], se: R.se[r] }; rname = short(r); } }
-      const clear = runner && x.V - 1.96 * x.se > runner.V + 1.96 * runner.se;
-      html += `<p class="eyebrowless">${cnt === 2 ? `Your bans ${e + 1} and ${e + 2} of 6, chosen together` : `Your ban ${e + 1} of 6`}. Ban value model, ${fmt(E.NS)} simulated ban phases.</p>`;
-      html += verdictHtml(pairs ? [sug[0].h, sug[1].h] : [x.h], "us", "Ban", `<div class="big">${pp(x.V)}<small>points of win chance</small></div>`,
-        `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clear of ${esc(rname)} (${pp(runner.V)}), 95% intervals apart.` : `Tied with ${esc(rname)} (${pp(runner.V)}). Either is a sound ban.`) : ""}</div>`);
-      if (!pairs) html += `<div class="anat"><h3>Why it is worth ${pp(x.V)}<span class="n">each area is a chance times a cost</span></h3>${anatomy(x.h, R)}</div>`;
-      if (pairs) { const P = R.pairs.slice(0, 6), mx = Math.max(...P.map(p => p.V), 1e-9);
-        html += `<div><h3>Best pairs<span class="n">scored together, so heroes that replace each other are not counted twice</span></h3><div class="ladder">${P.map((p, k) => rung({ h: p.a, b: p.b, v: p.V, name: `${esc(short(p.a))} + ${esc(short(p.b))}` }, k + 1, "us", mx, v => pp(v),
+      const clear = runner && x.V - 1.96 * x.se > runner.V + 1.96 * runner.se, hs = pairs ? [sug[0].h, sug[1].h] : [x.h];
+      html += `<p class="eyebrowless">${pairs ? `Your bans ${e + 1} and ${e + 2} of 6, chosen together` : `Your ban ${e + 1} of 6`}</p>`;
+      html += verdictHtml(hs, "us", "Ban", `<div class="big">${pp(x.V)}<small>points of win chance</small></div>`,
+        `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clearly better than ${esc(rname)} (${pp(runner.V)}).` : `About as good as ${esc(rname)} (${pp(runner.V)}). Either is a sound ban.`) : ""}</div>`);
+      html += `<p class="reason">${pairs ? `The two are scored as a pair, so heroes that replace each other are not counted twice. ${reasonFor(hs[0], R)}` : reasonFor(x.h, R)}</p>`;
+      html += `<div class="go"><button class="btn us" id="doBan"><img src="${img(hs[0])}" alt="">${pairs ? `Ban both` : `Ban ${esc(short(x.h))}`}<span class="kb">${pairs ? "Enter" : "1"}</span></button></div>`;
+      if (pairs) { const P = R.pairs.slice(1, 6), mx = Math.max(...R.pairs.slice(0, 6).map(p => p.V), 1e-9);
+        html += `<div><h3>Other pairs</h3><div class="ladder">${P.map((p, k) => rung({ h: p.a, b: p.b, v: p.V, name: `${esc(short(p.a))} + ${esc(short(p.b))}` }, k + 2, "us", mx, v => pp(v),
           `<span style="display:flex"><img src="${img(p.a)}" alt="" style="width:22px;height:30px;object-fit:cover"><img src="${img(p.b)}" alt="" style="width:22px;height:30px;object-fit:cover"></span>`)).join("")}</div></div>`; }
       else { const mx = Math.max(...top.map(h => R.V[h]), 1e-9);
-        html += `<div><h3>Every good ban<span class="n">press the number to ban</span></h3><div class="ladder">${top.map((h, k) => rung({ h, v: R.V[h] }, k + 1, "us", mx, v => pp(v))).join("")}</div></div>`; }
+        html += `<div><h3>Other good bans</h3><div class="ladder">${top.filter(h => h !== x.h).slice(0, 5).map((h, k) => rung({ h, v: R.V[h] }, k + 2, "us", mx, v => pp(v))).join("")}</div></div>`; }
+      html = html.replace('id="doBan"', `id="doBan" data-hs="${hs.join(",")}"`);
     } else {
-      const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 8), mx = THEIRS[top[0]];
-      html += `<p class="eyebrowless">Their ban ${e + 1} of 6. They cannot see your team's hovers.</p>`;
-      html += verdictHtml([top[0]], "them", "They will likely ban", `<div class="big">${pct(THEIRS[top[0]])}<small>chance</small></div>`,
-        `<div class="judge" style="margin-top:10px"><button class="pill them" data-place="${top[0]}">They banned ${esc(short(top[0]))}</button></div>`);
-      html += `<div><h3>Other likely bans<span class="n">click the one they made</span></h3><div class="ladder">${top.map((h, k) => rung({ h, v: THEIRS[h] }, k + 1, "them", mx, pct)).join("")}</div></div>`;
-      html += `<div><h3>Why they would ban it<span class="n">the ban model's reasons, against an average hero</span></h3>${whySvg(THEIRS)}</div>`;
+      const top = Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 6), mx = THEIRS[top[0]];
+      const w = whyParts(THEIRS)[0], main = w ? w.c.indexOf(Math.max(...w.c)) : 0;
+      html += `<p class="eyebrowless">Their ban ${e + 1} of 6</p>`;
+      html += verdictHtml([top[0]], "them", "They will most likely ban", `<div class="big">${pct(THEIRS[top[0]])}<small>chance</small></div>`);
+      html += `<p class="reason">Mostly because ${REASONS[main]}. They cannot see your team's hovers. When they lock it in, enter what they actually banned.</p>`;
+      html += `<div class="go"><button class="btn them" data-place="${top[0]}"><img src="${img(top[0])}" alt="">They banned ${esc(short(top[0]))}<span class="kb">1</span></button><span class="note" style="margin:0">or click it on the board</span></div>`;
+      html += `<div><h3>Other likely bans</h3><div class="ladder">${top.slice(1).map((h, k) => rung({ h, v: THEIRS[h] }, k + 2, "them", mx, pct)).join("")}</div></div>`;
     }
     $("call").innerHTML = html; wireRungs($("call"));
     if ($("toBans")) $("toBans").onclick = () => { st.active = { kind: "ban" }; update(false); };
     if ($("again")) $("again").onclick = () => $("newBtn").click();
+    if ($("doBan")) $("doBan").onclick = () => banAll($("doBan").dataset.hs.split(",").map(Number));
+    renderWhy();
+  }
+  function banAll(hs) {                                     // one ban, or both bans of a two-ban turn
+    if (hs.length === 1) return place(hs[0]);
+    for (const h of hs) { for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1; if (!st.bans.includes(h) && st.bans.length < 6) st.bans.push(h); }
+    st.active = { kind: "ban" }; update();
+  }
+  function renderWhy() {                                    // the section under the answer: the breakdown behind it
+    const e = nextBan(); let h3 = "Why", body = "";
+    if (st.active.kind === "team") { h3 = "Why enter your team"; body = `<p class="note">Teams avoid banning their own heroes and ban what beats them, and a ban costs most when it hits a hero someone on the team relies on. The heroes you enter tell the model which bans would hurt your team, so it will not suggest them, and they change what it expects the other team to take.</p>`; }
+    else if (e >= 6) { h3 = "Done"; body = `<p class="note">All six bans are in. The board shows what the other team is now likely to open.</p>`; }
+    else if (ourTurn()) {
+      const S = st.model === "sim" && SIM && !SIM.prelim ? SIM : null, x = (S ? topBans(1)[0] : suggested(1)[0] && suggested(1)[0].h);
+      if (x !== undefined) { h3 = `Why ${short(x)} is worth ${pp(RES.V[x])}`; body = `<div class="anat">${anatomy(x, RES)}</div><p class="note">Each area is a chance times a cost, from the ban value model${S ? " (the simulator's number above re-drafts both teams instead)" : ""}. Discounted by the chance the hero would be banned anyway.</p>`; }
+    } else if (THEIRS) { h3 = "Why they would ban it"; body = whySvg(THEIRS) + `<p class="note">The ban model's reasons for each likely ban, measured against an average hero.</p>`; }
+    $("whyH").textContent = h3; $("why").innerHTML = body;
   }
 
   // ================================================================ openers: both teams' likely heroes, mirrored
@@ -510,23 +418,21 @@
   $("facts").innerHTML = [[fmt(fitN), "ranked matches fitted"], [String(H), "heroes modelled"], [fmt(E.NS), "ban phases per call"], [String(META.maps.length), "maps"]].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
   $("fitted").textContent = SPL ? `Fitted on ${fmt(fitN)} PC ranked matches from Season 10, ${dayOf(SPL.train.first_utc)} to ${dayOf(SPL.validation.last_utc)}. The models run in your browser.` : "The models run in your browser.";
 
-  // ================================================================ the dock
-  function renderDock() {
+  // ================================================================ the step bar
+  function renderSteps() {
     $("team").innerHTML = st.team.map((h, i) => { const on = st.active.kind === "team" && st.active.i === i;
-      return `<button class="sl${h >= 0 ? " filled us" : ""}${on ? " on" : ""}" data-i="${i}" title="${i === 0 ? "You" : "Teammate " + (i + 1)}${h >= 0 ? ": " + esc(NAMES[h]) : ""}">${h >= 0 ? `<img src="${img(h)}" alt=""><span class="x" data-clear="${i}">✕</span>` : i === 0 ? "You" : i + 1}</button>`; }).join("");
-    $("team").querySelectorAll(".sl").forEach(b => b.onclick = ev => { const i = +b.dataset.i; if (ev.target.dataset.clear !== undefined) st.team[i] = -1; st.active = { kind: "team", i }; update(ev.target.dataset.clear !== undefined); });
+      return `<button class="sl us${h >= 0 ? " filled" : ""}${on ? " on" : ""}" data-i="${i}" title="${i === 0 ? "You" : "Teammate " + (i + 1)}${h >= 0 ? ": " + esc(NAMES[h]) : ""}"><span class="box">${h >= 0 ? `<img src="${img(h)}" alt="">` : "+"}</span><span class="cap">${i === 0 ? "You" : "Mate " + (i + 1)}</span>${h >= 0 ? `<span class="x" data-clear="${i}">✕</span>` : ""}</button>`; }).join("");
+    $("team").querySelectorAll(".sl").forEach(b => b.onclick = ev => { const i = +b.dataset.i, clr = ev.target.dataset.clear !== undefined; if (clr) st.team[i] = -1; st.active = { kind: "team", i }; update(clr); });
     const e = nextBan(), sug = ourTurn() && RES && st.active.kind === "ban" ? suggested(turnCount()) : [];
     $("track").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], sd = ours(i) ? "us" : "them", sg = h === undefined && i >= e && i < e + sug.length ? sug[i - e] : null, f = h === undefined && !ours(i) && FC && FC.top[i] && FC.top[i][0];
       const inner = h !== undefined ? `<img src="${img(h)}" alt="">` : sg ? `<img class="gh" src="${img(sg.h)}" alt="">` : f ? `<img class="gh" src="${img(f.h)}" alt="">` : i + 1;
-      return `<button class="sl b ${sd}${h !== undefined ? " filled" : ""}${i === e && st.active.kind === "ban" ? " on" : ""}" data-i="${i}" style="transform:translateY(${ours(i) ? 0 : -6}px)"
-        title="Ban ${i + 1}, ${sd === "us" ? "your team" : "their team"}${h !== undefined ? ": " + esc(NAMES[h]) + ". Click to undo from here" : sg ? ": suggested " + esc(NAMES[sg.h]) : f ? ": likely " + esc(NAMES[f.h]) + " (" + pct(f.p) + ")" : ""}"><span class="who"></span>${inner}</button>`; }).join("");
+      return `<button class="sl b ${sd}${h !== undefined ? " filled" : ""}${i === e && st.active.kind === "ban" ? " on" : ""}" data-i="${i}"
+        title="Ban ${i + 1}, ${sd === "us" ? "your team" : "their team"}${h !== undefined ? ": " + esc(NAMES[h]) + ". Click to undo from here" : sg ? ": suggested " + esc(NAMES[sg.h]) : f ? ": likely " + esc(NAMES[f.h]) + " (" + pct(f.p) + ")" : ""}"><span class="box">${inner}</span><span class="cap">${sd === "us" ? "You" : "Them"}</span></button>`; }).join("");
     $("track").querySelectorAll(".sl").forEach(b => b.onclick = () => { const i = +b.dataset.i;
       if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; update(); } else { st.active = { kind: "ban" }; update(false); } });
-    const q = quickList(), sd = side();
-    $("quickT").textContent = st.active.kind === "team" ? (st.active.i === 0 ? "Your hero" : `Teammate ${st.active.i + 1}`) : nextBan() >= 6 ? "Done" : ourTurn() ? "Best bans" : "Their likely ban";
-    $("quick").innerHTML = q.map((x, k) => `<button class="qt ${sd}" data-h="${x.h}" title="${esc(NAMES[x.h])}, ${x.lab} (key ${k + 1})"><span class="k">${k + 1}</span><img src="${img(x.h)}" alt=""></button>`).join("");
-    $("quick").querySelectorAll(".qt").forEach(b => b.onclick = () => place(+b.dataset.h));
+    const t = $("nowT"); t.className = "t " + side();
+    t.textContent = st.active.kind === "team" ? (st.active.i === 0 ? "Now: your hero" : `Now: teammate ${st.active.i + 1}`) : e >= 6 ? "Ban phase complete" : ourTurn() ? (turnCount() === 2 ? `Now: your bans ${e + 1} and ${e + 2}` : `Now: your ban ${e + 1}`) : `Now: their ban ${e + 1}`;
     $("undoBtn").disabled = !st.bans.length;
   }
 
@@ -611,7 +517,7 @@
     let html = `<p class="eyebrowless">${cnt === 2 ? `Your bans ${e + 1} and ${e + 2}` : `Your ban ${e + 1}`} of 6. Re-draft simulator, ${st.runs} runs for each leading ban.</p>`;
     if (RUN && RUN.failed) return html + `<p class="note">The simulator stopped with an error in this browser. Reload the page, or switch to the ban value model.</p>`;
     const cloud = `<div class="cloud"><h3>Every simulated ban phase<span class="n">one dot per run, the tick is the average</span></h3><div id="cloud"></div></div>`;
-    if (!SIM || SIM.prelim) return html + `<div><div class="big" style="font-size:32px">Simulating</div><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p></div>` + cloud;
+    if (!SIM || SIM.prelim) return html + `<div><p class="q">Simulating every ban</p><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p></div>` + cloud;
     const sug = suggested(cnt), top = topBans(8), x = sug[0], pairs = cnt === 2 && sug[1];
     let runner = null, rname = "";
     if (pairs && Array.isArray(SIMP) && SIMP[1]) { runner = SIMP[1]; rname = `${short(SIMP[1].a)} and ${short(SIMP[1].b)}`; }
@@ -619,30 +525,31 @@
     const clear = runner && x.V - 1.96 * x.se > runner.V + 1.96 * runner.se;
     html += verdictHtml(pairs ? [sug[0].h, sug[1].h] : [x.h], "us", "Ban", `<div class="big">${pp(x.V)}<small>points of win chance</small></div>`,
       `${ciSvg(x, runner)}<div class="judge">${runner ? (clear ? `Clear of ${esc(rname)} (${pp(runner.V)}).` : `Tied with ${esc(rname)} (${pp(runner.V)}). Either is a sound ban.`) : ""}${cnt === 2 && !pairs ? " Scoring pairs next." : ""}</div>`);
-    const mx = Math.max(...top.map(h => SIM.V[h]), 1e-9);
-    return html + cloud + `<div><h3>Every good ban<span class="n">press the number to ban</span></h3><div class="ladder">${top.map((h, k) => rung({ h, v: SIM.V[h] }, k + 1, "us", mx, v => pp(v))).join("")}</div></div>`;
+    const mx = Math.max(...top.map(h => SIM.V[h]), 1e-9), hs = pairs ? [sug[0].h, sug[1].h] : [x.h];
+    html += `<div class="go"><button class="btn us" id="doBan" data-hs="${hs.join(",")}"><img src="${img(hs[0])}" alt="">${pairs ? "Ban both" : `Ban ${esc(short(x.h))}`}<span class="kb">${pairs ? "Enter" : "1"}</span></button></div>`;
+    return html + cloud + `<div><h3>Other good bans</h3><div class="ladder">${top.filter(h => h !== x.h).slice(0, 5).map((h, k) => rung({ h, v: SIM.V[h] }, k + 2, "us", mx, v => pp(v))).join("")}</div></div>`;
   }
 
   // ================================================================ update loop
-  const busy = on => { $("busy").classList.toggle("on", on); if (!on) $("busyT").textContent = "computing"; };
-  function refresh() { renderDock(); setTowers(false); renderCall(); drawCloud(); if (RES) renderFly(); }
-  let pending = 0, lastTier = null, firstDraw = true;
+  const busy = on => { document.body.classList.toggle("computing", on); if (!on) $("busyT").textContent = ""; };
+  function refresh() { renderSteps(); paintBoard(); renderCall(); drawCloud(); if (RES) renderFly(); }
+  let pending = 0, lastTier = null;
   function update(recompute = true) {
     writeHash(); syncControls(); renderPipe();
     if (!recompute && RES) { refresh(); return; }
     busy(true); const my = ++pending;
     setTimeout(() => {
       if (my !== pending) return;
-      if (lastTier !== st.tier) { layout(); if (!LAND.cells[0].g) { buildPlates(); buildPrisms(); } fit(); lastTier = st.tier; }
+      if (lastTier !== st.tier) { buildBoard(); lastTier = st.tier; }
       const s = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], cnt: turnCount() };
       RES = E.values(s); THEIRS = !ourTurn() && nextBan() < 6 ? E.theirNextBan(s, RES) : null; SIM = SIMP = null; SRUN = null;
       FC = nextBan() < 6 ? forecastChain(s) : null;
       if (st.model === "sim" && ourTurn() && st.active.kind === "ban") { $("busyT").textContent = "simulating 0%"; startSim(Object.assign({}, s, { hov6: st.team.slice(), cnt: 1, pair: s.cnt === 2 })); }
       else { if (RUN) RUN.finished = true; busy(false); }
-      renderDock(); setTowers(firstDraw); firstDraw = false; renderCall(); renderFly(); if (RUN && !RUN.finished) progress();
+      refresh(); if (RUN && !RUN.finished) progress();
     }, 15);
   }
-  // the masthead's one entrance: the two words slide up while the towers rise
+  // the masthead's one entrance
   if (!REDUCED) $("word").querySelectorAll("span").forEach((s, i) => s.animate([{ transform: "translateY(40%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 700, delay: 80 * i, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }));
   update();
 })();
