@@ -18,7 +18,7 @@
   <p class="lobby" data-lobby></p>
   <h1 id="h1"></h1>
   <p class="dek" id="dek"></p>
-  <div class="fig"><svg id="tree"></svg><p class="note">Your three best first bans, then the other team's likeliest replies from the ban model (the width of each branch is its chance, given the bans before it), then the best pair left for your bans 4 and 5, scored by the ban value model. Only the likeliest branches are drawn. Hover a pair to follow its path.</p></div>
+  <div class="fig"><svg id="tree"></svg><p class="note">Your three best first bans, then the other team's likeliest replies from the ban model (the width of each branch is its chance, given the bans before it), then the best pair left for your bans 4 and 5, scored by the ban value model. Only the likeliest branches are drawn. The likeliest path after each first ban is drawn solid. Hover a pair to follow its path.</p></div>
 </main>
 <script src="ex.js"></script>
 <script>
@@ -27,7 +27,7 @@
   const a = T[0], b = a.next[0];
   document.getElementById("h1").innerHTML = `Your first ban decides what they take next, and what is left for your <span class="us">bans 4 and 5</span>`;
   document.getElementById("dek").innerHTML = `Ban ${esc(short(a.h))} and their likeliest reply is ${esc(short(b.h))} (${pct(b.p)}), then ${esc(short(b.next[0].h))} (${pct(b.next[0].p)}). That leaves you ${esc(short(b.next[0].pair.a))} and ${esc(short(b.next[0].pair.b))} for your two bans, worth ${pp(b.next[0].pair.V)} points together.`;
-  const cols = [70, 330, 590, 850], rowH = 38, top = 56, Wd = 1180, leaves = [];
+  const cols = [70, 330, 590, 850], rowH = 36, top = 56, Wd = 1180, leaves = [];
   T.forEach((o, i) => o.next.forEach((r2, j) => r2.next.forEach((r3, k) => leaves.push([i, j, k]))));
   const Hh = top + leaves.length * rowH + 10, yLeaf = (i, j, k) => top + leaves.findIndex(l => l[0] === i && l[1] === j && l[2] === k) * rowH + rowH / 2;
   const y3 = (i, j, k) => yLeaf(i, j, k), y2 = (i, j) => T[i].next[j].next.map((_, k) => y3(i, j, k)).reduce((s, v, _, A) => s + v / A.length, 0), y1 = i => T[i].next.map((_, j) => y2(i, j)).reduce((s, v, _, A) => s + v / A.length, 0);
@@ -41,10 +41,11 @@
       const yb = y2(i, j);
       r2.next.forEach((r3, k) => {
         const yc = y3(i, j, k), id = `${i}-${j}-${k}`, pth = r2.p * r3.p;
-        links += `<g class="br" data-p="${i}-${j}-${k}">${link(cols[0] + 26, ya, cols[1] - 26, yb, W(r2.p), "var(--them)", .28)}${link(cols[1] + 26, yb, cols[2] - 26, yc, W(r3.p), "var(--them)", .5)}${link(cols[2] + 26, yc, cols[3] - 26, yc, 2, "var(--us)", .8)}</g>`;
-        nodes += node(cols[2], yc, r3.h, 30, "var(--them)") + `<text class="t12 g" x="${cols[2] + 24}" y="${yc - 12}">${pct(r3.p)}</text>`;
+        const main = j === 0 && k === 0;                        // the likeliest path after this first ban
+        links += `<g class="br" data-p="${i}-${j}-${k}">${link(cols[0] + 26, ya, cols[1] - 26, yb, W(r2.p), "var(--them)", main ? .75 : .22)}${link(cols[1] + 26, yb, cols[2] - 26, yc, W(r3.p), "var(--them)", main ? .75 : .32)}${link(cols[2] + 110, yc, cols[3] - 26, yc, main ? 3 : 1.2, "var(--us)", main ? 1 : .45)}</g>`;
+        nodes += node(cols[2], yc, r3.h, 28, "var(--them)") + `<text class="t12 tx" x="${cols[2] + 22}" y="${yc - 4}" font-weight="600">${esc(short(r3.h))}</text><text class="t11 g" x="${cols[2] + 22}" y="${yc + 9}">${pct(r3.p)}</text>`;
         if (r3.pair) nodes += `<g class="br leaf" data-p="${i}-${j}-${k}">${node(cols[3], yc, r3.pair.a, 30, "var(--us)")}${node(cols[3] + 34, yc, r3.pair.b, 30, "var(--us)")}
-          <text class="t13 ink" x="${cols[3] + 60}" y="${yc - 1}" font-weight="700">${esc(short(r3.pair.a))} + ${esc(short(r3.pair.b))}</text>
+          <text class="t13 ink" x="${cols[3] + 60}" y="${yc - 1}" font-weight="${main ? 800 : 600}">${esc(short(r3.pair.a))} + ${esc(short(r3.pair.b))}</text>
           <text class="t12 g" x="${cols[3] + 60}" y="${yc + 13}">${pp(r3.pair.V)} points, path chance ${pct(pth, 1)}</text></g>`;
       });
       nodes += node(cols[1], yb, r2.h, 36, "var(--them)") + `<text class="t12 g" x="${cols[1] + 26}" y="${yb - 14}">${pct(r2.p)}</text><text class="t12 tx" x="${cols[1] + 26}" y="${yb + 22}" font-weight="600">${esc(short(r2.h))}</text>`;

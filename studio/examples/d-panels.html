@@ -13,7 +13,8 @@
   @keyframes pin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   .pn .n { width: 22px; height: 22px; display: grid; place-items: center; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 12px; }
   .pn:last-child .n { background: var(--paper); color: var(--ink); }
-  .pn svg { width: 100%; height: auto; display: block; }
+  .pn svg { width: 100%; height: auto; display: block; max-height: 200px; }
+  .eq { border: 1.5px solid var(--ink); border-top: 0; padding: 12px 16px; margin-top: 0 !important; }
   .pn p { margin: 0; font-size: 14px; line-height: 1.35; } .pn p b { font-weight: 800; }
   .pn .op { font-stretch: 110%; font-weight: 800; font-size: 34px; line-height: 1; color: var(--ink); letter-spacing: -.02em; }
   .pn:last-child .op { color: var(--paper); font-size: 52px; }
@@ -42,8 +43,14 @@
   chips.innerHTML = cands.map(h => `<button class="chip" data-h="${h}"><img src="${img(h)}" alt="">${esc(short(h))}</button>`).join("");
   chips.querySelectorAll(".chip").forEach(b => b.onclick = () => { cur = +b.dataset.h; draw(); });
   const grid = (n, col, hatch = 0, hcol) => { let s = ""; for (let i = 0; i < 100; i++) { const x = (i % 10) * 20 + 10, y = Math.floor(i / 10) * 20 + 10, on = i < n, ht = !on && i < n + hatch;
-    s += `<circle cx="${x}" cy="${y}" r="${on || ht ? 7.5 : 3}" fill="${on ? col : ht ? hcol : "var(--hair)"}"${ht ? ' opacity=".55"' : ""}/>`; } return `<svg viewBox="0 0 200 200">${s}</svg>`; };
-  const bar = (lost, col) => { const w = 180, lx = w * .5, cut = Math.min(w * .45, lost * w * 4);
+    s += ht ? `<circle cx="${x}" cy="${y}" r="6.5" fill="none" stroke="${hcol}" stroke-width="1.5" stroke-dasharray="2.5 2"/>` : `<circle cx="${x}" cy="${y}" r="${on ? 7.5 : 3}" fill="${on ? col : "var(--hair)"}"/>`; } return `<svg viewBox="0 0 200 200">${s}</svg>`; };
+  const bar = (lost, col) => {                              // their win chance with the hero and without it
+    const w = 170, s50 = w * .9, sL = s50 * (.5 - lost) / .5;
+    return `<svg viewBox="0 0 200 120"><text x="10" y="16" class="t11 g">with it</text><rect x="10" y="22" width="${s50}" height="22" fill="${col}"/><text x="${14 + s50}" y="38" class="t12 ink" font-weight="700">50%</text>
+      <text x="10" y="68" class="t11 g">without it</text><rect x="10" y="74" width="${sL}" height="22" fill="${col}" opacity=".55"/><rect x="${10 + sL}" y="74" width="${s50 - sL}" height="22" fill="none" stroke="${col}" stroke-dasharray="3 2"/>
+      <text x="${14 + s50}" y="90" class="t12 ink" font-weight="700">${(50 - 100 * lost).toFixed(1)}%</text></svg>`;
+  };
+  const barOld = (lost, col) => { const w = 180, lx = w * .5, cut = Math.min(w * .45, lost * w * 4);
     return `<svg viewBox="0 0 200 110"><rect x="10" y="30" width="${w}" height="34" fill="var(--hair)"/><rect x="10" y="30" width="${lx - cut}" height="34" fill="${col}"/><rect x="${10 + lx - cut}" y="30" width="${cut}" height="34" fill="${col}" opacity=".25"/>
       <line x1="${10 + lx}" x2="${10 + lx}" y1="22" y2="72" stroke="var(--ink)" stroke-dasharray="2 2"/><text x="${10 + lx}" y="16" text-anchor="middle" class="t11 g">50%</text>
       <text x="${10 + lx - cut / 2}" y="92" text-anchor="middle" class="t12 ink" font-weight="700">−${(100 * lost).toFixed(1)}</text></svg>`; };
@@ -54,9 +61,9 @@
     const P = [
       [`<p>They open ${nm} in <b>${Math.round(100 * Pt)} of 100</b> games like this one.</p>`, grid(Math.round(100 * Pt), "var(--them)"), `the other team's lineups`],
       [`<p>When they have to go without it, they lose <b>${(100 * R).toFixed(1)} points</b> of win chance.</p>`, bar(R, "var(--them)"), `their players move to their next heroes`],
-      [`<p>In <b>${Math.round(100 * (1 - l))} of 100</b> ban phases someone bans it later anyway, so only the rest counts.</p>`, grid(Math.round(100 * l), "var(--ink)", Math.round(100 * (1 - l)), "var(--graphite)"), `grey: banned anyway`],
+      [`<p>In <b>${Math.round(100 * (1 - l))} of 100</b> ban phases someone bans it later anyway, so only the rest counts.</p>`, grid(Math.round(100 * l), "var(--us-soft)", Math.round(100 * (1 - l)), "var(--graphite)"), `dashed: banned anyway`],
       [`<p>Your team opens it in <b>${Math.round(100 * Pu)} of 100</b>, and loses ${(100 * Ru).toFixed(1)} points without it.</p>`, grid(Math.round(100 * Pu), "var(--us)"), `your team's lineups`],
-      [`<p>What the ban is worth to your team.</p>`, `<div class="op">${pp(V)}</div>`, `points of win chance, against a typical ban`]];
+      [`<p>What the ban is worth to your team.</p>`, `<div class="op">${pp(V)}</div>`, `points of win chance, against a typical ban. ${(100 * dA).toFixed(2)} taken from them, ${(100 * dB).toFixed(2)} from you, ${rest >= 0 ? "+" : "−"}${(100 * Math.abs(rest)).toFixed(2)} from the rest of the ban phase.`]];
     document.getElementById("strip").innerHTML = P.map(([t, fig, sub], k) => `<div class="pn" style="animation-delay:${k * 110}ms"><span class="n">${k + 1}</span>${t}${fig}<span class="sub">${sub}</span></div>`).join("");
     document.getElementById("eq").innerHTML = `<b class="t">${pct(Pt)} × ${(100 * R).toFixed(1)}</b> × ${l.toFixed(2)} − <b class="u">${pct(Pu)} × ${(100 * Ru).toFixed(1)}</b> × ${l.toFixed(2)} ${rest >= 0 ? "+" : "−"} ${(100 * Math.abs(rest)).toFixed(2)} for the rest of the ban phase = <b>${pp(V)}</b>`;
   }

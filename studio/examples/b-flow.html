@@ -7,11 +7,12 @@
 <link rel="stylesheet" href="ex.css">
 <title>Where their players go</title>
 <style>
-  .rib { mix-blend-mode: multiply; transition: opacity .2s; }
-  @media (prefers-color-scheme: dark) { .rib { mix-blend-mode: screen; } }
-  .rib:hover { opacity: 1 !important; }
-  .flow-in { animation: draw 1s cubic-bezier(.2, .8, .2, 1) both; }
-  @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  .rib { transition: opacity .2s; }
+  .rib:hover { opacity: .95 !important; }
+  .flow-in { animation: fadein .8s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes fadein { from { opacity: 0; } }
+  #flow.focus .rib { opacity: .06 !important; } #flow.focus .rib.hot { opacity: .9 !important; }
+  .ubar { display: block; height: 6px; background: var(--hair); margin-top: 3px; position: relative; } .ubar i { position: absolute; inset: 0 auto 0 0; background: var(--us); }
   .side2 { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; } @media (max-width: 900px) { .side2 { grid-template-columns: 1fr; } }
   .mini { font-size: 13px; } .mini li { margin: 6px 0; display: flex; align-items: center; gap: 8px; } .mini img { width: 24px; height: 24px; }
   .mini ul { list-style: none; padding: 0; margin: 8px 0 0; }
@@ -23,7 +24,7 @@
   <h1 id="h1"></h1>
   <p class="dek" id="dek"></p>
   <div class="side2">
-    <div class="fig"><svg id="flow"></svg><p class="note">Out of every 100 simulated drafts by the other team, heroes that get rarer are on the left, the banned hero first, and heroes that gain are on the right. Each draft keeps six heroes, so both sides add up to the same total. Ribbons split each left block in proportion to the gains, so they show the size of the shift, not which player moved where. From the re-draft simulator, 128 runs, against a typical ban.</p></div>
+    <div class="fig"><svg id="flow"></svg><p class="note">Out of every 100 simulated drafts by the other team, heroes that get rarer are on the left, the banned hero first, and heroes that gain are on the right. Each draft keeps six heroes, so both sides add up to the same total. Ribbons split each left block in proportion to the gains, so they show the size of the shift, not which player moved where. Hover a block to follow its ribbons. From the re-draft simulator, 128 runs, against a typical ban.</p></div>
     <div class="fig mini" id="ours"></div>
   </div>
 </main>
@@ -53,20 +54,29 @@
     const Ls = place(sources), Rs = place(targets), Hh = Math.max(Ls[Ls.length - 1].y + Ls[Ls.length - 1].hh, Rs[Rs.length - 1].y + Rs[Rs.length - 1].hh) + 24;
     const lab = (r, side) => r.x < 0 ? `<text class="t12 g" x="${side ? Rx + 24 : L - nodeW - 10}" y="${r.y + r.hh / 2 + 4}" text-anchor="${side ? "start" : "end"}">${side ? `${up.length - 7} other heroes` : `${downAll.length - 3} other heroes`}, ${side ? "+" : "−"}${pts(r.d)}</text>`
       : side ? `<image href="${img(r.x)}" x="${Rx + 22}" y="${r.y + r.hh / 2 - 14}" width="28" height="28"/><text class="t13 tx" x="${Rx + 58}" y="${r.y + r.hh / 2 - 1}" font-weight="700">${esc(short(r.x))}</text><text class="t12 g" x="${Rx + 58}" y="${r.y + r.hh / 2 + 13}">+${pts(r.d)} in 100</text>`
-      : `<image href="${img(r.x)}" x="${L - nodeW - 40}" y="${r.y + r.hh / 2 - (r.main ? 22 : 14)}" width="${r.main ? 44 : 28}" height="${r.main ? 44 : 28}"/><text class="t13 ${r.main ? "ink" : "tx"}" x="${L - nodeW - (r.main ? 56 : 46)}" y="${r.y + r.hh / 2 - 1}" text-anchor="end" font-weight="${r.main ? 800 : 600}">${r.main ? "Banned: " : ""}${esc(short(r.x))}</text><text class="t12 g" x="${L - nodeW - (r.main ? 56 : 46)}" y="${r.y + r.hh / 2 + 13}" text-anchor="end">−${pts(r.d)} in 100</text>`;
-    let g = "", k = 0;
+      : `<image href="${img(r.x)}" x="${L - nodeW - (r.main ? 54 : 38)}" y="${r.y + r.hh / 2 - (r.main ? 22 : 14)}" width="${r.main ? 44 : 28}" height="${r.main ? 44 : 28}"/><text class="t13 ${r.main ? "ink" : "tx"}" x="${L - nodeW - (r.main ? 62 : 46)}" y="${r.y + r.hh / 2 - 1}" text-anchor="end" font-weight="${r.main ? 800 : 600}">${r.main ? "Banned: " : ""}${esc(short(r.x))}</text><text class="t12 g" x="${L - nodeW - (r.main ? 56 : 46)}" y="${r.y + r.hh / 2 + 13}" text-anchor="end">−${pts(r.d)} in 100</text>`.replace(`x="${L - nodeW - (r.main ? 56 : 46)}"`, `x="${L - nodeW - (r.main ? 62 : 46)}"`);
+    let g = "", gm = "", k = 0;                                 // gm: the banned hero's ribbons, drawn last so they read first
     const oy = Rs.map(r => r.y);                                            // running offsets inside each right block
     Ls.forEach(sN => { let sy = sN.y;
       Rs.forEach((tN, j) => { const w = sN.d * tN.d / total * K; if (w < .3) return; const c = (L + Rx) / 2, ty = oy[j];
-        g += `<path class="rib flow-in" d="M${L} ${sy}C${c} ${sy} ${c} ${ty} ${Rx} ${ty}L${Rx} ${ty + w}C${c} ${ty + w} ${c} ${sy + w} ${L} ${sy + w}Z" fill="${sN.main ? "var(--them)" : "var(--graphite)"}" opacity="${sN.main ? .75 : .28}" style="animation-delay:${(k++) * 12}ms"><title>${sN.x < 0 ? "other heroes" : esc(N[sN.x])} → ${tN.x < 0 ? "other heroes" : esc(N[tN.x])}</title></path>`;
+        const rib = `<path class="rib flow-in" d="M${L} ${sy}C${c} ${sy} ${c} ${ty} ${Rx} ${ty}L${Rx} ${ty + w}C${c} ${ty + w} ${c} ${sy + w} ${L} ${sy + w}Z" fill="${sN.main ? "var(--them)" : "var(--graphite)"}" opacity="${sN.main ? .72 : .16}" data-s="${sN.x}" data-t="${tN.x}" style="animation-delay:${(k++) * 10}ms"><title>${sN.x < 0 ? "other heroes" : esc(N[sN.x])} → ${tN.x < 0 ? "other heroes" : esc(N[tN.x])}</title></path>`;
+        if (sN.main) gm += rib; else g += rib;
         sy += w; oy[j] += w; }); });
+    g += gm;
     Ls.forEach(r => g += `<rect x="${L - nodeW}" y="${r.y}" width="${nodeW}" height="${r.hh}" fill="${r.main ? "var(--them)" : "var(--ink)"}"/>` + lab(r, false));
     Rs.forEach(r => g += `<rect x="${Rx}" y="${r.y}" width="${nodeW}" height="${r.hh}" fill="var(--ink)"/>` + lab(r, true));
-    const sv = document.getElementById("flow"); sv.setAttribute("viewBox", `-60 0 ${Wd + 60} ${Hh}`); sv.innerHTML = g;
+    const sv = document.getElementById("flow"); sv.setAttribute("viewBox", `-60 0 ${Wd + 60} ${Hh}`);
+    sv.innerHTML = g;
+    // hover a hero to follow its flows
+    sv.querySelectorAll("rect").forEach((rc, i) => rc.style.cursor = "pointer");
+    const focus = (attr, x) => { sv.classList.add("focus"); sv.querySelectorAll(`.rib[data-${attr}="${x}"]`).forEach(e => e.classList.add("hot")); };
+    const unfocus = () => { sv.classList.remove("focus"); sv.querySelectorAll(".rib.hot").forEach(e => e.classList.remove("hot")); };
+    Ls.forEach((r, i) => { const el = sv.querySelectorAll("rect")[i]; if (el) { el.onmouseenter = () => focus("s", r.x); el.onmouseleave = unfocus; } });
+    Rs.forEach((r, i) => { const el = sv.querySelectorAll("rect")[Ls.length + i]; if (el) { el.onmouseenter = () => focus("t", r.x); el.onmouseleave = unfocus; } });
     // your team's drafts
     const u = N.map((n, x) => ({ x, d: S.cu[h][x] - S.baseCu[x] })).filter(r => r.x !== h), uUp = u.filter(r => r.d > .003).sort((a, b) => b.d - a.d).slice(0, 4);
     document.getElementById("ours").innerHTML = `<b style="font-stretch:105%;font-size:15px;color:var(--ink)">Your team</b><p class="note" style="margin-top:6px">${S.baseCu[h] > .01 ? `${esc(short(h))} was in ${pts(S.baseCu[h])} of every 100 of your simulated drafts, so the ban moves some of your players too.` : `Your team rarely drafts ${esc(short(h))}, so your drafts barely move.`}</p>
-      <ul>${uUp.map(r => `<li><img src="${img(r.x)}" alt=""><span>${esc(short(r.x))}</span><span style="margin-left:auto;color:var(--us);font-weight:700">+${pts(r.d)}</span></li>`).join("")}</ul>`;
+      <ul>${uUp.map(r => `<li><img src="${img(r.x)}" alt=""><span style="flex:1"><span style="display:flex;justify-content:space-between"><span>${esc(short(r.x))}</span><b style="color:var(--us)">+${pts(r.d)}</b></span><span class="ubar"><i style="width:${(100 * r.d / uUp[0].d).toFixed(0)}%"></i></span></span></li>`).join("")}</ul>`;
   }
   draw();
 })();
