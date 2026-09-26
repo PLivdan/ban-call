@@ -178,6 +178,7 @@
 
   /* ---------------------------------------------------------------- below: why, who opens what, how it is made */
   .band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1.5px solid var(--ink); }
+  .band.ours { grid-template-columns: repeat(2, minmax(0, 1fr)); } .band.ours > section:first-child { display: none; } .band.ours > section:nth-child(2) { border-left: 0; }
   .band > section { padding: 22px 28px 26px; min-width: 0; }
   .band > section + section { border-left: 1.5px solid var(--ink); }
   .anat svg { display: block; width: 100%; height: auto; overflow: visible; max-width: 480px; }
@@ -202,6 +203,56 @@
   .facts span { font-size: 12px; color: var(--graphite); font-stretch: 80%; }
   footer { padding: 16px 28px 40px; font-size: 12px; color: var(--graphite); font-stretch: 80%; display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; }
 
+
+  /* ---------------------------------------------------------------- chapters: four views of the answer */
+  .chapters { border-bottom: 1.5px solid var(--ink); }
+  .ch { scroll-margin-top: 110px; display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 0; border-top: 1.5px solid var(--ink); }
+  .ch:first-child { border-top: 0; }
+  .chL { padding: 26px 28px 28px; border-right: 1.5px solid var(--ink); display: flex; flex-direction: column; gap: 10px; }
+  .chL .k { font-size: 11px; font-weight: 800; font-stretch: 100%; color: var(--graphite); }
+  .chL h2 { margin: 0; font-stretch: 115%; font-weight: 900; font-size: 26px; line-height: 1.02; letter-spacing: -.025em; color: var(--ink); }
+  .chL h2 .us { color: var(--us); } .chL h2 .them { color: var(--them); }
+  .chL p { margin: 0; font-size: 13.5px; line-height: 1.45; font-stretch: 86%; color: var(--text); }
+  .chL p.n2 { font-size: 12px; color: var(--graphite); font-stretch: 80%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--hair); background: none; padding: 2px 9px 2px 2px; cursor: pointer; font: inherit; font-weight: 700; font-stretch: 82%; font-size: 12px; color: var(--text); }
+  .chip img { width: 22px; height: 22px; display: block; }
+  .chip:hover { border-color: var(--ink); } .chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .chF { padding: 26px 28px 28px; min-width: 0; }
+  .chF svg { display: block; width: 100%; height: auto; overflow: visible; } .chF svg.fixed { width: auto; max-width: 100%; }
+  .chF svg text { font-family: inherit; }
+  .t11 { font-size: 11px; } .t12 { font-size: 12px; } .t13 { font-size: 13px; }
+  .g { fill: var(--graphite); } .ink { fill: var(--ink); } .tx { fill: var(--text); }
+  .wait { font-size: 13px; color: var(--graphite); font-stretch: 80%; display: flex; align-items: center; gap: 10px; min-height: 60px; }
+  .wait i { width: 40px; height: 2px; background: var(--hair); position: relative; overflow: hidden; }
+  .wait i::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--ink); animation: slide 1s linear infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+  .fadein { animation: fadein .7s cubic-bezier(.2, .8, .2, 1) both; } @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+  /* D: the value in panels */
+  .strip { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); border: 1.5px solid var(--ink); overflow-x: auto; scroll-snap-type: x mandatory; }
+  .pn { border-right: 1.5px solid var(--ink); padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 10px; scroll-snap-align: start; min-width: 150px; animation: fadein .5s cubic-bezier(.2, .8, .2, 1) both; }
+  .pn:last-child { border-right: 0; background: var(--ink); color: var(--paper); }
+  .pn .n { width: 20px; height: 20px; display: grid; place-items: center; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 11px; }
+  .pn:last-child .n { background: var(--paper); color: var(--ink); }
+  .pn p { margin: 0; font-size: 13px; line-height: 1.35; font-stretch: 86%; } .pn p b { font-weight: 800; }
+  .pn .op { font-stretch: 110%; font-weight: 900; font-size: 44px; line-height: 1; letter-spacing: -.02em; }
+  .pn .sub { font-size: 11.5px; color: var(--graphite); font-stretch: 80%; } .pn:last-child .sub { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+  .pn svg { max-height: 170px; }
+  /* A: how sure */
+  .bstrip { display: flex; height: 58px; border: 1.5px solid var(--ink); overflow: hidden; margin-bottom: 6px; }
+  .seg { position: relative; min-width: 0; display: flex; align-items: center; gap: 8px; padding-left: 6px; border-right: 1.5px solid var(--paper); background: var(--us); color: #fff; overflow: hidden; transform-origin: left; animation: growx .9s cubic-bezier(.2, .8, .2, 1) both; }
+  .seg:nth-child(n+2) { background: color-mix(in srgb, var(--us) 70%, var(--paper)); } .seg:nth-child(n+4) { background: color-mix(in srgb, var(--us) 42%, var(--paper)); color: var(--ink); } .seg:nth-child(n+7) { background: color-mix(in srgb, var(--us) 20%, var(--paper)); }
+  .seg img { width: 42px; height: 42px; flex: none; } .seg b { font-stretch: 105%; font-weight: 800; font-size: 18px; white-space: nowrap; } .seg span { font-size: 11.5px; font-stretch: 78%; white-space: nowrap; }
+  @keyframes growx { from { transform: scaleX(0); } }
+  .lab2 { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--graphite); font-stretch: 78%; margin: 0 0 8px; }
+  .ridge { animation: risey .8s cubic-bezier(.2, .8, .2, 1) both; } @keyframes risey { from { transform: scaleY(0); } }
+  .runsim { margin-top: 6px; }
+  /* B and C */
+  .rib { transition: opacity .2s; } .flowsvg.focus .rib { opacity: .06 !important; } .flowsvg.focus .rib.hot { opacity: .9 !important; }
+  .two { display: grid; grid-template-columns: 1.4fr 1fr; gap: 34px; } .two h4 { margin: 0 0 6px; font-size: 12px; font-weight: 800; font-stretch: 100%; }
+  .lk { fill: none; } .treesvg .br { transition: opacity .2s; } .treesvg.focus .br { opacity: .12; } .treesvg.focus .br.hot { opacity: 1; }
+  @media (max-width: 900px) { .ch { grid-template-columns: 1fr; } .chL { border-right: 0; border-bottom: 1.5px solid var(--hair); padding-bottom: 16px; } .two { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) { .chL, .chF { padding: 18px 16px; } .chL h2 { font-size: 22px; } }
   @media (max-width: 1180px) {
     .main { grid-template-columns: 1fr; } .call { border-right: 0; border-bottom: 1.5px solid var(--ink); }
     .band { grid-template-columns: 1fr; } .band > section + section { border-left: 0; border-top: 1.5px solid var(--ink); }
@@ -246,7 +297,14 @@
   </div>
 </div>
 
-<div class="band">
+<section class="chapters" id="chapters" hidden>
+  <article class="ch" id="chD"><div class="chL"><span class="k">Why</span><h2></h2><p></p><div class="chips"></div></div><div class="chF"></div></article>
+  <article class="ch" id="chA"><div class="chL"><span class="k">How sure</span><h2></h2><p></p></div><div class="chF"></div></article>
+  <article class="ch" id="chB"><div class="chL"><span class="k">What it does</span><h2></h2><p></p><div class="chips"></div></div><div class="chF"></div></article>
+  <article class="ch" id="chC"><div class="chL"><span class="k">What comes next</span><h2></h2><p></p></div><div class="chF"></div></article>
+</section>
+
+<div class="band" id="bandMain">
   <section><h3 id="whyH">Why</h3><div id="why"></div></section>
   <section><h3>Who opens what</h3><div class="fly" id="fly"></div></section>
   <section><h3>How the answer is made</h3><div class="pipe" id="pipe"></div><div class="facts" id="facts"></div></section>
@@ -256,4 +314,4 @@
 <div class="tip" id="tip"></div>
 
 <script src="../engine.js?v=de3cb77edd"></script>
-<script src="studio.js?v=4153e00791"></script>
+<script src="studio.js?v=4325954843"></script>

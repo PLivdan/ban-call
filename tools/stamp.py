@@ -16,6 +16,7 @@ print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)), "| worker
 st_js = root / "studio" / "studio.js"
 if st_js.exists():
     s2 = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', st_js.read_text()); st_js.write_text(s2)
+    s2 = re.sub(r'new Worker\("tree-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree-worker.js?v={h("engine.js", "studio/tree-worker.js")}")', st_js.read_text()); st_js.write_text(s2)
     sp = root / "studio" / "index.html"; t2 = sp.read_text()
     t2 = re.sub(r'<script src="\.\./engine\.js(\?v=[^"]*)?"></script>', f'<script src="../engine.js?v={h("engine.js")}"></script>', t2)
     t2 = re.sub(r'<script src="studio\.js(\?v=[^"]*)?"></script>', f'<script src="studio.js?v={h("studio/studio.js")}"></script>', t2)

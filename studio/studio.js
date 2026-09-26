@@ -530,9 +530,185 @@
     return html + cloud + `<div><h3>Other good bans</h3><div class="ladder">${top.filter(h => h !== x.h).slice(0, 5).map((h, k) => rung({ h, v: SIM.V[h] }, k + 2, "us", mx, v => pp(v))).join("")}</div></div>`;
   }
 
+  // ================================================================ chapters: four views of the answer, under the board
+  // D: the value built step by step (ban value model). A: how sure (simulator runs; a prompt in value mode).
+  // B: where players go when the hero is gone (the pick model's next choices). C: the rest of the ban phase as a tree.
+  const CHS = { d: null, b: null }, CHKEY = { v: "" };
+  const chEl = id => ({ root: $(id), h2: $(id).querySelector("h2"), p: $(id).querySelector("p"), chips: $(id).querySelector(".chips"), f: $(id).querySelector(".chF") });
+  const fw = (el, min = 560) => Math.max(min, el.clientWidth - 56);      // figures drawn at the container's own width, so text stays at its set size
+  const lobbyKey = () => JSON.stringify([st.tier, st.map, st.first, st.team, st.bans]);
+  function chipRow(el, hs, cur, set) {
+    el.innerHTML = hs.map(h => `<button class="chip${h === cur ? " on" : ""}" data-h="${h}"><img src="${img(h)}" alt="">${esc(short(h))}</button>`).join("");
+    el.querySelectorAll(".chip").forEach(b => b.onclick = () => { set(+b.dataset.h); renderChapters(); });
+  }
+  function renderChapters() {
+    const box = $("chapters"), show = RES && st.active.kind === "ban" && ourTurn();
+    box.hidden = !show; $("bandMain").classList.toggle("ours", !!show);
+    if (!show) return;
+    if (CHKEY.v !== lobbyKey()) { CHKEY.v = lobbyKey(); CHS.d = CHS.b = null; }
+    const sug = suggested(turnCount()).filter(Boolean), top5 = Array.from(RES.V.keys()).filter(h => !isNaN(RES.V[h])).sort((a, b) => RES.V[b] - RES.V[a]).slice(0, 5);
+    const lead = sug.length ? sug[0].h : top5[0];            // while the simulator runs there is no suggestion yet: the value model's leader
+    if (!top5.includes(lead)) top5.unshift(lead), top5.pop();
+    chapD(CHS.d ?? lead, top5); chapA(); chapB(CHS.b ?? lead, top5); chapC();
+  }
+
+  // ---- D: the value in panels
+  function dots(n, col, hollow = 0, hcol) { let s = ""; for (let i = 0; i < 100; i++) { const x = (i % 10) * 20 + 10, y = Math.floor(i / 10) * 20 + 10, on = i < n, ho = !on && i < n + hollow;
+    s += ho ? `<circle cx="${x}" cy="${y}" r="6.5" fill="none" stroke="${hcol}" stroke-width="1.5" stroke-dasharray="2.5 2"/>` : `<circle cx="${x}" cy="${y}" r="${on ? 7.5 : 3}" fill="${on ? col : "var(--hair)"}"/>`; } return `<svg viewBox="0 0 200 200">${s}</svg>`; }
+  function withWithout(lost, col) { const w = 150, a = w * .92, b = a * (.5 - lost) / .5;
+    return `<svg viewBox="0 0 200 110"><text x="4" y="14" class="t11 g">with it</text><rect x="4" y="20" width="${a}" height="22" fill="${col}"/><text x="${10 + a}" y="36" class="t12 ink" font-weight="700">50%</text>
+      <text x="4" y="66" class="t11 g">without it</text><rect x="4" y="72" width="${b}" height="22" fill="${col}" opacity=".5"/><rect x="${4 + b}" y="72" width="${a - b}" height="22" fill="none" stroke="${col}" stroke-dasharray="3 2"/><text x="${10 + a}" y="88" class="t12 ink" font-weight="700">${(50 - 100 * lost).toFixed(1)}%</text></svg>`; }
+  function chapD(h, hs) {
+    const C = chEl("chD"), R = RES, l = 1 - R.PL[h], Pt = R.Pt[h], Pu = R.Pu[h], Rc = R.R[h], Ru = R.Rus[h], V = R.V[h], dA = l * Pt * Rc, dB = l * Pu * Ru, rest = V - dA + dB, nm = esc(short(h));
+    C.h2.innerHTML = `Why banning <span class="us">${esc(NAMES[h])}</span> is worth ${pp(V)} points`;
+    C.p.innerHTML = `The ban value model's answer, built in the order it is computed. Every number is for this lobby.${st.model === "sim" ? " The simulator's figure above re-drafts both teams, so it can differ." : ""}`;
+    chipRow(C.chips, hs, h, x => CHS.d = x);
+    const P = [
+      [`They open ${nm} in <b>${Math.round(100 * Pt)} of 100</b> games like this one.`, dots(Math.round(100 * Pt), "var(--them)"), "the other team's lineups"],
+      [Rc >= 0 ? `Without it they lose <b>${(100 * Rc).toFixed(1)} points</b> of win chance.` : `Without it they do <b>${(100 * -Rc).toFixed(1)} points better</b>: their next heroes suit them more.`, withWithout(Rc, "var(--them)"), "their players move to their next heroes"],
+      [`In <b>${Math.round(100 * (1 - l))} of 100</b> ban phases it is banned later anyway, so only the rest counts.`, dots(Math.round(100 * l), "var(--us-soft)", Math.round(100 * (1 - l)), "var(--graphite)"), "dashed: banned anyway"],
+      [`Your team opens it in <b>${Math.round(100 * Pu)} of 100</b> and ${Ru >= 0 ? `loses ${(100 * Ru).toFixed(1)} points` : `does ${(100 * -Ru).toFixed(1)} points better`} without it.`, dots(Math.round(100 * Pu), "var(--us)"), "your team's lineups"],
+      [`What the ban is worth to your team.`, `<div class="op">${pp(V)}</div>`, `${(100 * Math.abs(dA)).toFixed(2)} ${dA >= 0 ? "taken from them" : "given to them"}, ${(100 * Math.abs(dB)).toFixed(2)} ${dB >= 0 ? "lost by you" : "gained by you"}, ${rest >= 0 ? "+" : "−"}${(100 * Math.abs(rest)).toFixed(2)} from the rest of the ban phase. Points of win chance against a typical ban.`]];
+    C.f.innerHTML = `<div class="strip">${P.map(([t, fig, sub], k) => `<div class="pn" style="animation-delay:${k * 90}ms"><span class="n">${k + 1}</span><p>${t}</p>${fig}<span class="sub">${sub}</span></div>`).join("")}</div>`;
+  }
+
+  // ---- A: how sure
+  function chapA() {
+    const C = chEl("chA");
+    if (st.model !== "sim") {
+      const top = topBans(8), R = RES, lo = Math.min(0, ...top.map(h => R.V[h] - 1.96 * R.se[h])), hi = Math.max(...top.map(h => R.V[h] + 1.96 * R.se[h]), 1e-4), Wd = Math.min(900, fw(C.f)), L = 150, X = v => L + (v - lo) / (hi - lo) * (Wd - L - 70), rowH = 34;
+      C.h2.innerHTML = `How sure is the model?`;
+      C.p.innerHTML = `The ban value model gives each ban an average and a 95% interval. Overlapping intervals are close calls. The simulator plays the ban phase out many times and shows how often each ban actually comes out best.`;
+      let g = `<line x1="${X(0)}" x2="${X(0)}" y1="0" y2="${top.length * rowH}" stroke="var(--ink)" stroke-dasharray="2 3"/>`;
+      top.forEach((h, k) => { const y = k * rowH + 17;
+        g += `<image href="${img(h)}" x="${L - 34}" y="${y - 13}" width="26" height="26"/><text class="t13 tx" x="${L - 42}" y="${y + 4}" text-anchor="end" font-weight="600">${esc(short(h))}</text>
+          <rect x="${X(R.V[h] - 1.96 * R.se[h])}" y="${y - 5}" width="${X(R.V[h] + 1.96 * R.se[h]) - X(R.V[h] - 1.96 * R.se[h])}" height="10" fill="var(--us-soft)"/><line x1="${X(R.V[h] - 1.96 * R.se[h])}" x2="${X(R.V[h] + 1.96 * R.se[h])}" y1="${y}" y2="${y}" stroke="var(--ink)" stroke-width="1.5"/>
+          <circle cx="${X(R.V[h])}" cy="${y}" r="5.5" fill="var(--us)" stroke="var(--paper)" stroke-width="2"/><text class="t13 ink" x="${Wd}" y="${y + 4}" text-anchor="end" font-weight="700">${pp(R.V[h])}</text>`; });
+      C.f.innerHTML = `<div class="lab2"><span>Value of each ban with its 95% interval, ban value model</span><span>points of win chance</span></div><svg viewBox="0 0 ${Wd} ${top.length * rowH + 4}" class="fadein">${g}</svg>
+        <div class="go runsim"><button class="btn us" id="runSim">Run the simulator, ${st.runs} runs</button><span class="note" style="margin:0">re-drafts both teams for every leading ban, about ${st.runs >= 128 ? "10" : "5"} seconds</span></div>`;
+      $("runSim").onclick = () => { st.model = "sim"; update(); };
+      return;
+    }
+    const R = SRUN;
+    if (!SIM || SIM.prelim || !R) { C.h2.innerHTML = "How sure is the model?"; C.p.innerHTML = "The simulator is playing the ban phase out for every leading ban."; C.f.innerHTML = `<div class="wait"><i></i>simulating</div>`; return; }
+    const lead = R.cands.filter(h => R.vals[h] && Object.keys(R.vals[h]).length >= R.NR), js = Object.keys(R.base).filter(j => lead.every(h => R.vals[h][j] !== undefined));
+    if (lead.length < 2 || js.length < 8) { C.f.innerHTML = ""; return; }
+    const J = js.length, rows = lead.map(h => { const d = js.map(j => R.vals[h][j] - R.base[j]); return { h, d, m: d.reduce((a, b) => a + b, 0) / J }; });
+    const wins = new Map(lead.map(h => [h, 0])); for (const j of js) { let b = -1, bv = -Infinity; for (const h of lead) if (R.vals[h][j] > bv) { bv = R.vals[h][j]; b = h; } wins.set(b, wins.get(b) + 1); }
+    rows.forEach(r => r.p = wins.get(r.h) / J);
+    const byP = rows.slice().sort((a, b) => b.p - a.p), byM = rows.slice().sort((a, b) => b.m - a.m), L0 = byP[0];
+    const pick = byM[0], pk = esc(short(pick.h));             // the recommendation is the best average; say how often it is also best run by run
+    C.h2.innerHTML = `<span class="us">${pk}</span> comes out best in ${pct(pick.p)} of simulated ban phases`;
+    C.p.innerHTML = (L0.h !== pick.h
+      ? `${esc(short(L0.h))} is best more often (${pct(L0.p)}), but its average is lower (${pp(L0.m)} against ${pp(pick.m)}) because its value swings more from run to run. The recommendation follows the average. `
+      : pick.p < .5 ? `No ban wins most of the time. ` : `It wins most simulated ban phases. `) + `The averages are measured far more precisely than any single run: see the black bars.`;
+    const strip = `<div class="lab2"><span>Share of the ${J} simulated ban phases in which each ban comes out best</span></div><div class="bstrip">${byP.filter(r => r.p > 0).map((r, k) => `<div class="seg" style="flex:${r.p} 1 0;animation-delay:${k * 55}ms" title="${esc(NAMES[r.h])}: best in ${pct(r.p)}">${r.p >= .06 ? `<img src="${img(r.h)}" alt="">` : ""}${r.p >= .1 ? `<div><b>${pct(r.p)}</b><br><span>${esc(short(r.h))}</span></div>` : r.p >= .06 ? `<b style="font-size:13px">${pct(r.p)}</b>` : ""}</div>`).join("")}</div>`;
+    const all = rows.flatMap(r => r.d).sort((a, b) => a - b), lo = all[Math.floor(.01 * (all.length - 1))], hi = all[Math.floor(.99 * (all.length - 1))], Wd = fw(C.f, 620), L = 140, Rr = 160, rowH = 38, amp = 44, top = 66;
+    const x = v => L + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo || 1) * (Wd - L - Rr);
+    const kde = d => { const n = d.length, m = d.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)) || 1e-4, bw = 1.06 * sd * Math.pow(n, -.2);
+      const pts = []; for (let i = 0; i <= 90; i++) { const v = lo + (hi - lo) * i / 90; let s = 0; for (const u of d) s += Math.exp(-.5 * ((v - u) / bw) ** 2); pts.push([v, s / (n * bw)]); } return pts; };
+    const dens = byM.map(r => kde(r.d)), dmax = Math.max(...dens.flat().map(p => p[1])), H = top + (byM.length - 1) * rowH + 40;
+    let g = `<defs><clipPath id="cpPos"><rect x="${x(0)}" y="0" width="${Wd}" height="3000"/></clipPath><clipPath id="cpNeg"><rect x="0" y="0" width="${x(0)}" height="3000"/></clipPath></defs>
+      <line x1="${x(0)}" x2="${x(0)}" y1="${top - 60}" y2="${H - 26}" stroke="var(--ink)" stroke-dasharray="2 3"/><text class="t11 g" x="${x(0) + 4}" y="${top - 50}">no effect</text>`, over = "";
+    byM.forEach((r, k) => {
+      const base = top + k * rowH, pts = dens[k].map(([v, p]) => `${x(v).toFixed(1)} ${(base - p / dmax * amp).toFixed(1)}`), line = "M" + pts.join("L"), area = line + `L${x(hi)} ${base}L${x(lo)} ${base}Z`;
+      const se = Math.sqrt(r.d.reduce((a, b) => a + (b - r.m) ** 2, 0) / (J * (J - 1)));
+      g += `<g class="ridge" style="transform-origin:0 ${base}px;animation-delay:${100 + k * 50}ms"><path d="${area}" fill="var(--paper)"/><path d="${area}" fill="var(--them)" opacity=".36" clip-path="url(#cpNeg)"/><path d="${area}" fill="var(--us)" opacity=".48" clip-path="url(#cpPos)"/><path d="${line}" fill="none" stroke="var(--ink)" stroke-width="1.2"/></g>
+        <image href="${img(r.h)}" x="${L - 34}" y="${base - 26}" width="26" height="26"/><text class="t13 tx" x="${L - 42}" y="${base - 8}" text-anchor="end" font-weight="600">${esc(short(r.h))}</text>
+        <text class="t13 ink" x="${Wd - Rr + 20}" y="${base - 8}" font-weight="700">${pp(r.m)}</text><rect x="${Wd - Rr + 72}" y="${base - 17}" width="80" height="7" fill="var(--hair)"/><rect x="${Wd - Rr + 72}" y="${base - 17}" width="${(80 * r.p / L0.p).toFixed(1)}" height="7" fill="var(--us)"/><text class="t11 g" x="${Wd - Rr + 72}" y="${base - 1}">best ${pct(r.p)}</text>`;
+      over += `<line x1="${x(r.m)}" x2="${x(r.m)}" y1="${base - 15}" y2="${base + 2}" stroke="var(--ink)" stroke-width="3"/><rect x="${x(r.m - 1.96 * se)}" y="${base - 1}" width="${Math.max(2, x(r.m + 1.96 * se) - x(r.m - 1.96 * se))}" height="5" fill="var(--ink)"/>`;
+    });
+    const step = niceStep(hi - lo, 4); for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-12; v += step) over += `<text class="t11 g" x="${x(v)}" y="${H - 8}" text-anchor="middle">${pp(v, dec(step))}</text>`;
+    C.f.innerHTML = strip + `<div class="lab2" style="margin-top:22px"><span>What each ban is worth, run by run. The tick is the average, the black bar its 95% interval.</span><span>average and chance it is best</span></div><svg viewBox="0 0 ${Wd} ${H}">${g}${over}</svg>`;
+  }
+
+  // ---- B: where their players go (the pick model's next choices)
+  function flowSvg(h, P, share, col, Wd) {           // one source (the hero), ribbons to the heroes its players move to
+    const alt = META.alt[h], tot = P, tg = alt.map((a, y) => ({ y, d: tot * a })).filter(r => r.y !== h && !st.bans.includes(r.y)).sort((a, b) => b.d - a.d);
+    const shown = tg.slice(0, share), rest = tg.slice(share).reduce((a, r) => a + r.d, 0), T = shown.concat(rest > .0005 ? [{ y: -1, d: rest, n: tg.length - share }] : []);
+    const sum = T.reduce((a, r) => a + r.d, 0), K = 300 / Math.max(sum, 1e-6), gap = 8, L = 120, Rx = Wd - 190, nodeW = 12, top = 6;
+    let y = top; const nodes = T.map(r => { const o = { ...r, y0: y, hh: Math.max(1.5, r.d * K) }; y += Math.max(o.hh, r.y < 0 ? 0 : 28) + gap; return o; });
+    const Hh = y + 4, srcH = sum * K, sy0 = top + (Hh - top - 4 - srcH) / 2;
+    let g = `<rect x="${L - nodeW}" y="${sy0}" width="${nodeW}" height="${srcH}" fill="${col}"/><image href="${img(h)}" x="${L - nodeW - 50}" y="${sy0 + srcH / 2 - 20}" width="40" height="40"/>
+      <text class="t12 g" x="${L - nodeW - 54}" y="${sy0 + srcH / 2 + 4}" text-anchor="end">${(100 * sum).toFixed(0)} in 100</text>`, sy = sy0;
+    nodes.forEach((r, k) => { const w = r.d * K, c = (L + Rx) / 2;
+      g += `<path class="rib" data-t="${r.y}" d="M${L} ${sy}C${c} ${sy} ${c} ${r.y0} ${Rx} ${r.y0}L${Rx} ${r.y0 + w}C${c} ${r.y0 + w} ${c} ${sy + w} ${L} ${sy + w}Z" fill="${r.y < 0 ? "var(--graphite)" : col}" opacity="${r.y < 0 ? .25 : Math.max(.3, .78 - k * .06)}" style="animation:fadein .7s ${k * 60}ms both"><title>${r.y < 0 ? "other heroes" : esc(NAMES[r.y])}: ${(100 * r.d).toFixed(1)} in 100</title></path>
+        <rect x="${Rx}" y="${r.y0}" width="${nodeW}" height="${r.hh}" fill="var(--ink)"/>` +
+        (r.y < 0 ? `<text class="t12 g" x="${Rx + 20}" y="${r.y0 + r.hh / 2 + 4}">${r.n} other heroes, ${(100 * r.d).toFixed(1)}</text>`
+          : `<image href="${img(r.y)}" x="${Rx + 20}" y="${r.y0 + r.hh / 2 - 12}" width="24" height="24"/><text class="t12 tx" x="${Rx + 50}" y="${r.y0 + r.hh / 2 - 1}" font-weight="700">${esc(short(r.y))}</text><text class="t11 g" x="${Rx + 50}" y="${r.y0 + r.hh / 2 + 11}">${(100 * r.d).toFixed(1)} in 100</text>`);
+      sy += w; });
+    return { svg: `<svg class="flowsvg" viewBox="0 0 ${Wd} ${Hh}">${g}</svg>`, shown };
+  }
+  function chapB(h, hs) {
+    const C = chEl("chB"), R = RES, W2 = fw(C.f), them = flowSvg(h, R.Pt[h], 7, "var(--them)", Math.max(520, W2 * .56)), usP = teamSet().has(h) ? 0 : R.Pu[h];
+    const names = them.shown.slice(0, 3).map(r => esc(short(r.y))), list = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+    C.h2.innerHTML = `Ban <span class="us">${esc(short(h))}</span> and their players move to ${list}`;
+    C.p.innerHTML = `The other team opens ${esc(short(h))} in ${(100 * R.Pt[h]).toFixed(0)} of 100 games. With it gone, those players pick their next choice. Widths are games out of 100.`;
+    chipRow(C.chips, hs, h, x => CHS.b = x);
+    const us = usP >= .01 ? flowSvg(h, usP, 5, "var(--us)", Math.max(420, W2 * .4)) : null;
+    C.f.innerHTML = `<div class="two"><div><h4 style="color:var(--them)">Their players</h4>${them.svg}</div><div><h4 style="color:var(--us)">Your players</h4>${us ? us.svg : `<p class="note">Your team rarely opens ${esc(short(h))}, so the ban moves almost none of your players.</p>`}</div></div>
+      <p class="note">Next choices come from the pick model, averaged over Season 10 players who open ${esc(short(h))}. Heroes already banned are left out. Hover a hero to follow its ribbon.</p>`;
+    C.f.querySelectorAll(".flowsvg").forEach(sv => sv.querySelectorAll(".rib").forEach(p => { p.onmouseenter = () => { sv.classList.add("focus"); p.classList.add("hot"); }; p.onmouseleave = () => { sv.classList.remove("focus"); p.classList.remove("hot"); }; }));
+  }
+
+  // ---- C: the rest of the ban phase as a tree, built in the background once the chapter is on screen
+  const TREE = { key: "", root: null, calls: 0, done: false, id: 0 };
+  let treeW = null;
+  function chapC() {
+    const C = chEl("chC");
+    C.h2.innerHTML = `Your ban decides what they take next, and what is left for you`;
+    C.p.innerHTML = `Your best options now, the other team's likeliest replies from the ban model (branch width is their chance), and the best ban left for your next turn. The likeliest path after each option is solid. Hover an option to follow its branches.`;
+    const key = lobbyKey() + st.model;
+    if (TREE.key !== key && RES) {                           // a new lobby: restart the worker on it
+      TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
+      if (treeW) treeW.terminate();
+      treeW = new Worker("tree-worker.js?v=18be8c7c53");
+      treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
+      const cnt = turnCount(), S = st.model === "sim" && SIM && !SIM.prelim ? SIM : RES;
+      const opts = cnt === 2 && RES.pairs ? RES.pairs.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: S.V[h] }));
+      treeW.postMessage({ id, base: { firstUs: st.first, rev: st.team.filter(h => h >= 0), m: st.map, r0: META.tiers[st.tier], bans: st.bans.slice() }, opts });
+    }
+    drawTree();
+  }
+  let treeTimer = 0;
+  const drawTreeSoon = () => { if (!treeTimer) treeTimer = setTimeout(() => { treeTimer = 0; drawTree(); }, 700); };
+  function drawTree() {
+    const f = chEl("chC").f;
+    if (!TREE.root) { f.innerHTML = `<div class="wait"><i></i>building the tree</div>`; return; }
+    const depth = n => !n.kids || !n.kids.length ? 0 : 1 + Math.max(...n.kids.map(depth)), D = Math.max(...TREE.root.kids.map(depth)) + 1;
+    const leaves = []; const walk = (n, path) => { if (!n.kids || !n.kids.length) leaves.push(path.concat([n])); else n.kids.forEach(k => walk(k, path.concat([n]))); };
+    TREE.root.kids.forEach(k => walk(k, []));
+    const rowH = 36, top = 44, Wd = fw(f, 700), labW = 230, colX = i => 40 + i * (Wd - labW - 40) / Math.max(1, D - 1 || 1), H = top + leaves.length * rowH + 6;
+    const ys = new Map(); leaves.forEach((p, i) => ys.set(p[p.length - 1], top + i * rowH + rowH / 2));
+    const Y = n => { if (ys.has(n)) return ys.get(n); const v = n.kids.map(Y).reduce((a, b) => a + b, 0) / n.kids.length; ys.set(n, v); return v; };
+    TREE.root.kids.forEach(Y);
+    let links = "", nodes = "", heads = "", id = 0; const e0 = nextBan();
+    const colBan = []; const probe = (n, c) => { if (!colBan[c]) colBan[c] = { who: n.who, from: n.bans ? n.bans.length - n.hs.length : null, n: n.hs.length }; (n.kids || []).forEach(k => probe(k, c + 1)); };
+    TREE.root.kids.forEach(k => probe(k, 0));
+    colBan.forEach((cb, c) => { const lab = c === 0 ? (cb.n === 2 ? `Bans ${e0 + 1} and ${e0 + 2}: you` : `Ban ${e0 + 1}: you`) : cb.who === "them" ? `Ban ${e0 + TREE.root.kids[0].hs.length + c}: them` : (TREE.root.kids[0] && (function f(n) { return n.kids && n.kids.length ? f(n.kids[0]) : n; })(TREE.root.kids[0]).hs.length === 2 ? `Your next two bans` : `Your next ban`);
+      heads += `<text x="${colX(c) - 18}" y="14" class="t12" font-weight="800" fill="${cb.who === "us" ? "var(--us)" : "var(--them)"}">${lab}</text><line x1="${colX(c) - 18}" x2="${colX(c) + 120}" y1="22" y2="22" stroke="var(--ink)"/>`; });
+    const pics = (n, x, y, s, ring) => n.hs.map((h, i) => `<rect x="${x - s / 2 - 2 + i * (s + 2)}" y="${y - s / 2 - 2}" width="${s + 4}" height="${s + 4}" fill="var(--paper)" stroke="${ring}" stroke-width="2"/><image href="${img(h)}" x="${x - s / 2 + i * (s + 2)}" y="${y - s / 2}" width="${s}" height="${s}"/>`).join("");
+    const draw = (n, c, pid) => {
+      const x = colX(c), y = Y(n), ring = n.who === "us" ? "var(--us)" : "var(--them)", s = c === 0 ? 40 : 28;
+      (n.kids || []).forEach(k => { const x2 = colX(c + 1), y2 = Y(k), cx = (x + x2) / 2, w = k.who === "them" ? Math.max(1.5, k.p * 110) : k.main ? 3 : 1.4;
+        const col = k.who === "them" ? "var(--them)" : "var(--us)", op = k.main ? .78 : .26, x0 = x + (n.hs.length > 1 ? s + 22 : s / 2 + 10) + (n.who === "them" ? 64 : 0);
+        links += `<path class="lk br" data-leaf="${pid}" d="M${x0} ${y}C${(x0 + x2) / 2} ${y} ${(x0 + x2) / 2} ${y2} ${x2 - s / 2 - 10} ${y2}" stroke="${col}" stroke-width="${w}" opacity="${op}"/>`;
+        draw(k, c + 1, pid); });
+      nodes += `<g class="br" data-leaf="${pid}">${pics(n, x, y, s, ring)}` + (n.who === "them"
+        ? `<text class="t12 tx" x="${x + s / 2 + 8}" y="${y - 2}" font-weight="600">${esc(short(n.hs[0]))}</text><text class="t11 g" x="${x + s / 2 + 8}" y="${y + 11}">${pct(n.p)}</text>`
+        : c === 0 ? `<text class="t13 ink" x="${x - s / 2}" y="${y + s / 2 + 16}" font-weight="800">${n.hs.map(h => esc(short(h))).join(" + ")}</text><text class="t11 g" x="${x - s / 2}" y="${y + s / 2 + 29}">${pp(n.V)} points</text>`
+        : `<text class="t12 ink" x="${x + n.hs.length * (s + 2) - s / 2 + 8}" y="${y - 1}" font-weight="${n.main ? 800 : 600}">${n.hs.map(h => esc(short(h))).join(" + ")}</text><text class="t11 g" x="${x + n.hs.length * (s + 2) - s / 2 + 8}" y="${y + 12}">${pp(n.V)} points</text>`) + `</g>`;
+    };
+    TREE.root.kids.forEach((k, i) => draw(k, 0, i));
+    f.innerHTML = `<svg class="treesvg" viewBox="0 0 ${Wd} ${H}">${heads}${links}${nodes}</svg>${TREE.done ? "" : `<div class="wait" style="min-height:30px"><i></i>working out their replies, ${TREE.calls} positions scored</div>`}`;
+    const sv = f.querySelector("svg");
+    sv.querySelectorAll("g.br").forEach(g => { g.onmouseenter = () => { sv.classList.add("focus"); sv.querySelectorAll(`[data-leaf="${g.dataset.leaf}"]`).forEach(x => x.classList.add("hot")); };
+      g.onmouseleave = () => { sv.classList.remove("focus"); sv.querySelectorAll(".hot").forEach(x => x.classList.remove("hot")); }; });
+  }
+
   // ================================================================ update loop
   const busy = on => { document.body.classList.toggle("computing", on); if (!on) $("busyT").textContent = ""; };
-  function refresh() { renderSteps(); paintBoard(); renderCall(); drawCloud(); if (RES) renderFly(); }
+  function refresh() { renderSteps(); paintBoard(); renderCall(); drawCloud(); if (RES) { renderFly(); renderChapters(); } }
   let pending = 0, lastTier = null;
   function update(recompute = true) {
     writeHash(); syncControls(); renderPipe();
