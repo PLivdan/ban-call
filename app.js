@@ -67,6 +67,8 @@
   $("simBtn").onclick = () => { st.model = "sim"; update(); };
   document.querySelectorAll("#runsCtl button").forEach(b => b.onclick = () => { st.runs = +b.dataset.n; update(); });
   $("secondBtn").onclick = () => { st.first = false; update(); };
+  $("undoBtn").onclick = () => { if (st.bans.length) { st.bans.pop(); st.active = { kind: "ban" }; update(); } };
+  $("newBtn").onclick = () => newLobby();
   $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
   const themeNow = () => document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -85,13 +87,30 @@
       if (st.bans.includes(h)) return flash(`${NAMES[h]} is banned`);
       for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;
       st.team[a.i] = h;
-      const nxt = st.team.findIndex((x, i) => x < 0 && i > a.i);   // next empty teammate slot, else the ban phase
-      st.active = nxt >= 0 ? { kind: "team", i: nxt } : { kind: "ban" };
+      st.active = { kind: "ban" };                                  // straight to the ban phase; teammates are optional (click a slot)
     } else {
       if (nextBan() >= 6 || st.bans.includes(h)) return;
       for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;    // a banned hover is gone
       st.bans.push(h);
     }
+    $("search").value = ""; renderMatches(); update();
+    if (matchMedia("(pointer: fine)").matches) $("search").focus({ preventScroll: true });   // keep typing the next name
+  }
+  // one-click picks under the ban track: their likeliest next bans on their turn, our best bans on ours (keys 1-8)
+  function quickList() {
+    if (nextBan() >= 6) return [];
+    if (ourTurn()) { const V = st.model === "sim" ? (SIM && !SIM.prelim ? SIM.V : null) : RES && RES.V; return V ? topBans(8).map(h => ({ h, lab: pp(V[h]) })) : []; }
+    return THEIRS ? Array.from(THEIRS.keys()).filter(h => THEIRS[h] > 0).sort((a, b) => THEIRS[b] - THEIRS[a]).slice(0, 8).map(h => ({ h, lab: pct(THEIRS[h]) })) : [];
+  }
+  function renderQuick() {
+    const q = quickList();
+    $("quick").innerHTML = q.length ? `<span class="qlab">${ourTurn() ? "Best bans" : "Their likely ban"}</span>` + q.map((x, k) =>
+      `<button class="qt ${ourTurn() ? "us" : "them"}" data-h="${x.h}" title="${esc(NAMES[x.h])} (key ${k + 1})"><span class="qk">${k + 1}</span><img src="${img(x.h)}" alt=""><span class="qv">${x.lab}</span></button>`).join("") : "";
+    $("quick").querySelectorAll(".qt").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
+  }
+  const quickPick = k => { const q = quickList()[k - 1]; if (q) { st.active = { kind: "ban" }; place(q.h); return true; } return false; };
+  function newLobby() {                                             // the next game: bans and teammates cleared, rank and your hero kept
+    st.bans = []; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
     $("search").value = ""; renderMatches(); update();
   }
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
@@ -131,6 +150,7 @@
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => banClick(+el.dataset.i, el.classList));
+    renderQuick(); $("undoBtn").disabled = !st.bans.length;
   }
   function banClick(i, cls) {                         // a ban box (picture or text lobby): undo, take the suggestion or forecast, or make it the target
     if (i < st.bans.length) { st.bans = st.bans.slice(0, i); st.active = { kind: "ban" }; }
@@ -164,13 +184,14 @@
   setSort(SORT);
   function renderRoster() {
     const q = $("search").value.trim().toLowerCase(), bans = bannedSet(), team = teamSet();
-    const rank = new Map(); if (ourTurn() && RES) topBans(3).forEach((h, k) => rank.set(h, k + 1));
+    const rank = new Map(); quickList().forEach((x, k) => rank.set(x.h, k + 1));    // the same numbers as the quick picks and keys 1-8
+    const rkc = ourTurn() ? "rk us" : "rk them";
     $("roster").innerHTML = [0, 1, 2].map(r => {
       const hs = heroOrder(NAMES.map((n, h) => h).filter(h => META.roles[h] === r));
       return `<h3>${ROLE_NAMES[r]}</h3><div class="grid">` + hs.map(h => {
         const cls = ["tile"]; if (bans.has(h)) cls.push("banned"); if (team.has(h)) cls.push("ours");
         if (q && !NAMES[h].toLowerCase().includes(q) && !(SHORT[NAMES[h]] || "").toLowerCase().includes(q)) cls.push("dim");
-        return `<div class="${cls.join(" ")}" data-h="${h}" title="${esc(NAMES[h])}">${rank.has(h) ? `<span class="rk">${rank.get(h)}</span>` : ""}<img src="${img(h)}" alt="" loading="lazy"><span class="nm">${esc(short(h))}</span></div>`;
+        return `<div class="${cls.join(" ")}" data-h="${h}" title="${esc(NAMES[h])}">${rank.has(h) ? `<span class="${rkc}">${rank.get(h)}</span>` : ""}<img src="${img(h)}" alt="" loading="lazy"><span class="nm">${esc(short(h))}</span></div>`;
       }).join("") + "</div>";
     }).join("");
     $("roster").querySelectorAll(".tile").forEach(el => el.onclick = () => { if (!el.classList.contains("banned")) place(+el.dataset.h); });
@@ -187,13 +208,14 @@
   $("search").oninput = () => { renderRoster(); renderMatches(); };
   $("search").onkeydown = ev => {
     if (ev.key === "Enter") { const m = searchMatches(); if (m.length) place(m[0]); ev.preventDefault(); }
+    else if (/^[1-8]$/.test(ev.key) && !$("search").value) { quickPick(+ev.key); ev.preventDefault(); }
     else if (ev.key === "Backspace" && !$("search").value && st.bans.length) { st.bans.pop(); update(); ev.preventDefault(); }
     else if (ev.key === "Escape") { $("search").value = ""; renderRoster(); }
   };
   document.addEventListener("keydown", ev => {
     if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (ev.key === "/") { $("search").focus(); ev.preventDefault(); }
-    else if (/^[1-9]$/.test(ev.key) && ourTurn()) { const h = topBans(9)[+ev.key - 1]; if (h !== undefined) { st.active = { kind: "ban" }; place(h); } ev.preventDefault(); }
+    else if (/^[1-8]$/.test(ev.key)) { quickPick(+ev.key); ev.preventDefault(); }
     else if (ev.key.length === 1 && /[a-z&]/i.test(ev.key)) { $("search").focus(); }
     else if (ev.key === "Backspace" && st.bans.length) { st.bans.pop(); update(); ev.preventDefault(); }
   });
@@ -406,7 +428,7 @@
   }
   function renderLobbyTerm() {                       // the lobby as text: slots as rows, the ban track as a list, heroes in three role columns
     const e = nextBan(), cnt = turnCount(), sug = ourTurn() && RES ? suggested(cnt) : [], bans = bannedSet(), team = teamSet();
-    const q = $("search").value.trim().toLowerCase(), rank = new Map(); if (ourTurn() && RES) topBans(3).forEach((h, k) => rank.set(h, k + 1));
+    const q = $("search").value.trim().toLowerCase(), rank = new Map(); quickList().forEach((x, k) => rank.set(x.h, k + 1));
     let t = `<div class="tsec">team <span class="tdim">click a row, then a hero</span></div>`;
     st.team.forEach((h, i) => { const act = st.active.kind === "team" && st.active.i === i;
       t += `<div class="trow${act ? " sel" : ""}" data-team="${i}">${act ? "&gt;" : " "} ${padR(i === 0 ? "you" : "mate " + (i + 1), 8)} ${h >= 0 ? esc(NAMES[h]) : '<span class="tdim">_</span>'}${h >= 0 ? ` <span class="tx" data-clear="${i}">[x]</span>` : ""}</div>`; });
@@ -456,7 +478,7 @@
       html += rankTable(top, R.V, R.se, [
         { th: "They open", td: h => pct(R.Pt[h]) }, { th: "You open", td: h => pct(R.Pu[h]) }, { th: "Cost to lose", td: h => (100 * R.R[h]).toFixed(1) }],
         `Value: change in your team's win probability, in points, against the ban a typical team would make, with its 95% interval. They open, you open: chance each team
-        opens the hero if it stays available. Cost to lose: points the team that would open it loses without it. Click a row, or press 1 to 9, to ban.`);
+        opens the hero if it stays available. Cost to lose: points the team that would open it loses without it. Click a row, or press 1 to 8, to ban.`);
       const t8 = top.slice(0, 8);
       html += `<h2>${esc(NAMES[best[0]])} leads mostly by ${(1 - R.PL[best[0]]) * R.Pt[best[0]] * R.R[best[0]] >= R.V[best[0]] * .5 ? "denying them" : "protecting your team"}</h2>
         <figure>${splitBars(t8, R)}<figcaption>Each ban's value split into its parts, in points: what it takes from the other team (their chance of opening the hero times
