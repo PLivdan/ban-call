@@ -465,7 +465,7 @@
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   let pool = [], RUN = null, SRUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("../sim-worker.js?v=6208fc75c2"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("../sim-worker.js?v=0885f1f45c"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; if (RUN.pairs) { SIMP = "failed"; refresh(); return; } RUN.failed = true; busy(false); renderCall(); }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
@@ -691,7 +691,7 @@
     if (TREE.key !== key && RES) {                           // a new lobby: restart the worker on it
       TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
       if (treeW) treeW.terminate();
-      treeW = new Worker("tree-worker.js?v=da08f6083a");
+      treeW = new Worker("tree-worker.js?v=7af6fdf94f");
       treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
       const cnt = turnCount(), S = st.model === "sim" && SIM && !SIM.prelim ? SIM : RES;
       const opts = cnt === 2 && RES.pairs ? RES.pairs.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: S.V[h] }));

@@ -1,23 +1,31 @@
 """Stamp every script address with a hash of its content, so a new page never runs with a cached old script.
-GitHub Pages lets browsers cache files for ten minutes; without this a fresh index.html can load a stale app.js.
-Run before every commit that changes a script:  python tools/stamp.py"""
+GitHub Pages lets browsers cache files for ten minutes; without this a fresh index.html can load a stale app8.js.
+Run before every commit that changes a script:  python tools/stamp.py
+The page (index.html) runs engine.js (lineup network), engine8.js and app8.js; the previous model's page (v7/) runs
+../engine.js and v7/app.js with the simulator worker ../sim-worker.js; the studio (studio/) the same engine and worker."""
 import hashlib, re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 h = lambda *names: hashlib.sha1(b"".join((root / n).read_bytes() for n in names)).hexdigest()[:10]
-app = root / "app.js"; s = app.read_text()
-s = re.sub(r'new Worker\("sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("sim-worker.js?v={h("sim.js", "sim-worker.js")}")', s)
-app.write_text(s)                                   # the worker's version is inside app.js, so app.js is hashed after it
-page = root / "index.html"; t = page.read_text()
-for name in ("engine.js", "app.js"):
-    t = re.sub(rf'<script src="{re.escape(name)}(\?v=[^"]*)?"></script>', f'<script src="{name}?v={h(name)}"></script>', t)
-page.write_text(t)
-print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)), "| worker", re.search(r'sim-worker\.js\?v=[^"]+', s).group(0))
-# the studio page (studio/) uses the same engine and worker
+def sub_script(page, name, src_name=None, prefix=""):
+    t = page.read_text(encoding="utf-8"); src = src_name or name
+    t = re.sub(rf'<script src="{re.escape(prefix + name)}(\?v=[^"]*)?"></script>', f'<script src="{prefix}{name}?v={h(src)}"></script>', t); page.write_text(t, encoding="utf-8")
+    return t
+# the page
+page = root / "index.html"
+for name in ("engine.js", "engine8.js", "app8.js"): t = sub_script(page, name)
+print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
+# the previous model's page: its worker version sits inside v7/app.js, so v7/app.js is hashed after it
+v7 = root / "v7" / "app.js"
+if v7.exists():
+    s = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', v7.read_text(encoding="utf-8")); v7.write_text(s, encoding="utf-8")
+    p7 = root / "v7" / "index.html"; sub_script(p7, "engine.js", "engine.js", "../"); t7 = sub_script(p7, "app.js", "v7/app.js")
+    print("stamped v7:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t7)))
+# the studio page uses the same engine and worker
 st_js = root / "studio" / "studio.js"
 if st_js.exists():
-    s2 = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', st_js.read_text()); st_js.write_text(s2)
-    s2 = re.sub(r'new Worker\("tree-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree-worker.js?v={h("engine.js", "studio/tree-worker.js")}")', st_js.read_text()); st_js.write_text(s2)
-    sp = root / "studio" / "index.html"; t2 = sp.read_text()
+    s2 = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', st_js.read_text(encoding="utf-8")); st_js.write_text(s2, encoding="utf-8")
+    s2 = re.sub(r'new Worker\("tree-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree-worker.js?v={h("engine.js", "studio/tree-worker.js")}")', st_js.read_text(encoding="utf-8")); st_js.write_text(s2, encoding="utf-8")
+    sp = root / "studio" / "index.html"; t2 = sp.read_text(encoding="utf-8")
     t2 = re.sub(r'<script src="\.\./engine\.js(\?v=[^"]*)?"></script>', f'<script src="../engine.js?v={h("engine.js")}"></script>', t2)
     t2 = re.sub(r'<script src="studio\.js(\?v=[^"]*)?"></script>', f'<script src="studio.js?v={h("studio/studio.js")}"></script>', t2)
-    sp.write_text(t2); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)))
+    sp.write_text(t2, encoding="utf-8"); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)))

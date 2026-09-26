@@ -1,15 +1,45 @@
 # Ban Call
 
-Which hero to ban in Marvel Rivals ranked. A static site (no framework, no server): the ban value model
-runs in the browser.
+Which hero to ban in Marvel Rivals ranked. A static site (no framework, no server): the model runs in the browser.
 
-**Inputs:** your rank, the map, whether your team bans first, your hero, any teammate hovers, and the bans
-so far.
+**Inputs:** your rank, the map, whether your team bans first, your hero, any teammate hovers, and the bans so far.
 
-**Outputs:** every legal ban (and, on a two-ban turn, the best pairs) ranked by its value in win-probability points
-against a typical ban, with 95% intervals that take the fitted models as given.
+**Outputs:** every legal ban ranked by its value in win-probability points against a typical ban, the best pairs on a
+two-ban turn, a forecast of the other team's bans with the reasons, what each of their likely bans does to you, your win
+chance from here, and where a banned hero's mains go.
 
-## The value model (engine v7.1)
+## The model (v8.1, run 20260926_2120 of the ban-solver notebook `02_ban_solver_v8`)
+The notebook simulates lobbies (stand-in players near the lobby's rank that follow the heroes your team shows, the rest of
+the ban phase from a fitted ban model, both teams' drafts after the bans from a fitted pick model, and a fitted outcome
+model) and trains one network per ban position by backward induction: network k values a lobby after k bans, with our later
+bans as advised and theirs as teams really ban. On the page (`engine8.js`):
+
+    value(x) = mean over the 3 optimal members of network(k + 1)(lobby after we ban x) − the same for a typical ban
+
+- **Advice:** the highest mean − 0.5 × SD over the three members, among bans a typical team makes with probability at least
+  0.1% (the ban model for our seat). The members' spread is shown, not a full interval.
+- **Two-ban turns:** after each of the six best first bans, every second ban is scored by network k + 2.
+- **Their bans:** the selected ban family (V8T: popularity by map, rank, position and side, protection, fear, reactions to
+  every earlier ban, premades, and targeting of the heroes the other team's players play), averaged over stand-in teams per
+  rank band. A shown hero shifts our stand-ins toward players of that hero (tables built from the data bundle).
+- **Win chance:** the optimal chain (following the advice) and the behaviour chain (both teams ban as usual).
+- **Likely openers** and the roster order still come from the previous model's lineup network (`engine.js`, `model/`):
+  the v8 drafts live inside the value networks.
+- Parity: `tools/check_v8.js` checks the networks against the notebook's parity cases (logits to 4e-8) and the ban model
+  against a transcription of the notebook's formula with the fitted parameters (`tools/check_v8_ref.py`, to 3e-6).
+
+## Update the model
+    python tools/build_site_v8.py <ban-solver run folder> <colab_v8 data folder>   # writes model8/
+    python tools/check_v8_ref.py <ban-solver run folder>                            # notebook-formula ban model cases
+    node tools/check_v8.js                                                          # must print "all checks passed"
+    python tools/stamp.py                                                           # cache-busting script addresses
+Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
+
+## The previous model (v7.2), kept as a backup in `v7/`
+`v7/index.html` and `v7/app.js` are the v7.2 page. They use `engine.js`, `sim.js`, `sim-worker.js` and `model/` from the
+root, which the studio (`studio/`) also uses. Git tag `v7.2-site` is the site before v8. What follows describes that model.
+
+### The value model (engine v7.1)
 Every hero banned in the rest of the ban phase, by either team, is worth to us
 
     w(y) = P_them(y)·R_them(y | set) − P_us(y)·R_us(y | set)
@@ -49,8 +79,8 @@ On a two-ban turn it scores the 45 pairs of its ten best single bans. Its tables
 The models are fitted in the ban-solver notebook (Colab). This repo only serves them. The v6 engines are frozen in
 `baseline/` and tagged `v6-baseline`.
 
-## Files
-- `index.html`, `app.js`: the page and its interface. `engine.js`: the value model (v7). `sim.js`, `sim-worker.js`:
+### Files
+- `v7/index.html`, `v7/app.js`: the page and its interface. `engine.js`: the value model (v7). `sim.js`, `sim-worker.js`:
   the re-draft simulator.
 - `model/meta.json` (tables) and `model/weights.bin` (the lineup networks, float16): built by
   `tools/build_site_model.py` from the notebook's `ban_value_model_*.json` (export v5 from notebook v6, v6 from v7).
@@ -67,7 +97,7 @@ The models are fitted in the ban-solver notebook (Colab). This repo only serves 
   `tools/check_comments.py` flags an inline comment that swallows code (a bug that reached a worker file and a notebook
   checkpoint here). Their latest output is in `tools/reports/`.
 
-## Update the model
+### Update the model
     python tools/build_site_model.py <downloads>/ban_value_model_<stamp>.json
     cp <downloads>/ban_model_<stamp>.json model/sim.json
     node tools/check_notebook.js          # the site's engines against lobbies the notebook scored
@@ -78,10 +108,10 @@ The models are fitted in the ban-solver notebook (Colab). This repo only serves 
 Before committing any script change, run `python tools/stamp.py`: it stamps every script address (and the worker's) with a hash of its content, so browsers never mix a new page with a cached old script.
 Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
 
-## Studio (studio/)
+### Studio (studio/)
 A second interface on the same models, at `studio/`: a step bar for the lobby, one answer card with a primary action, and a
 fixed hero board whose bars show the model's answer for the current step. It
 loads `../engine.js`, `../model/*` and `../sim-worker.js`, so there is one backend. `tools/stamp.py` stamps its scripts too.
 
-## Run locally
+### Run locally
     python -m http.server 8765    # then open http://127.0.0.1:8765

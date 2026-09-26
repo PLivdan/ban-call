@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ban Call</title>
-<meta name="description" content="Which hero to ban in Marvel Rivals ranked: a ban value model fitted on Season 10 matches, running in your browser.">
+<meta name="description" content="Which hero to ban in Marvel Rivals ranked: value networks trained on simulated Season 10 lobbies, running in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3Cpath d=%27M7.5 24.5L24.5 7.5%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
@@ -275,9 +275,6 @@
   <span><span class="lab">Rank</span><select id="tierSel" aria-label="Rank"></select></span>
   <span><span class="lab">Map</span><select id="mapSel" aria-label="Map"></select></span>
   <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
-  <span><span class="lab">Model</span><span class="seg"><button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span></span>
-  <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer."><span class="lab">Runs</span><span class="seg"><button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button><button data-n="128">128</button><button data-n="256">256</button></span></span>
-  <span hidden><span class="lab">View</span><span class="seg"><button id="chartsBtn">Charts</button><button id="termBtn">Terminal</button></span></span>
   <span id="busy">computing</span>
   <span class="push"><button id="resetBtn">Reset</button><button id="linkBtn">Copy link</button><button id="themeBtn">Dark</button></span>
 </div>
@@ -311,10 +308,11 @@
 
 <div id="statusbar" class="tonly" aria-hidden="true"></div>
 <footer class="small">
-  <span id="fitted"></span> The models run in your browser. Not affiliated with NetEase Games or Marvel.
+  <span id="fitted"></span> The models run in your browser. <a href="v7/">The previous model (v7.2)</a> is kept as a backup. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
-<script src="engine.js?v=9be12d9260"></script>
-<script src="app.js?v=35b2007e39"></script>
+<script src="engine.js?v=e939ae1125"></script>
+<script src="engine8.js?v=01f3bfb38a"></script>
+<script src="app8.js?v=10305e2072"></script>
 </html>

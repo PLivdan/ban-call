@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ban Call (v7.2)</title>
+<meta name="description" content="Which hero to ban in Marvel Rivals ranked: a ban value model fitted on Season 10 matches, running in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3Cpath d=%27M7.5 24.5L24.5 7.5%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6;
+    --blue: #2a4bad; --red: #b0382d; --safe: #1e6b30;
+    --active: #eceef2; --cf: #f6f2e4; --hover: #e8edf8; --wash: #dfe6f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
+      --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
+      --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
+    --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
+    --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); margin: 0;
+         font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif;
+         font-size: 13.5px; line-height: 1.42; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px 24px; }
+  /* header and toolbar */
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding-bottom: 10px; }
+  .wide, h1, .vname, .vnum { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; }
+  h1 { font-size: 30px; font-weight: 800; line-height: 1; margin: 0; letter-spacing: -.02em; }
+  .lede { font-size: 15px; margin: 0; }
+  #status:empty { display: none; }
+  #status { flex-basis: 100%; margin: 2px 0 0 0; font-size: 12px; color: var(--faint); }
+  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 18px;
+          border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair);
+          position: sticky; top: 0; z-index: 10; background: var(--paper); }
+  .ctrl > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .ctrl > span[hidden] { display: none; }
+  .ctrl .lab { font-size: 12px; color: var(--faint); }
+  .ctrl .push { margin-left: auto; gap: 6px; }
+  .seg { display: inline-flex; }
+  .seg button + button { margin-left: -1px; }
+  input[type=text], select { font-family: inherit; font-size: 13px; height: 26px; padding: 0 4px;
+       background: var(--paper); color: var(--ink); border: 1px solid var(--hair); border-radius: 0; }
+  button { font-family: inherit; font-size: 12.5px; height: 26px; background: var(--paper);
+           color: var(--ink); border: 1px solid var(--ink); padding: 0 10px; cursor: pointer; border-radius: 0; }
+  button:hover { background: var(--active); }
+  button.on { background: var(--ink); color: var(--paper); }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  /* layout */
+  .mainRow { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+  #lobby { flex: 1 1 540px; min-width: 320px; background: var(--panel); padding: 2px 18px 18px 18px; }
+  #lobby .slot .pic, #lobby .tile img { background: var(--paper); }
+  #advice { flex: 1 1 620px; min-width: 320px; }
+  h2 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 24px 0 8px 0;
+       border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
+  h2 .small { font-weight: 400; }
+  #lobby > h2:first-child { margin-top: 14px; } #adviceBody > h2:first-child { margin-top: 16px; }
+  h3 { font-size: 12px; font-weight: 600; margin: 10px 0 4px 0; color: var(--faint); }
+  p { margin: 6px 0; }
+  .small { font-size: 12px; color: var(--faint); }
+  #adviceBody p.small { max-width: 78ch; line-height: 1.45; }
+  .sideB { color: var(--blue); font-weight: 600; }
+  .sideR { color: var(--red); font-weight: 600; }
+  .num { color: var(--faint); font-size: 11.5px; }
+  /* the recommendation: the one large element */
+  .big { font-size: 22px; line-height: 1.25; margin: 4px 0 10px 0; }
+  .big b { font-weight: 600; }
+  .big .small { display: block; font-size: 13px; line-height: 1.4; margin-top: 2px; }
+  .verdict { display: flex; gap: 16px; align-items: flex-start; margin: 10px 0 16px 0; padding: 12px 14px;
+             border-left: 4px solid var(--blue); background: var(--panel); }
+  .verdict.them { border-left-color: var(--red); }
+  .vpics { display: flex; gap: 6px; flex: none; }
+  .vpics img { width: 76px; height: 76px; display: block; border: 1px solid var(--hair); background: var(--paper); }
+  .vtext { min-width: 0; }
+  .vcall { font-size: 17px; line-height: 1.2; }
+  .vname { font-size: 26px; font-weight: 800; letter-spacing: -.015em; line-height: 1.1; }
+  .verdict.pair .vname { font-size: 21px; }
+  .vest { font-size: 13.5px; margin-top: 6px; }
+  .vnum { font-size: 17px; font-weight: 700; color: var(--blue); margin-right: 2px; }
+  .verdict.them .vnum { color: var(--red); }
+  .vci { color: var(--faint); white-space: nowrap; }
+  .vtb { font-size: 12.5px; color: var(--ink); margin-top: 3px; }
+  .vjudge { font-size: 12.5px; color: var(--faint); margin-top: 4px; max-width: 70ch; }
+  .verdict.fresh { animation: settle .9s ease-out; }
+  @keyframes settle { from { background: var(--wash); } to { background: var(--panel); } }
+  /* tables */
+  table { border-collapse: collapse; }
+  caption { caption-side: bottom; text-align: left; font-size: 12px; line-height: 1.45; color: var(--faint); padding-top: 6px; max-width: 78ch; }
+  th { text-align: left; font-weight: 600; font-size: 12px; line-height: 1.2; vertical-align: bottom;
+       border-bottom: 1px solid var(--ink); padding: 2px 10px 4px 0; }
+  td { border-bottom: 1px solid var(--hair); padding: 3px 10px 3px 0; font-size: 13px; vertical-align: middle; }
+  td.r, th.r { text-align: right; }
+  td.nmc { white-space: nowrap; }
+  tr.pick, tr.pickpair { cursor: pointer; } tr.pick:hover td, tr.pickpair:hover td { background: var(--hover); }
+  td img.mini { width: 22px; height: 22px; vertical-align: middle; border: 1px solid var(--hair); }
+  .bar { display: inline-block; height: 7px; background: var(--blue); vertical-align: baseline; }
+  /* charts */
+  figure { margin: 8px 0 6px 0; }
+  figcaption { font-size: 12px; line-height: 1.45; color: var(--faint); margin-top: 6px; max-width: 78ch; }
+  svg { max-width: 100%; height: auto; display: block; }
+  svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; fill: var(--ink); }
+  svg .faint { fill: var(--faint); } svg .us { fill: var(--blue); } svg .them { fill: var(--red); }
+  svg .axis { stroke: var(--ink); stroke-width: 1; } svg .grid { stroke: var(--hair); stroke-width: 1; }
+  svg .whisk { stroke: var(--ink); stroke-width: 1; }
+  .cols { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .cols > figure { flex: 0 1 auto; margin-top: 4px; min-width: 0; }
+  .eq td { border-bottom: none; padding: 0 8px 0 0; }
+  .eq td.op { color: var(--faint); }
+  .prog { height: 3px; background: var(--hair); max-width: 620px; margin: 8px 0 4px 0; }
+  .prog > span { display: block; height: 3px; width: 0; background: var(--blue); transition: width .1s linear; }
+  #busy { visibility: hidden; font-size: 12px; color: var(--faint); } main.busy #busy { visibility: visible; }
+  /* slots: your team and the ban phase */
+  .slots { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slot { width: 68px; text-align: center; cursor: pointer; user-select: none; }
+  .slot .pic { width: 60px; height: 60px; border: 1px solid var(--hair); background: var(--active);
+               display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative; }
+  .slot .pic img { width: 60px; height: 60px; display: block; }
+  .slot.empty .pic { border-style: dashed; color: var(--faint); font-size: 18px; }
+  .slot.active .pic { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .slot .lab { font-size: 11px; color: var(--faint); margin-top: 2px; line-height: 1.15; overflow-wrap: anywhere; }
+  .slot .lab + .lab { color: var(--ink); min-height: 26px; }
+  .slot .who { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+  .slot.us .who { color: var(--blue); } .slot.them .who { color: var(--red); }
+  .slot.us .pic { border-top: 3px solid var(--blue); } .slot.them .pic { border-top: 3px solid var(--red); }
+  .slot .x { position: absolute; top: 0; right: 2px; font-size: 11px; color: var(--faint); display: none; }
+  .slot:not(.empty):hover .x { display: block; }
+  .slot.sug .pic { border-style: dashed; border-color: var(--blue); }
+  .slot.sug .pic img { opacity: .45; }
+  .slot.fc .pic { border-style: dashed; border-color: var(--red); }
+  .slot .pct { font-weight: 600; color: var(--red); }
+  .slot .alt { display: block; font-size: 10px; color: var(--faint); }
+  #turnHint { margin-top: 8px; }
+  /* roster */
+  .grid { display: flex; flex-wrap: wrap; gap: 8px 4px; align-items: flex-start; }
+  .tile { width: 58px; text-align: center; cursor: pointer; font-size: 10.5px; line-height: 1.12; position: relative; user-select: none; }
+  .tile img { width: 48px; height: 48px; display: block; margin: 0 auto 2px auto; border: 1px solid var(--hair); background: var(--active); }
+  .tile:hover img { border-color: var(--ink); }
+  .tile .nm { display: block; color: var(--faint); overflow-wrap: anywhere; }
+  .tile.banned img { filter: grayscale(1); opacity: .3; }
+  .tile.banned::after { content: "✕"; position: absolute; top: 10px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
+  .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .tile.dim { opacity: .22; }
+  .tile .rk { position: absolute; top: 0; right: 4px; background: var(--red); color: #fff; font-size: 10.5px; line-height: 15px; min-width: 15px; font-weight: 600; padding: 0 2px; }
+  .tile .rk.us { background: var(--blue); }
+  .qt.us .qk { background: var(--blue); } .qt.them .qk { background: var(--red); }
+  h2.hh { display: flex; align-items: flex-end; justify-content: space-between; }
+  .hbtn { display: inline-flex; gap: 6px; }
+  .hbtn button { height: 22px; font-size: 12px; font-weight: 400; padding: 0 9px; }
+  .hbtn button + button { margin-left: 0; }
+  button:disabled { opacity: .35; cursor: default; background: var(--paper); }
+  .quick { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; margin-top: 12px; min-height: 0; }
+  .quick:empty { display: none; }
+  .qlab { font-size: 12px; color: var(--faint); width: 100%; margin-bottom: -2px; }
+  .qt { position: relative; width: 50px; height: auto; padding: 0; border: 1px solid var(--hair); background: var(--paper); display: flex; flex-direction: column; align-items: center; }
+  .qt + .qt { margin-left: 0; }
+  .qt img { width: 48px; height: 48px; display: block; }
+  .qt .qv { font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
+  .qt.us .qv { color: var(--blue); font-weight: 600; } .qt.them .qv { color: var(--red); font-weight: 600; }
+  .qt .qk { position: absolute; top: 0; right: 0; font-size: 10px; line-height: 14px; min-width: 14px; background: var(--ink); color: var(--paper); font-weight: 600; }
+  .qt:hover { border-color: var(--ink); background: var(--hover); }
+  .sort button { height: 20px; font-size: 11.5px; padding: 0 7px; font-weight: 400; }
+  .howto { font-size: 12px; color: var(--faint); margin: 2px 0 8px 0; line-height: 1.7; }
+  #search { width: 290px; }
+  #matches a { color: var(--blue); text-decoration: none; } #matches a:hover { text-decoration: underline; }
+  #target { color: var(--ink); }
+  details.more { margin-top: 4px; }
+  details.more summary, details.how > summary { cursor: pointer; color: var(--faint); font-size: 12px; list-style: none; width: max-content; }
+  details.more summary::before, details.how > summary::before { content: "+ "; }
+  details[open].more summary::before, details[open].how > summary::before { content: "− "; }
+  details.more summary:hover, details.how > summary:hover { color: var(--ink); }
+  details.more[open] { max-width: 78ch; }
+  details.how { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 8px; }
+  details.how > summary { font-size: 15px; font-weight: 600; color: var(--ink); }
+  /* terminal view: black on white, one monospace face on a character grid, boxed panels with inset titles,
+     inverse video for selection, a status line with key hints */
+  .tonly { display: none; }
+  :root[data-view="term"] { --paper: #ffffff; --ink: #000000; --faint: #6b6b6b; --hair: #000000; --panel: #ffffff;
+    --blue: #000000; --red: #000000; --active: #ffffff; --hover: #e9e9e9; --wash: #e9e9e9; }
+  [data-view="term"] .tonly { display: block; } [data-view="term"] .conly { display: none !important; }
+  [data-view="term"] body, [data-view="term"] input, [data-view="term"] select, [data-view="term"] button,
+  [data-view="term"] .wide, [data-view="term"] h1, [data-view="term"] .vname, [data-view="term"] .vnum,
+  [data-view="term"] svg text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-stretch: normal; }
+  [data-view="term"] body { font-size: 13px; line-height: 20px; }
+  [data-view="term"] main { padding-bottom: 60px; }
+  [data-view="term"] h1 { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+  [data-view="term"] h1::before { content: "$ "; font-weight: 400; }
+  [data-view="term"] .lede, [data-view="term"] #status { font-size: 13px; color: var(--faint); }
+  [data-view="term"] .top { padding-bottom: 8px; }
+  [data-view="term"] .ctrl { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); gap: 4px 3ch; padding: 6px 0; }
+  [data-view="term"] .ctrl .lab { font-size: 13px; color: var(--faint); }
+  [data-view="term"] .ctrl .lab::after { content: ":"; }
+  [data-view="term"] button { border: 0; height: 20px; padding: 0 2px; font-size: 13px; background: none; }
+  [data-view="term"] button::before { content: "["; } [data-view="term"] button::after { content: "]"; }
+  [data-view="term"] button.on { background: var(--ink); color: var(--paper); }
+  [data-view="term"] button:hover:not(.on) { background: var(--hover); }
+  [data-view="term"] .seg button + button { margin-left: 1ch; }
+  [data-view="term"] #themeBtn { display: none; }
+  [data-view="term"] select, [data-view="term"] input[type=text] { font-size: 13px; height: 22px; border: 1px solid var(--ink); }
+  [data-view="term"] :focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  /* panels: a 1px frame with the title set into the top edge */
+  [data-view="term"] #lobby, [data-view="term"] #advice { position: relative; border: 1px solid var(--ink); background: none; padding: 16px 2ch 14px 2ch; margin-top: 10px; }
+  [data-view="term"] #lobby::before, [data-view="term"] #advice::before { content: attr(data-title); position: absolute; top: -11px; left: 1.5ch;
+    background: var(--paper); padding: 0 1ch; font-weight: 600; }
+  [data-view="term"] h2 { font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ink); }
+  [data-view="term"] #adviceBody > h2:first-child { margin-top: 0; }
+  .tsec { font-weight: 600; margin: 12px 0 2px 0; border-bottom: 1px solid var(--ink); }
+  .tsec:first-child { margin-top: 0; }
+  .tdim { color: var(--faint); font-weight: 400; }
+  .trow, .thero { white-space: pre; cursor: pointer; overflow: hidden; text-overflow: clip; }
+  .trow:hover, .thero:hover { background: var(--hover); }
+  .trow.sel { background: var(--ink); color: var(--paper); } .trow.sel .tdim { color: var(--paper); }
+  .tx { color: var(--faint); } .trow.sel .tx { color: var(--paper); }
+  .tcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 2ch; }
+  .thero.banned { color: var(--faint); text-decoration: line-through; cursor: default; }
+  .thero.ours { font-weight: 600; }
+  .thero.dim { opacity: .25; }
+  [data-view="term"] .howto { margin: 12px 0 4px 0; font-size: 13px; }
+  [data-view="term"] .howto input { width: 26ch; }
+  [data-view="term"] #matches a { color: var(--ink); text-decoration: underline; }
+  [data-view="term"] details.how { border-top: 1px solid var(--ink); }
+  [data-view="term"] details.more summary, [data-view="term"] details.how > summary { font-size: 13px; }
+  [data-view="term"] footer { font-size: 12px; }
+  #statusbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ink); color: var(--paper);
+               font-size: 12.5px; line-height: 24px; padding: 0 24px; white-space: nowrap; overflow: hidden; }
+  [data-view="term"] #statusbar { display: flex; justify-content: space-between; gap: 3ch; }
+  #statusbar .tdim { color: #bdbdbd; } #statusbar b { font-weight: 600; }
+  pre.term { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; margin: 0;
+             white-space: pre; overflow-x: auto; color: var(--ink); }
+  pre.term .tl[data-h], pre.term .tl.tp2 { cursor: pointer; }
+  pre.term .tl[data-h]:hover, pre.term .tl.tp2:hover { background: var(--hover); }
+  pre.term .tl.best { background: var(--ink); color: var(--paper); }
+  pre.term .tv { font-weight: 600; }
+  pre.term .tp { color: var(--faint); }
+  pre.term .tsh { font-weight: 600; }
+  @media (max-width: 720px) { [data-view="term"] .tkeys { display: none; } .tcols { grid-template-columns: repeat(2, minmax(0, 1fr)); } #statusbar { padding: 0 12px; } }
+  /* method */
+  .method { margin-top: 12px; }
+  .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
+  .mcol > h2:first-child { margin-top: 24px; }
+  .mcol table { width: 100%; }
+  .method p, .method li { max-width: 76ch; }
+  .method ul { padding-left: 18px; margin: 6px 0; }
+  .method li { margin-bottom: 4px; }
+  .formula { font-family: "Times New Roman", Times, serif; font-size: 16px; margin: 10px 0 10px 16px; }
+  footer a { color: inherit; }
+  footer { margin-top: 32px; border-top: 1px solid var(--hair); padding-top: 6px; }
+  kbd { font-family: inherit; border: 1px solid var(--hair); padding: 0 3px; font-size: 11px; }
+  @media (max-width: 1000px) { .mgrid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 720px) {
+    main { padding: 16px 16px 32px 16px; }
+    h1 { font-size: 22px; } .lede { font-size: 13.5px; }
+    .ctrl { gap: 8px 16px; position: static; } .ctrl .push { margin-left: 0; }
+    .big { font-size: 19px; }
+    #lobby { padding: 2px 12px 14px 12px; }
+    .vpics img { width: 56px; height: 56px; } .vname { font-size: 21px; } .verdict { gap: 12px; padding: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .prog > span { transition: none; } .verdict.fresh { animation: none; } }
+</style>
+
+<main id="mainEl">
+<header class="top">
+  <h1>Ban Call <span style="font-size:15px;font-weight:600;color:var(--faint)">v7.2</span></h1>
+  <p class="lede">Which hero to ban in Marvel Rivals ranked</p>
+  <p id="status">Loading the model&hellip;</p>
+</header>
+
+<div class="ctrl">
+  <span><span class="lab">Rank</span><select id="tierSel" aria-label="Rank"></select></span>
+  <span><span class="lab">Map</span><select id="mapSel" aria-label="Map"></select></span>
+  <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
+  <span><span class="lab">Model</span><span class="seg"><button id="valueBtn" title="Neural lineup model with exact removal costs. Fast.">Ban value</button><button id="simBtn" title="Simulates the rest of the draft. Slower and noisier.">Re-draft simulator</button></span></span>
+  <span id="runsCtl" title="Simulated continuations of the ban phase behind each of the top 12 bans. More runs give tighter intervals and take longer."><span class="lab">Runs</span><span class="seg"><button data-n="16">16</button><button data-n="32">32</button><button data-n="64">64</button><button data-n="128">128</button><button data-n="256">256</button></span></span>
+  <span hidden><span class="lab">View</span><span class="seg"><button id="chartsBtn">Charts</button><button id="termBtn">Terminal</button></span></span>
+  <span id="busy">computing</span>
+  <span class="push"><button id="resetBtn">Reset</button><button id="linkBtn">Copy link</button><button id="themeBtn">Dark</button></span>
+</div>
+
+<div class="mainRow">
+<section id="lobby" data-title="lobby">
+  <div class="conly">
+  <h2>Your team</h2>
+  <div class="slots" id="teamSlots"></div>
+  <div class="quick" id="quickTeam"></div>
+  <h2 class="hh">Ban phase <span class="hbtn"><button id="undoBtn" title="Undo the last ban (Backspace)">Undo</button><button id="newBtn" title="Next game: clears the bans and teammates, keeps your rank and your hero">New lobby</button></span></h2>
+  <div class="slots" id="banSlots"></div>
+  <div class="quick" id="quick"></div>
+  <p class="small" id="turnHint"></p>
+  </div>
+  <div class="tonly" id="lobbyTerm"></div>
+  <h2 class="conly hh">Heroes <span class="seg sort" title="Order within each role"><button id="sortPop" title="Most opened at your rank first">Popular</button><button id="sortAz">A–Z</button></span></h2>
+  <p class="howto"><input type="text" id="search" placeholder="Type heroes, then Enter (commas for several)" autocomplete="off" aria-label="Type a hero"
+      title="Enter picks the first match. Backspace on an empty box undoes the last ban.">
+    <span class="small" id="matches"></span> <span id="target"></span></p>
+  <div id="roster" class="conly"></div>
+  <div id="rosterTerm" class="tonly"></div>
+</section>
+
+<section id="advice" aria-live="polite" data-title="result">
+  <div id="adviceBody"></div>
+</section>
+</div>
+
+<section class="method" id="method"></section>
+
+<div id="statusbar" class="tonly" aria-hidden="true"></div>
+<footer class="small">
+  <span id="fitted"></span> This is the earlier model, kept as a backup. <a href="../">The current model</a>. The models run in your browser. Not affiliated with NetEase Games or Marvel.
+</footer>
+</main>
+
+<script src="../engine.js?v=e939ae1125"></script>
+<script src="app.js?v=61e8805132"></script>
+</html>
