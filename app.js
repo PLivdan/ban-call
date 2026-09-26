@@ -607,7 +607,7 @@
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const PAIRS = 8;                                                // two-ban turns: pairs among the best PAIRS single bans (28 pairs, every run)
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("sim-worker.js?v=30cbdc90d9"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
+  function newWorker() { const w = new Worker("sim-worker.js?v=6208fc75c2"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
     w.onerror = () => { if (TB && !TB.finished) { TB.finished = true; return; } simFail(); }; return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {
@@ -633,7 +633,7 @@
     ensurePool(false);
     const s = { firstUs: st.first, bans: st.bans.slice(), m: st.map, r0: META.tiers[st.tier], hov6: st.team.slice(), cnt: 1 };
     TB = { id: ++simId, key: tbKey(c), cands: c, vals: {}, pending: 0, finished: false };
-    chunks(range(0, TB_RUNS), pool.length).forEach((js, k) => { TB.pending++; pool[k].postMessage({ id: TB.id, st: s, cands: c, looks: js, baseLooks: [] }); });
+    byDraw(range(0, TB_RUNS)).forEach((js, k) => { if (!js.length) return; TB.pending++; pool[k].postMessage({ id: TB.id, st: s, cands: c, looks: js, baseLooks: [] }); });
   }
   function onTB(d) {
     if (!d.done || TB.finished) return;
@@ -651,12 +651,13 @@
   }
   const tbFor = () => TBRES && st.model === "value" && TBRES.key === tbKey(TBRES.cands) ? TBRES : null;   // only for the lobby it was run on
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
+  // each worker owns a subset of the stand-in draws (run j uses draw j % DRAWS), so it builds only those draws
+  const byDraw = looks => { const o = pool.map(() => []); for (const j of looks) o[(j % DRAWS) % pool.length].push(j); return o; };
   function startPairs(s, base) {                            // every pair of the shortlist, all runs, against the singles' typical-ban baseline
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
     const NR = st.runs, looks = range(0, NR);
     RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, cs: {}, base, t0: performance.now(), finished: false, pairs: true };
-    const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p));
-    jobs.forEach((j, k) => send(k, j, looks, []));
+    byDraw(looks).forEach((js, k) => send(k, js.length ? cands : [], js, []));
   }
   function startSim(s) {
     ensurePool((RUN && !RUN.finished) || (TB && !TB.finished)); if (TB) TB.finished = true;   // a busy pool would finish stale work first, so start it over
@@ -665,10 +666,8 @@
     const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
     RUN = { id: ++simId, st: s, cands, top2, L1, L2, NR, ticks: 0, total: NR + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1,
             vals: {}, cs: {}, base: {}, bcs: { u: new Float64Array(H), o: new Float64Array(H), n: 0 }, t0: performance.now(), finished: false };
-    const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
-    chunks(range(0, NR), pool.length).forEach((b, k) => { jobs[k].base = b; load[k] = b.length; });   // the typical-ban baseline, split across workers
-    for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
-    jobs.forEach((j, k) => send(k, j.cands, L1, j.base));
+    const L1w = byDraw(L1), Bw = byDraw(range(0, NR));
+    pool.forEach((w, k) => send(k, L1w[k].length ? cands : [], L1w[k], Bw[k]));
   }
   function onSim(d) {
     const R = RUN; if (!R || d.id !== R.id || R.finished) return;
@@ -683,9 +682,9 @@
     if (R.pairs) { R.finished = true; SIMP = summarizePairs(R); renderBans(); renderAdvice(); return; }
     const S = summarize(R); SIM = S;
     if (R.stage === 1 && R.top2 > 0 && R.L2.length) {       // stage 2: more continuations for the leaders, spread over the workers
-      R.stage = 2; S.prelim = true; let k = 0;
-      const parts = chunks(R.L2, Math.max(1, Math.ceil(pool.length * 4 / R.top2)));   // about four jobs per worker, so they finish together
-      R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
+      R.stage = 2; S.prelim = true;
+      const lead = R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2);
+      byDraw(R.L2).forEach((js, k) => { if (js.length) send(k, lead, js, []); });
       return;
     }
     R.finished = true; S.ms = performance.now() - R.t0;

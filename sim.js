@@ -46,9 +46,9 @@
       return u;
     }
     setup(st, g = 0) {                                            // stand-ins, fixed random numbers and per-lineup constants for one lobby (draw g)
-      const key = JSON.stringify([st.firstUs, st.m, st.r0, st.hov6, st.bans, this.MU, this.K, this.LOOK, g]);
+      const lobby = JSON.stringify([st.firstUs, st.m, st.r0, st.hov6, st.bans, this.MU, this.K, this.LOOK]), key = lobby + ":" + g;
       if (this._cache.has(key)) return this._cache.get(key);
-      if (this._cache.size >= 2 * this.DRAWS) this._cache.clear();
+      if (lobby !== this._lobby) { this._cache.clear(); this._lobby = lobby; }   // keep only the current lobby's draws (each is ~3 MB)
       const S = this.setupNew(st, g); this._cache.set(key, S); return S;
     }
     setupNew(st, g = 0) {

@@ -452,26 +452,26 @@
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   let pool = [], RUN = null, SRUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("../sim-worker.js?v=30cbdc90d9"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
+  function newWorker() { const w = new Worker("../sim-worker.js?v=6208fc75c2"); w.onmessage = ev => onSim(ev.data); w.onerror = () => simFail(); return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() { if (!RUN || RUN.finished) return; RUN.finished = true; if (RUN.pairs) { SIMP = "failed"; refresh(); return; } RUN.failed = true; busy(false); renderCall(); }
   function send(k, cands, looks, baseLooks) { if (!cands.length && !baseLooks.length) return; RUN.pending++; pool[k].postMessage({ id: RUN.id, st: RUN.st, cands, looks, baseLooks }); }
+  // each worker owns a subset of the stand-in draws (run j uses draw j % DRAWS), so it builds only those draws
+  const byDraw = looks => { const o = pool.map(() => []); for (const j of looks) o[(j % DRAWS) % pool.length].push(j); return o; };
   function startSim(s) {
     ensurePool(RUN && !RUN.finished);
     const prot = new Set(s.hov6.filter(h => h >= 0)), cands = []; for (let h = 0; h < H; h++) if (!s.bans.includes(h) && !prot.has(h)) cands.push(h);
     const top2 = Math.min(TOP2, cands.length), NR = st.runs, L1 = range(0, FIRST[NR]), L2 = range(FIRST[NR], NR);
     SRUN = RUN = { id: ++simId, st: s, cands, top2, L1, L2, NR, ticks: 0, total: NR + cands.length * L1.length + top2 * L2.length, pending: 0, stage: 1, vals: {}, base: {}, t0: performance.now(), finished: false };
-    const load = pool.map(() => 0), jobs = pool.map(() => ({ cands: [], base: [] }));
-    chunks(range(0, NR), pool.length).forEach((b, k) => { jobs[k].base = b; load[k] = b.length; });
-    for (const h of cands) { const k = load.indexOf(Math.min(...load)); jobs[k].cands.push(h); load[k] += L1.length; }
     // three jobs per worker (the baseline goes with the first), so results and the run cloud arrive in waves
-    jobs.forEach((j, k) => { const parts = j.cands.length ? chunks(j.cands, 3) : [[]]; send(k, parts[0], L1, j.base); parts.slice(1).forEach(p => send(k, p, L1, [])); });
+    const L1w = byDraw(L1), Bw = byDraw(range(0, NR)), parts = chunks(cands, 3);
+    pool.forEach((w, k) => { if (!L1w[k].length) { send(k, [], [], Bw[k]); return; } send(k, parts[0], L1w[k], Bw[k]); parts.slice(1).forEach(p => send(k, p, L1w[k], [])); });
   }
   function startPairs(s, base) {
     const sl = topBans(PAIRS), cands = []; for (let i = 0; i < sl.length; i++) for (let j = i + 1; j < sl.length; j++) cands.push([sl[i], sl[j]]);
     const NR = st.runs;
     RUN = { id: ++simId, st: s, cands, NR, ticks: 0, total: cands.length * NR, pending: 0, stage: 2, vals: {}, base, t0: performance.now(), finished: false, pairs: true };
-    const jobs = pool.map(() => []); cands.forEach((p, i) => jobs[i % pool.length].push(p)); jobs.forEach((j, k) => send(k, j, range(0, NR), []));
+    byDraw(range(0, NR)).forEach((js, k) => send(k, js.length ? cands : [], js, []));
   }
   let cloudT = 0;
   function onSim(d) {
@@ -484,8 +484,8 @@
     if (R.pairs) { R.finished = true; SIMP = summarizePairs(R); refresh(); return; }
     const S = summarize(R); SIM = S;
     if (R.stage === 1 && R.top2 > 0 && R.L2.length) {
-      R.stage = 2; S.prelim = true; let k = 0; const parts = chunks(R.L2, Math.max(1, Math.ceil(pool.length * 4 / R.top2)));
-      R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2).forEach(h => parts.forEach(js => send(k++ % pool.length, [h], js, [])));
+      R.stage = 2; S.prelim = true; const lead = R.cands.slice().sort((a, b) => S.V[b] - S.V[a]).slice(0, R.top2);
+      byDraw(R.L2).forEach((js, k) => { if (js.length) send(k, lead, js, []); });
       return;
     }
     R.finished = true; busy(false); refresh();
