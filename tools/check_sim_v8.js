@@ -4,7 +4,7 @@
    chance, and the same ban-model probabilities with those stand-ins. Then it times one lobby.
      node tools/check_sim_v8.js */
 const fs = require("fs"), path = require("path"), { Sim8 } = require(path.join(__dirname, "..", "sim8.js"));
-const dir = path.join(__dirname, "..", "model8"), meta = JSON.parse(fs.readFileSync(path.join(dir, "sim_v8.json"))), b = fs.readFileSync(path.join(dir, "sim_v8.bin"));
+const dir = process.env.MODEL_DIR ? path.resolve(process.env.MODEL_DIR) : path.join(__dirname, "..", "model8"), meta = JSON.parse(fs.readFileSync(path.join(dir, "sim_v8.json"))), b = fs.readFileSync(path.join(dir, "sim_v8.bin"));
 const S = new Sim8(meta, b.buffer.slice(b.byteOffset, b.byteOffset + b.length)), H = S.H, F = meta.fixtures;
 let bad = 0, worstWin = 0, worstP = 0, pickDiff = 0, picks = 0;
 const MU0 = S.MU, K0 = S.K; S.MU = F.mu; S.K = F.k; S.J = Math.min(meta.jban, F.mu, F.k);

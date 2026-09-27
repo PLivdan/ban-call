@@ -5,35 +5,41 @@ Which hero to ban in Marvel Rivals ranked. A static site (no framework, no serve
 **Inputs:** your rank, the map, whether your team bans first, your hero, any teammate hovers, and the bans so far.
 
 **Outputs:** every legal ban ranked by its value in win-probability points against a typical ban, the best pairs on a
-two-ban turn, a forecast of the other team's bans with the reasons, what each of their likely bans does to you, your win
+two-ban turn (the advice one ban at a time, with pairs for comparison), a forecast of the other team's bans with the reasons, what each of their likely bans does to you, your win
 chance from here, and where a banned hero's mains go.
 
-## The model (v8.1, run 20260926_2120 of the ban-solver notebook `02_ban_solver_v8`)
-The notebook simulates lobbies (stand-in players near the lobby's rank that follow the heroes your team shows, the rest of
-the ban phase from a fitted ban model, both teams' drafts after the bans from a fitted pick model, and a fitted outcome
-model) and trains one network per ban position by backward induction: network k values a lobby after k bans, with our later
-bans as advised and theirs as teams really ban. On the page (`engine8.js`):
+## The model (the current release: `model8/value_v8.json` names its version and run; the page shows both)
+The ban-solver notebook `02_ban_solver_v8` simulates lobbies (stand-in players near the lobby's rank that follow the heroes
+your team shows, the rest of the ban phase from a fitted ban model, both teams' drafts after the bans from a fitted pick
+model, and a fitted outcome model) and trains teacher networks per ban position by backward induction: network k values a
+lobby after k bans, with our later bans the model's best and theirs as teams really ban. From v8.2 a small student network per
+position reproduces the teachers' average, their spread and the behaviour chain, and only the students ship. On the page
+(`engine8.js`):
 
-    value(x) = mean over the 3 optimal members of network(k + 1)(lobby after we ban x) − the same for a typical ban
+    value(x) = the student's mean at network(k + 1)(lobby after we ban x) − the same averaged over a typical team's bans
 
-- **Advice:** the highest mean − 0.5 × SD over the three members, among bans a typical team makes with probability at least
-  0.1% (the ban model for our seat). The members' spread is shown, not a full interval.
-- **Two-ban turns:** after each of the six best first bans, every second ban is scored by network k + 2.
-- **Their bans:** the selected ban family (V8T: popularity by map, rank, position and side, protection, fear, reactions to
-  every earlier ban, premades, and targeting of the heroes the other team's players play), averaged over stand-in teams per
-  rank band. A shown hero shifts our stand-ins toward players of that hero (tables built from the data bundle).
-- **Win chance:** the optimal chain (following the advice) and the behaviour chain (both teams ban as usual).
-- **Likely openers** and the roster order still come from the previous model's lineup network (`engine.js`, `model/`):
-  the v8 drafts live inside the value networks.
-- Parity: `tools/check_v8.js` checks the networks against the notebook's parity cases (logits to 4e-8) and the ban model
-  against a transcription of the notebook's formula with the fitted parameters (`tools/check_v8_ref.py`, to 3e-6).
+- **Advice:** the highest mean − 0.5 × spread among bans a typical team makes with probability at least 0.1% (the ban model
+  for our seat; all legal bans when none is). The spread is the teachers' disagreement given one fitted world, not an interval.
+- **Two-ban turns:** the advice one ban at a time, as the notebook evaluates it: the best first ban, then the advice again at
+  the state after it (`Engine8.sequence`), with the support rule at each state. Pairs scored together (`Engine8.pairs`, supported
+  bans at both states) are shown for comparison only.
+- **Their bans:** the selected ban family, averaged over stand-in teams per rank band. It does not infer who they are from
+  their earlier bans (the likely comps in `sim8.js` share this approximation).
+- **Win chance:** the students' mean (the teachers' chain, with the model's best later bans) and the behaviour chain (both
+  teams ban as usual). The page shows it once all six bans are in.
+- **The lobby and its link** (`lobby-state.js`, shared by the page and the studio): a hover that gets banned stays shown for
+  the model (key `g`), every link value is checked, and `s=8` marks the map numbering that includes God Quarry.
+- **Likely comps** come from the v8 simulator (`sim8.js`, `sim8-worker.js`); the roster order and the previous columns still
+  use the old lineup network (`engine.js`, `model/`), which is simply absent on maps it never had.
 
 ## Update the model
-    python tools/build_site_v8.py <ban-solver run folder> <colab_v8 data folder>   # writes model8/
-    python tools/check_v8_ref.py <ban-solver run folder>                            # notebook-formula ban model cases
-    node tools/check_v8.js                                                          # must print "all checks passed"
+    python tools/build_site_v8.py <ban-solver run folder> <colab_v8 data folder>   # validates, stages, checks and publishes model8/
     python tools/stamp.py                                                           # cache-busting script addresses
-Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
+The importer is all or nothing: it refuses a run that failed the null-world gate (from v8.4 the summary must say), whose files
+or run identities do not agree, or that has no simulator (ALLOW_NO_SIM=1 publishes without one), builds the release in
+`model8.staging`, runs `tools/check_v8_ref.py`, `check_v8.js` and `check_sim_v8.js` there, and only then swaps it in. The
+page checks each binary's size and SHA-256 against the manifest and refuses to give advice from a bad or mixed release.
+Other checks: `python tools/check_import.py <run>` (the importer's contract) and `node tools/check_state.js` (the lobby link).
 
 ## The previous model (v7.2), kept as a backup in `v7/`
 `v7/index.html` and `v7/app.js` are the v7.2 page. They use `engine.js`, `sim.js`, `sim-worker.js` and `model/` from the

@@ -25,15 +25,51 @@ a player who shows it (shown_profiles): our team takes the shown heroes' profile
 after them, so every share stays nonnegative and the team's shares sum to six. The value networks also see the order of the
 bans (the ban_order block). A v8.4 run that failed the null-world gate (deploy_ok false in the summary) is refused unless
 FORCE_DEPLOY=1.
+
+A release is all or nothing. Everything is read and checked before anything is written: the gate (from v8.4 the summary must
+carry deploy_ok), the files, versions and run identities, the hero and map order across the value networks, the ban model and
+the simulator, and that every tensor and array lies inside its binary. The bundle is then built in model8.staging, checked
+there (tools/check_v8_ref.py, check_v8.js and check_sim_v8.js with MODEL_DIR; SKIP_CHECKS=1 skips them), and only then
+swapped in for model8 in one step. A rejected or failed import leaves model8 as it was. The simulator is part of a release: a
+run without sim_v8.json is refused (ALLOW_NO_SIM=1 publishes without one and removes the old simulator, so no page mixes
+runs). The manifest records each binary's size and SHA-256 and the ban model and simulator carry the run, so the page can
+refuse a file that does not belong to the release.
 """
-import json, os, shutil, sys
+import hashlib, json, os, shutil, subprocess, sys
 import numpy as np, pandas as pd
 
 RUN = sys.argv[1] if len(sys.argv) > 1 else "../ban-solver/data/runs/20260926_2120"
 DATA = sys.argv[2] if len(sys.argv) > 2 else "../ban-solver/data/colab_v8"
-OUT = "model8"; os.makedirs(OUT, exist_ok=True)
+LIVE, OUT = "model8", "model8.staging"
+def refuse(msg): sys.exit(f"refused, model8 unchanged: {msg}")
+# ---- read and check everything before writing anything
+need = [f"{RUN}/site/{f}" for f in ("value_v8.json", "value_v8.bin", "ban_model_v8.json", "substitutes_v8.json", "parity_v8.json")] + \
+       [f"{RUN}/reports/{f}" for f in ("summary_v8.json", "world_model_checks_v8.json", "ope_v8.json", "test_report_v8.json", "selection_v8.json")]
+missing = [f for f in need if not os.path.exists(f)]
+if missing: refuse(f"missing {missing}")
 L = json.load(open(f"{RUN}/site/value_v8.json", encoding="utf-8")); raw = open(f"{RUN}/site/value_v8.bin", "rb").read()
-H = len(L["heroes"])
+B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8")); SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
+H = len(L["heroes"]); vnum = tuple(int(x) for x in str(L.get("version", "v0")).lstrip("v").split(".")[:2] + ["0"])[:2]
+if SUM.get("version") != L.get("version") or SUM.get("run") != L.get("run"): refuse(f"the summary is {SUM.get('version')} run {SUM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
+if vnum >= (8, 4) and "deploy_ok" not in SUM: refuse("a v8.4+ summary without deploy_ok (the null-world gate)")
+if SUM.get("deploy_ok") is False and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4 runs: the null-world gate
+    refuse("this run failed the null-world gate (summary_v8.json deploy_ok is false); FORCE_DEPLOY=1 overrides")
+if B.get("heroes") is not None and B["heroes"] != L["heroes"]: refuse("the ban model's hero order differs from the networks'")
+if B.get("maps") is not None and [m["label"] if isinstance(m, dict) else m for m in L["maps"]] != list(B["maps"]): refuse("the ban model's map order differs from the networks'")
+for w in L["weights"]:
+    if w["offset"] + 2 * int(np.prod(w["shape"])) > len(raw): refuse(f"tensor {w['position']}/{w['chain']}/{w['layer']}/{w['name']} lies outside value_v8.bin")
+HAS_SIM = os.path.exists(f"{RUN}/site/sim_v8.json") and os.path.exists(f"{RUN}/site/sim_v8.bin")
+if HAS_SIM:
+    SM = json.load(open(f"{RUN}/site/sim_v8.json", encoding="utf-8")); sbin = open(f"{RUN}/site/sim_v8.bin", "rb").read()
+    if SM.get("run") != L.get("run") or SM.get("version") != L.get("version"): refuse(f"the simulator is {SM.get('version')} run {SM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
+    if SM["heroes"] != L["heroes"]: refuse("the simulator's hero order differs from the networks'")
+    for a_ in SM["arrays"]:
+        if a_["offset"] + int(np.prod(a_["shape"])) * np.dtype(a_["dtype"]).itemsize > len(sbin): refuse(f"simulator array {a_['name']} lies outside sim_v8.bin")
+elif os.environ.get("ALLOW_NO_SIM") != "1":
+    refuse(f"{RUN}/site/sim_v8.json not found: run ban-solver export/build_sim_v8.py {RUN} first (ALLOW_NO_SIM=1 publishes without a simulator)")
+sha = lambda b_: hashlib.sha256(b_).hexdigest()
+if os.path.exists(OUT): shutil.rmtree(OUT)
+os.makedirs(OUT)
 
 # ---- value networks, split into the optimal members and the rest
 parts = {"opt": [], "aux": []}; off = {"opt": 0, "aux": 0}; man = []
@@ -41,20 +77,14 @@ for w in L["weights"]:
     n = int(np.prod(w["shape"])); b = raw[w["offset"]:w["offset"] + 2 * n]; f = "opt" if w["chain"] in ("optimal", "student") else "aux"
     parts[f].append(b); man.append(dict(w, file=f, offset=off[f])); off[f] += len(b)
 parts = {f: v for f, v in parts.items() if v}
-for f in ("opt", "aux"):
-    if f in parts:
-        with open(f"{OUT}/value_{f}.bin", "wb") as fh: fh.write(b"".join(parts[f]))
-    elif os.path.exists(f"{OUT}/value_{f}.bin"): os.remove(f"{OUT}/value_{f}.bin")
-lay = {k: v for k, v in L.items() if k != "weights"}; lay["weights"] = man; lay["files"] = {f: dict(path=f"value_{f}.bin", bytes=off[f]) for f in parts}
+for f in parts:
+    with open(f"{OUT}/value_{f}.bin", "wb") as fh: fh.write(b"".join(parts[f]))
+lay = {k: v for k, v in L.items() if k != "weights"}; lay["weights"] = man; lay["files"] = {f: dict(path=f"value_{f}.bin", bytes=off[f], sha256=sha(b"".join(parts[f]))) for f in parts}
 json.dump(lay, open(f"{OUT}/value_v8.json", "w", encoding="utf-8"), ensure_ascii=False)
 print(f"value networks: " + ", ".join(f"{f} {off[f] / 1e6:.1f} MB" for f in parts))
 
 # ---- their ban model, plus the shown-hero stand-in tables
-B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8"))
-SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
 bands = np.array(B["bands"]); NB = len(bands) + 1
-if SUM.get("deploy_ok") is False and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4 runs: the null-world gate
-    sys.exit("this run failed the null-world gate (summary_v8.json deploy_ok is false): not building the site from it; FORCE_DEPLOY=1 overrides")
 FROM_RUN = B.get("shown_profiles") is not None or B.get("shown_shares") is not None   # v8.4: players' profiles; v8.3: shifts by an average player
 if FROM_RUN:
     shown = avg = None; print("shown-hero tables: from the run (the notebook's own page view)")
@@ -79,14 +109,14 @@ elif os.path.exists(f"{DATA}/segs.parquet"):
     print(f"shown-hero tables from {len(pool):,} players (histories up to match {cut:,}, the end of validation)")
 else:
     shown = None; avg = None; print("no data bundle: shown heroes will not shift the stand-in tables")
-BAN = dict(B) if FROM_RUN else dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
+BAN = dict(B, run=L["run"], version=L["version"]) if FROM_RUN else dict(B, run=L["run"], version=L["version"], shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
 json.dump(BAN, open(f"{OUT}/ban_v8.json", "w", encoding="utf-8"), ensure_ascii=False, default=lambda x: np.asarray(x).tolist())
 for f in ("substitutes_v8.json", "parity_v8.json"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
 # the simulator (the notebook's world model), when the run folder has it: ban-solver export/build_sim_v8.py writes it there
-if os.path.exists(f"{RUN}/site/sim_v8.json"):
-    for f in ("sim_v8.json", "sim_v8.bin"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
-    print("simulator: copied sim_v8.json and sim_v8.bin (check with node tools/check_sim_v8.js)")
-else: print(f"simulator: {RUN}/site/sim_v8.json not found; run ban-solver export/build_sim_v8.py {RUN} first for the studio's simulator")
+if HAS_SIM:
+    shutil.copy(f"{RUN}/site/sim_v8.bin", f"{OUT}/sim_v8.bin"); json.dump(dict(SM, bin_bytes=len(sbin), bin_sha256=sha(sbin)), open(f"{OUT}/sim_v8.json", "w", encoding="utf-8"))
+    print("simulator: copied sim_v8.json and sim_v8.bin")
+else: print("simulator: none in this release (ALLOW_NO_SIM=1); the pages show the simulator as unavailable")
 
 # ---- the numbers the page quotes
 CHK = json.load(open(f"{RUN}/reports/world_model_checks_v8.json", encoding="utf-8")); OPE = json.load(open(f"{RUN}/reports/ope_v8.json", encoding="utf-8"))
@@ -101,4 +131,20 @@ REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SU
                     ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"]),
            recalibration=SUM.get("recalibration"), draft_calibration={k: v for k, v in SUM.get("draft_calibration", {}).items() if k in ("lam_g", "delta")})
 json.dump(REP, open(f"{OUT}/report_v8.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=lambda x: np.asarray(x).tolist())
-print("wrote", ", ".join(sorted(os.listdir(OUT))))
+print("staged", ", ".join(sorted(os.listdir(OUT))))
+# ---- check the staged bundle; publish it only if every check passes
+if os.environ.get("SKIP_CHECKS") != "1":
+    env = dict(os.environ, MODEL_DIR=OUT)
+    steps = [[sys.executable, "tools/check_v8_ref.py", RUN], ["node", "tools/check_v8.js"]] + ([["node", "tools/check_sim_v8.js"]] if HAS_SIM else [])
+    for cmd in steps:
+        r = subprocess.run(cmd, env=env, capture_output=True, text=True); print(r.stdout.strip()[-1500:])
+        if r.returncode: print(r.stderr.strip()[-1500:]); refuse(f"{' '.join(cmd[1:])} failed on the staged bundle (left in {OUT} for inspection)")
+prev = LIVE + ".prev"
+if os.path.exists(prev): shutil.rmtree(prev)
+if os.path.exists(LIVE): os.rename(LIVE, prev)
+try: os.rename(OUT, LIVE)
+except OSError:
+    if os.path.exists(prev): os.rename(prev, LIVE)
+    raise
+if os.path.exists(prev): shutil.rmtree(prev)
+print(f"published run {L['run']} ({L['version']}) to {LIVE}/: " + ", ".join(sorted(os.listdir(LIVE))) + "; next: python tools/stamp.py")

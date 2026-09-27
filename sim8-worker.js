@@ -11,6 +11,12 @@ async function load(base, v) {
   const q = v ? `?v=${v}` : "";
   const [meta, bin, lay, ban] = await Promise.all([fetch(`${base}model8/sim_v8.json${q}`).then(r => r.json()), fetch(`${base}model8/sim_v8.bin${q}`).then(r => r.arrayBuffer()),
     fetch(`${base}model8/value_v8.json${q}`).then(r => r.json()), fetch(`${base}model8/ban_v8.json${q}`).then(r => r.json())]);
+  if (meta.run !== lay.run || (ban.run && ban.run !== lay.run)) throw new Error(`the simulator (${meta.run}) and the value networks (${lay.run}) come from different runs`);
+  if (meta.bin_bytes !== undefined && bin.byteLength !== meta.bin_bytes) throw new Error(`sim_v8.bin: ${bin.byteLength} bytes, the release says ${meta.bin_bytes}`);
+  if (meta.bin_sha256 && self.crypto && crypto.subtle) {
+    const d = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bin))).map(b => b.toString(16).padStart(2, "0")).join("");
+    if (d !== meta.bin_sha256) throw new Error("sim_v8.bin: its checksum does not match the release");
+  }
   SIM = new Sim8(meta, bin); E8 = new Engine8(lay, ban);
 }
 const lobbyKey = s => [s.m, s.r0, s.firstUs, s.you, (s.mates6 || []).join(".")].join("|");
@@ -29,7 +35,7 @@ function ourProbs(s) {                                            // a typical t
 onmessage = async ev => {
   const d = ev.data;
   try {
-    if (!SIM) { loading = loading || load(d.base || "", d.v); await loading; }
+    if (!SIM) { loading = loading || load(d.base || "", d.v).catch(e => { loading = null; throw e; }); await loading; }   // a failed load is tried again on the next job
     const s = d.st, L = SIM.lobby(s), op = ourProbs(s), H = SIM.H;
     if (d.type === "flow") {
       const us = new Float64Array(H), them = new Float64Array(H); let nu = 0, nt = 0, n = 0;

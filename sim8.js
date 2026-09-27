@@ -26,6 +26,7 @@
         else if (a.dtype === "float32") A[a.name] = Float64Array.from(new Float32Array(buffer, a.offset, n));
         else A[a.name] = Int32Array.from(new Int32Array(buffer, a.offset, n));
         A[a.name].shape = a.shape;
+        if (a.dtype !== "int32") for (let i = 0; i < A[a.name].length; i++) if (!Number.isFinite(A[a.name][i])) throw new Error(`simulator array ${a.name}: a value is not finite`);
       }
       this.A = A; this.S = meta.scalars; this.N = A["pool.RANK"].length; this.NM = A["G.dm"].shape[0]; this.NB = A["G.db"].shape[0];
       this.MU = meta.mu; this.K = meta.k; this.J = Math.min(meta.jban, meta.mu, meta.k); this.SW = meta.sweeps;

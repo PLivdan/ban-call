@@ -20,7 +20,7 @@ onmessage = async ev => {
       if (E.ours(s.firstUs, e)) {
         const R = E.ourTurn(s); calls++; if (!R) return;
         const two = e + 1 < 6 && E.ours(s.firstUs, e + 1);
-        if (two) { const P = E.pairs(s, R, 2); calls++; if (P && P.length) node.kids.push({ hs: [P[0].a, P[0].b], who: "us", V: P[0].V, bans: s.bans.concat([P[0].a, P[0].b]), kids: [] }); }
+        if (two) { const Q = E.sequence(s, R); calls++; if (Q) node.kids.push({ hs: [Q.a, Q.b], who: "us", V: Q.V, bans: s.bans.concat([Q.a, Q.b]), kids: [] }); }   // the advice, one ban at a time
         else node.kids.push({ hs: [R.best], who: "us", V: R.V[R.best], bans: s.bans.concat([R.best]), kids: [] });
         post(false); return;
       }

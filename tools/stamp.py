@@ -15,7 +15,7 @@ def sub_script(page, name, src_name=None, prefix=""):
 app = root / "app8.js"
 app.write_text(re.sub(r'new Worker\("sim8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("sim8-worker.js?v={h("sim8.js", "engine8.js", "sim8-worker.js")}")', app.read_text(encoding="utf-8")), encoding="utf-8")
 page = root / "index.html"
-for name in ("engine.js", "engine8.js", "app8.js"): t = sub_script(page, name)
+for name in ("engine.js", "engine8.js", "lobby-state.js", "app8.js"): t = sub_script(page, name)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
 # the previous model's page: its worker version sits inside v7/app.js, so v7/app.js is hashed after it
 v7 = root / "v7" / "app.js"
@@ -37,5 +37,6 @@ if st_js.exists():
     s2 = re.sub(r'new Worker\("tree8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree8-worker.js?v={h("engine8.js", "studio/tree8-worker.js")}")', s2); st_js.write_text(s2, encoding="utf-8")
     sp = root / "studio" / "index.html"; t2 = sp.read_text(encoding="utf-8")
     t2 = re.sub(r'<script src="\.\./engine8?\.js(\?v=[^"]*)?"></script>', f'<script src="../engine8.js?v={h("engine8.js")}"></script>', t2)
+    t2 = re.sub(r'<script src="\.\./lobby-state\.js(\?v=[^"]*)?"></script>', f'<script src="../lobby-state.js?v={h("lobby-state.js")}"></script>', t2)
     t2 = re.sub(r'<script src="studio\.js(\?v=[^"]*)?"></script>', f'<script src="studio.js?v={h("studio/studio.js")}"></script>', t2)
     sp.write_text(t2, encoding="utf-8"); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)) + ", workers " + ", ".join(re.findall(r'new Worker\("([^"]+)"\)', s2)))

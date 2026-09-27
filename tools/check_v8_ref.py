@@ -5,12 +5,13 @@ the exported parameters, not the stand-in approximation.
 
     python tools/check_v8_ref.py [<run folder>]   ->  tools/reports/check_v8_ban.json
 """
-import json, pickle, sys
+import json, os, pickle, sys
 import numpy as np
 
 RUN = sys.argv[1] if len(sys.argv) > 1 else "../ban-solver/data/runs/20260926_2120"
 MOD = pickle.load(open(f"{RUN}/models_v8.pkl", "rb")); BN = {k: np.asarray(v, np.float64) for k, v in MOD["ban"].items()}
-B = json.load(open("model8/ban_v8.json", encoding="utf-8")); L = json.load(open("model8/value_v8.json", encoding="utf-8"))
+MD = os.environ.get("MODEL_DIR", "model8")                              # a staged bundle (tools/build_site_v8.py)
+B = json.load(open(f"{MD}/ban_v8.json", encoding="utf-8")); L = json.load(open(f"{MD}/value_v8.json", encoding="utf-8"))
 H = len(L["heroes"]); ORDER = np.array(L["order"]); bands = np.array(L["bands"]); NM = len(L["maps"])
 CMAT = np.asarray(B["counter"]); PRE = B["premade_share"]; T = np.asarray(B["stand_in_team_shares"])
 TP = np.asarray(B["stand_in_players"]) if B.get("stand_in_players") is not None else None    # v8.4: six profiles per stand-in team

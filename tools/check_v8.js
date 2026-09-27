@@ -6,14 +6,14 @@
       (tools/check_v8_ref.py writes them). From v8.3 also whole turns as the notebook computed them with the float16
       students and the exported tables: every candidate's value, spread and typical-ban probability, and the advice.
    3. The advice on random lobbies: finite values, the advice supported, pairs on two-ban turns, and timings. */
-const fs = require("fs"), { Engine8 } = require("../engine8.js");
-const L = JSON.parse(fs.readFileSync("model8/value_v8.json", "utf8")), BAN = JSON.parse(fs.readFileSync("model8/ban_v8.json", "utf8"));
+const fs = require("fs"), { Engine8 } = require("../engine8.js"), MD = process.env.MODEL_DIR || "model8";   // MODEL_DIR: a staged bundle (tools/build_site_v8.py)
+const L = JSON.parse(fs.readFileSync(`${MD}/value_v8.json`, "utf8")), BAN = JSON.parse(fs.readFileSync(`${MD}/ban_v8.json`, "utf8"));
 const E = new Engine8(L, BAN);
 const ab = f => { const b = fs.readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
-for (const f of Object.keys(L.files)) E.addBuffer(f, ab(`model8/${L.files[f].path}`));
+for (const f of Object.keys(L.files)) E.addBuffer(f, ab(`${MD}/${L.files[f].path}`));
 const H = E.H, O = E.O, out = []; let bad = 0; const log = s => { console.log(s); out.push(s); };
 // ---- 1. parity
-const PAR = JSON.parse(fs.readFileSync("model8/parity_v8.json", "utf8")); let worstL = 0, worstX = 0;
+const PAR = JSON.parse(fs.readFileSync(`${MD}/parity_v8.json`, "utf8")); let worstL = 0, worstX = 0;
 const members = [["optimal", 0], ["optimal", 1], ["optimal", 2], ["behaviour", 0], ["robust", 0]];
 for (const c of PAR.cases) {
   const x = new Float64Array(E.FD); for (const [j, v] of c.input_nonzero) x[j] = v;
@@ -66,5 +66,53 @@ for (let i = 0; i < 30; i++) {
 }
 log(`advice on ${n} of our turns (${agree} clear of the runner-up, ${unsupported} outside the support): ${(tOur / Math.max(n, 1)).toFixed(0)} ms each; ${nPair} two-ban turns, pairs ${(tPair / Math.max(nPair, 1)).toFixed(0)} ms; ${nThem} of their turns ${(tThem / Math.max(nThem, 1)).toFixed(0)} ms`);
 if (unsupported) { bad++; log("  FAIL: advice outside the support"); }
+// ---- 4. two-ban turns as the page advises them (the recommendation the page shows, not only ourTurn): the advised first ban,
+// then the advice again at the state after it, the support rule at both states, both camps; and the pairs shown for comparison
+// only among supported first bans and bans supported after them. States where the highest raw score is an unsupported ban are
+// counted: the advice must still be supported there.
+const supAt = (s, e, h) => { const L_ = E.legal(s), sh = E.shownSet(s), al = new Uint8Array(H); let any = false;
+  for (let k = 0; k < H; k++) al[k] = L_[k] && !(E.ours(s.firstUs, e) && sh.has(k)) ? 1 : 0;
+  const p = E.banProbs(s, e, al); for (let k = 0; k < H; k++) if (al[k] && p[k] >= E.SUPP) any = true; return !any || p[h] >= E.SUPP; };
+let nTwo = 0, seqBad = 0, pairBad = 0, rare = 0, camps = new Set();
+for (let i = 0; i < 200 && nTwo < 24; i++) {
+  const heroes = Array.from({ length: H }, (_, k) => k).sort(() => rnd() - .5), firstUs = rnd() < .5;
+  const e = [1, 2, 3, 4, 5].find(k => k + 1 < 6 && E.ours(firstUs, k) && E.ours(firstUs, k + 1) && rnd() < .7); if (e === undefined) continue;
+  const s = { m: Math.floor(rnd() * E.NM), r0: tiers[Math.floor(rnd() * tiers.length)], firstUs, bans: heroes.slice(0, e), you: rnd() < .75 ? heroes[e] : -1, mates: heroes.slice(e + 1, e + 1 + Math.floor(rnd() * 3)) };
+  const R = E.ourTurn(s), Q = E.sequence(s, R), P = E.pairs(s, R, 6, true) || []; nTwo++; camps.add(firstUs);
+  const s2 = Object.assign({}, s, { bans: s.bans.concat([Q.a]) }), R2 = E.ourTurn(s2);
+  if (Q.a !== R.best || Q.b !== R2.best || !supAt(s, e, Q.a) || !supAt(s2, e + 1, Q.b)) { seqBad++; log(`  two-ban turn ${i}: the sequence ${L.heroes[Q.a]}, ${L.heroes[Q.b]} breaks the policy`); }
+  for (const p of P.slice(0, 12)) if (!supAt(s, e, p.a) || !supAt(Object.assign({}, s, { bans: s.bans.concat([p.a]) }), e + 1, p.b)) pairBad++;
+  const raw = R.cands.reduce((b, h) => (R.mu[h] - E.KAPPA * R.sd[h] > R.mu[b] - E.KAPPA * R.sd[b] ? h : b), R.cands[0]); if (!supAt(s, e, raw)) rare++;
+}
+log(`two-ban turns as the page advises them: ${nTwo} (camps: ${[...camps].map(f => f ? "first" : "second").join(", ")}), advice = the advised ban then the advice again, supported at both states: ${nTwo - seqBad} of ${nTwo}; `
+  + `compared pairs outside the support: ${pairBad}; states where the highest raw score is unsupported: ${rare} (the advice was supported in all of them)`);
+if (seqBad || pairBad) { bad++; log("  FAIL: a two-ban recommendation or a compared pair breaks the policy"); }
+// the same with a stricter support threshold on a copy of the engine (5%), so the best raw score is often a rare ban
+{
+  const E5 = new Engine8(L, BAN); for (const f of Object.keys(L.files)) E5.addBuffer(f, ab(`${MD}/${L.files[f].path}`)); E5.SUPP = .05;
+  const sup5 = (s, e, h) => { const L_ = E5.legal(s), sh = E5.shownSet(s), al = new Uint8Array(H); let any = false;
+    for (let k = 0; k < H; k++) al[k] = L_[k] && !(E5.ours(s.firstUs, e) && sh.has(k)) ? 1 : 0;
+    const p = E5.banProbs(s, e, al); for (let k = 0; k < H; k++) if (al[k] && p[k] >= E5.SUPP) any = true; return !any || p[h] >= E5.SUPP; };
+  let hit = 0, broke = 0, tried = 0;
+  for (let i = 0; i < 300 && hit < 10; i++) {
+    const heroes = Array.from({ length: H }, (_, k) => k).sort(() => rnd() - .5), firstUs = rnd() < .5;
+    const e = [1, 2, 3, 4, 5].find(k => k + 1 < 6 && E5.ours(firstUs, k) && E5.ours(firstUs, k + 1)); if (e === undefined) continue;
+    const s = { m: Math.floor(rnd() * E5.NM), r0: tiers[Math.floor(rnd() * tiers.length)], firstUs, bans: heroes.slice(0, e), you: heroes[e], mates: [] }; tried++;
+    const R = E5.ourTurn(s), raw = R.cands.reduce((b, h) => (R.mu[h] - E5.KAPPA * R.sd[h] > R.mu[b] - E5.KAPPA * R.sd[b] ? h : b), R.cands[0]);
+    if (sup5(s, e, raw)) continue; hit++;
+    const Q = E5.sequence(s, R), P = E5.pairs(s, R, 6, true) || [];
+    if (!sup5(s, e, Q.a) || !sup5(Object.assign({}, s, { bans: s.bans.concat([Q.a]) }), e + 1, Q.b) || P.some(p => !sup5(s, e, p.a))) broke++;
+  }
+  log(`with a 5% support threshold: ${hit} two-ban states where the best raw score is a rare ban; the advice and the compared pairs stayed supported in ${hit - broke} of them`);
+  if (!hit || broke) { bad++; log("  FAIL: the rare-ban case was not exercised or the advice left the support"); }
+}
+// ---- 5. bad weight files are refused before any forecast: empty, truncated, oversized, a value that decodes to NaN
+{
+  const f0 = Object.keys(L.files)[0], good = ab(`${MD}/${L.files[f0].path}`); let refused = 0;
+  const nan = good.slice(0); new Uint16Array(nan)[5] = 0x7e00;
+  const cases = [["empty", new ArrayBuffer(0)], ["truncated", good.slice(0, good.byteLength >> 1)], ["oversized", (() => { const x = new Uint8Array(good.byteLength + 2); x.set(new Uint8Array(good)); return x.buffer; })()], ["NaN weight", nan]];
+  for (const [nm, buf] of cases) { const E2 = new Engine8(L, BAN); try { E2.addBuffer(f0, buf); log(`  FAIL: a ${nm} weight file was accepted`); } catch (e) { refused++; } if (E2.ready("optimal")) { bad++; log(`  FAIL: ready after a ${nm} file`); } }
+  log(`bad weight files refused before any forecast: ${refused} of ${cases.length} (empty, truncated, oversized, a NaN weight)`); if (refused < cases.length) bad++;
+}
 log(bad ? `${bad} problem(s)` : "all checks passed");
 fs.writeFileSync("tools/reports/check_v8.txt", out.join("\n") + "\n"); process.exit(bad ? 1 : 0);

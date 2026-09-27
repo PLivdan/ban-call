@@ -24,18 +24,29 @@
 
   // ---------------------------------------------------------------- load: the tables, then the networks with a progress line
   const say = t => { const c = $("call"); if (c) c.innerHTML = `<p class="q">${t}</p>`; };
-  async function fetchBin(url, bytes, label) {
-    const r = await fetch(url); if (!r.ok) throw new Error(url);
-    if (!r.body || !r.body.getReader) return r.arrayBuffer();
-    const rd = r.body.getReader(), parts = []; let got = 0;
-    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; say(`${label} ${Math.round(100 * got / bytes)}%`); }
-    const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out.buffer;
+  // a binary of the release: exactly the manifest's size and (when the manifest has it) its SHA-256, or the load fails
+  async function fetchBin(url, bytes, label, sha) {
+    const r = await fetch(url); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+    let buf;
+    if (!r.body || !r.body.getReader) buf = await r.arrayBuffer();
+    else {
+      const rd = r.body.getReader(), parts = []; let got = 0;
+      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; say(`${label} ${Math.round(100 * got / bytes)}%`); }
+      const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } buf = out.buffer;
+    }
+    if (bytes !== undefined && buf.byteLength !== bytes) throw new Error(`${url}: ${buf.byteLength} bytes, the release says ${bytes}`);
+    if (sha && self.crypto && crypto.subtle) {
+      const d = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buf))).map(b => b.toString(16).padStart(2, "0")).join("");
+      if (d !== sha) throw new Error(`${url}: its checksum does not match the release`);
+    }
+    return buf;
   }
   const LAY = await fetch("../model8/value_v8.json", { cache: "no-cache" }).then(r => r.json()), VQ = `?v=${LAY.run}`;
   const [BAN, SUBS, REP, META, PORT] = await Promise.all(["../model8/ban_v8.json" + VQ, "../model8/substitutes_v8.json" + VQ, "../model8/report_v8.json" + VQ,
     "../model/meta.json", "../model/portraits.json"].map(u => fetch(u).then(r => r.json())));
+  if ((BAN.run && BAN.run !== LAY.run) || (REP.run && REP.run !== LAY.run)) throw new Error(`the model files come from different runs (${LAY.run}, ${BAN.run}, ${REP.run})`);
   const E = new Engine8(LAY, BAN), H = E.H, ORDER = LAY.order, NAMES = LAY.heroes, ROLE = LAY.roles;
-  E.addBuffer("opt", await fetchBin(`../model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, `Loading the value networks (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)`));
+  E.addBuffer("opt", await fetchBin(`../model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, `Loading the value networks (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)`, LAY.files.opt.sha256));
   const img = h => `../img/heroes/${PORT[NAMES[h]]}.webp`, short = h => SHORT[NAMES[h]] || NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label) })).sort((a, b) => a.name.localeCompare(b.name));
@@ -44,34 +55,28 @@
 
   // ---------------------------------------------------------------- state, mirrored in the URL hash (the main page's keys, plus the model and runs)
   const kly = MAPS.find(m => /Klyntar \(Dom/.test(m.name));
-  const st = { tier: "Grandmaster 3", map: kly ? kly.i : MAPS[0].i, first: true, team: [-1, -1, -1, -1, -1, -1], bans: [], active: { kind: "team", i: 0 }, model: "value", runs: 64 };
+  const LS = LobbyState, st = Object.assign({ tier: "Grandmaster 3", map: kly ? kly.i : MAPS[0].i, first: true, active: { kind: "team", i: 0 }, model: "value", runs: 64 }, LS.fresh());
   let MINE = []; try { MINE = JSON.parse(localStorage.getItem("bancall-mine") || "[]").filter(h => Number.isInteger(h) && h < H); } catch (e) {}
   const rememberMine = h => { MINE = [h].concat(MINE.filter(x => x !== h)).slice(0, 8); try { localStorage.setItem("bancall-mine", JSON.stringify(MINE)); } catch (e) {} };
   let lastHash = "";
-  function readHash() {
-    const q = new URLSearchParams(location.hash.slice(1)); if (!q.has("m")) return;
-    if (q.get("t") && META.tiers[q.get("t")]) st.tier = q.get("t");
-    const m = +q.get("m") || 0; st.map = MAPS.some(x => x.i === m) ? m : st.map; st.first = q.get("f") !== "0";
+  function readHash() {                                  // lobby-state.js: the main page's checks and schema, banned hovers kept (g)
+    const d = LS.decode(location.hash, { H, tiers: META.tiers, maps: new Set(MAPS.map(m => m.i)), tier: st.tier, map: st.map }); if (!d) return;
+    const q = new URLSearchParams(location.hash.slice(1)); Object.assign(st, d);
     st.model = q.get("x") === "1" ? "sim" : "value"; st.runs = [32, 64, 128, 256].includes(+q.get("n")) ? +q.get("n") : 64;
-    const tm = (q.get("u") || "").split(",").map(x => (x === "" || x === "-") ? -1 : +x); for (let i = 0; i < 6; i++) st.team[i] = Number.isInteger(tm[i]) && tm[i] >= 0 && tm[i] < H ? tm[i] : -1;
-    st.bans = (q.get("b") || "").split(",").filter(x => x !== "").map(Number).filter(h => h >= 0 && h < H).slice(0, 6);
-    st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
+    st.active = LS.shownOf(st, 0) < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
   }
-  function writeHash() {
-    const q = new URLSearchParams({ t: st.tier, m: st.map, f: st.first ? 1 : 0, x: st.model === "sim" ? 1 : 0, n: st.runs, u: st.team.map(h => h < 0 ? "-" : h).join(","), b: st.bans.join(",") });
-    lastHash = "#" + q.toString(); history.replaceState(null, "", lastHash);
-  }
+  function writeHash() { lastHash = LS.encode(st, { x: st.model === "sim" ? 1 : 0, n: st.runs }); history.replaceState(null, "", lastHash); }
   readHash();
   if (!location.hash && MINE.length) { st.team[0] = MINE[0]; st.active = { kind: "ban" }; }
-  window.addEventListener("hashchange", () => { if (location.hash === lastHash) return; st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; readHash(); syncControls(); update(); });
+  window.addEventListener("hashchange", () => { if (location.hash === lastHash) return; Object.assign(st, LS.fresh()); readHash(); syncControls(); update(); });
   const ours = i => (ORDER[i] === 0) === st.first;
   const nextBan = () => st.bans.length;
   const ourTurn = () => nextBan() < 6 && ours(nextBan());
   const turnCount = () => { const e = nextBan(); return (e + 1 < 6 && ours(e) && ours(e + 1)) ? 2 : 1; };
   const bannedSet = () => new Set(st.bans), teamSet = () => new Set(st.team.filter(h => h >= 0));
-  const lobby = (bans = st.bans) => ({ m: st.map, r0: META.tiers[st.tier], firstUs: st.first, bans: bans.slice(), you: st.team[0], mates: st.team.slice(1).filter(h => h >= 0) });
-  const simLobby = () => Object.assign(lobby(), { mates6: st.team.slice(1) });
-  const lobbyKey = () => JSON.stringify([st.tier, st.map, st.first, st.team, st.bans]);
+  const lobby = (bans = st.bans) => Object.assign(LS.lobby(st, META.tiers[st.tier]), { bans: bans.slice() });   // a banned hover still counts as shown
+  const simLobby = () => lobby();
+  const lobbyKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(i => LS.shownOf(st, i)), st.bans]);
 
   // ---------------------------------------------------------------- controls
   $("tierSel").innerHTML = TIERS.map(t => `<option>${esc(t)}</option>`).join("");
@@ -89,8 +94,8 @@
   $("valueBtn").onclick = () => { st.model = "value"; update(false); };
   $("simBtn").onclick = () => { st.model = "sim"; update(false); };
   document.querySelectorAll("#runsCtl button").forEach(b => b.onclick = () => { st.runs = +b.dataset.n; SIM = null; update(false); });
-  $("undoBtn").onclick = () => { if (st.bans.length) { st.bans.pop(); st.active = { kind: "ban" }; update(); } };
-  $("newBtn").onclick = () => { st.bans = []; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" }; $("search").value = ""; update(); };
+  $("undoBtn").onclick = () => { if (LS.unban(st) >= 0) { st.active = { kind: "ban" }; update(); } };
+  $("newBtn").onclick = () => { st.bans = []; st.gone = []; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" }; $("search").value = ""; update(); };
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
   const themeNow = () => document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const setThemeLabel = () => $("themeBtn").textContent = themeNow() === "dark" ? "Light" : "Dark";
@@ -104,18 +109,15 @@
     const a = st.active;
     if (a.kind === "team") {
       if (st.bans.includes(h)) return;
-      for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;
-      st.team[a.i] = h; if (a.i === 0) rememberMine(h);
+      LS.hover(st, a.i, h); if (a.i === 0) rememberMine(h);
       const nxt = a.i === 0 ? -1 : st.team.findIndex((x, i) => x < 0 && i > a.i);
       st.active = nxt >= 0 ? { kind: "team", i: nxt } : { kind: "ban" };
     } else {
-      if (nextBan() >= 6 || st.bans.includes(h)) return;
-      for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1;
-      st.bans.push(h);
+      if (nextBan() >= 6 || !LS.ban(st, h)) return;         // a banned hover stays shown for the model (as on the main page)
     }
     $("search").value = ""; renderHits(); update();
   }
-  function banAll(hs) { for (const h of hs) { for (let i = 0; i < 6; i++) if (st.team[i] === h) st.team[i] = -1; if (!st.bans.includes(h) && st.bans.length < 6) st.bans.push(h); } st.active = { kind: "ban" }; update(); }
+  function banAll(hs) { for (const h of hs) LS.ban(st, h); st.active = { kind: "ban" }; update(); }
   // how much each hero is played at this rank: the page's stand-in teams (the ban model's view of a lobby at the rank band)
   const POPC = new Map();
   function popularity() {
@@ -191,8 +193,8 @@
     if (simSingles()) { const d = pairedDiff(SIM, a, b); return d ? { clear: d.d - 1.96 * d.se > 0, d } : null; }
     return { clear: R8.clear(a, b), d: null };
   }
-  function suggested() {                                        // our ban(s) this turn: the best single ban, or the best pair
-    if (turnCount() === 2) { const P = simReady() ? SIMP : P8; if (P && P.length) { const p = P[0], ab = R8.V[p.a] >= R8.V[p.b] ? [p.a, p.b] : [p.b, p.a]; return { hs: ab, V: p.V, pair: p }; } }
+  function suggested() {       // our ban(s) this turn: the best single ban; on a two-ban turn the networks' advice (best ban, then the best after it), or the simulator's best pair
+    if (turnCount() === 2) { const P = simReady() ? SIMP : P8; if (P && P.length) { const p = P[0], ab = p.seq || R8.V[p.a] >= R8.V[p.b] ? [p.a, p.b] : [p.b, p.a]; return { hs: ab, V: p.V, pair: p }; } }
     const h = topBans(1)[0]; return h === undefined ? null : { hs: [h], V: valueNow()[h] };
   }
 
@@ -286,7 +288,7 @@
   function winLine() {
     if (!WIN) return "";
     return nextBan() >= 6 ? `<p class="winl">Win chance after these bans: <b>${pct1(WIN.opt)}</b></p>`
-      : `<p class="winl">Win chance <b>${pct1(WIN.opt)}</b> if you follow the advice${WIN.beh !== null ? ` · ${pct1(WIN.beh)} if both teams ban as usual` : ""}</p>`;
+      : `<p class="winl">The model's win chance <b>${pct1(WIN.opt)}</b> with its best later bans${WIN.beh !== null ? ` · ${pct1(WIN.beh)} if both teams ban as usual` : ""}</p>`;
   }
   const WHYK = [["base", "it is popular on this map, rank and position"], ["react", "of the bans so far"], ["prot", "they do not play it themselves"], ["fear", "it beats what they play"], ["targ", "your team plays it"]];
   function whyRows(T, k = 5) {                                  // the ban model's utility for their next ban, split into its parts, against an average legal hero
@@ -327,7 +329,7 @@
   }
   function ourCall() {
     const e = nextBan(), cnt = turnCount(), sim = st.model === "sim";
-    let html = `<p class="eyebrowless">${cnt === 2 ? `Your bans ${e + 1} and ${e + 2} of 6, chosen together` : `Your ban ${e + 1} of 6`}${sim ? `. Simulator, ${st.runs} runs for each leading ban` : ""}</p>`;
+    let html = `<p class="eyebrowless">${cnt === 2 ? `Your bans ${e + 1} and ${e + 2} of 6, ${sim ? "chosen together" : "the best ban, then the best ban after it"}` : `Your ban ${e + 1} of 6`}${sim ? `. Simulator, ${st.runs} runs for each leading ban` : ""}</p>`;
     if (sim && !simReady()) {
       if (SIM && SIM.failed) return html + `<p class="note">The simulator stopped with an error in this browser. Reload the page, or switch to the value networks.</p>`;
       return html + `<div><p class="q">Playing the ban phase out</p><div class="prog"><i id="simBar"></i></div><p class="note" id="simCount"></p>
@@ -439,7 +441,7 @@
   function renderSteps() {
     $("team").innerHTML = st.team.map((h, i) => { const on = st.active.kind === "team" && st.active.i === i;
       return `<button class="sl us${h >= 0 ? " filled" : ""}${on ? " on" : ""}" data-i="${i}" title="${i === 0 ? "You" : "Teammate " + (i + 1)}${h >= 0 ? ": " + esc(NAMES[h]) : ""}"><span class="box">${h >= 0 ? `<img src="${img(h)}" alt="">` : "+"}</span><span class="cap">${i === 0 ? "You" : "Mate " + (i + 1)}</span>${h >= 0 ? `<span class="x" data-clear="${i}">✕</span>` : ""}</button>`; }).join("");
-    $("team").querySelectorAll(".sl").forEach(b => b.onclick = ev => { const i = +b.dataset.i, clr = ev.target.dataset.clear !== undefined; if (clr) st.team[i] = -1; st.active = { kind: "team", i }; update(clr); });
+    $("team").querySelectorAll(".sl").forEach(b => b.onclick = ev => { const i = +b.dataset.i, clr = ev.target.dataset.clear !== undefined; if (clr) LS.clearSlot(st, i); st.active = { kind: "team", i }; update(clr); });
     const e = nextBan(), sug = ourTurn() && R8 && st.active.kind === "ban" ? suggested() : null, path = PATH || [];
     $("track").innerHTML = [0, 1, 2, 3, 4, 5].map(i => {
       const h = st.bans[i], sd = ours(i) ? "us" : "them", sg = h === undefined && sug && i >= e && i < e + sug.hs.length ? sug.hs[i - e] : undefined, f = h === undefined && sg === undefined ? path.find(x => x.e === i) : null;
@@ -464,7 +466,7 @@
     const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]); if (!d.length) return null; const m = d.reduce((p, q) => p + q, 0) / d.length; return { d: m, se: cse(js, d, m) }; }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   let pool = [], jobs = new Map(), jobId = 0;
-  function newWorker() { const w = new Worker("../sim8-worker.js?v=f94880c003"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
+  function newWorker() { const w = new Worker("../sim8-worker.js?v=d7fc5b4c5a"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
   function ensurePool(fresh) {
     if (fresh) { pool.forEach(w => w.terminate()); pool = []; jobs.clear(); for (const [k, F] of FLOWC) if (!F.done) FLOWC.delete(k); OPNRUN = ""; }
     while (pool.length < NW) pool.push(newWorker());
@@ -685,7 +687,7 @@
     if (TREE.key !== key && R8) {
       TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
       if (treeW) treeW.terminate();
-      treeW = new Worker("tree8-worker.js?v=bede3bf6f2");
+      treeW = new Worker("tree8-worker.js?v=f8800533e3");
       treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; if (ev.data.error) { TREE.failed = true; drawTree(); return; } TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
       const opts = turnCount() === 2 && P8 ? P8.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: R8.V[h] }));
       treeW.postMessage({ id, base: lobby(), opts, v: LAY.run });
@@ -764,7 +766,7 @@
       R8 = P8 = T8 = BEH = null; PATH = null; SIM = SIMP = null; SHIFTC.clear();
       if (e < 6 && ourTurn()) {
         R8 = E.ourTurn(s);
-        if (turnCount() === 2 && R8) P8 = E.pairs(s, R8, 6);
+        if (turnCount() === 2 && R8) { const SQ = E.sequence(s, R8), P = E.pairs(s, R8, 6) || []; P8 = SQ ? [SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))) : P; }
       } else if (e < 6) T8 = E.theirTurn(s);
       const w = E.winNow(s), wb = E.winNow(s, "behaviour"); WIN = w ? { opt: w[0], beh: e < 6 && wb ? wb[0] : null } : null;
       PATH = e < 6 ? ghostPath() : null;
@@ -785,4 +787,7 @@
   }
   if (!REDUCED) $("word").querySelectorAll("span").forEach((s, i) => s.animate([{ transform: "translateY(40%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 700, delay: 80 * i, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }));
   update();
-})();
+})().catch(e => {                                          // a bad or partial release: no answer rather than a made-up one
+  console.error(e); const c = document.getElementById("call");
+  if (c) c.innerHTML = `<p class="q">The model failed to load (${String(e && e.message || e).replace(/[<>&"]/g, "")}). No answer is shown. Reload the page to try again.</p>`;
+});

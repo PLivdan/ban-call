@@ -43,7 +43,22 @@
       }
       this.hasTau = P.tau !== undefined; this.hasB = !!P.Lo; this.hasV8 = !!P.acm;
     }
-    addBuffer(file, arrayBuffer) { this.buf[file] = new Uint16Array(arrayBuffer); }
+    /* A weight file (ArrayBuffer), checked before anything uses it: its length must be the manifest's, every tensor must lie
+       inside it, the layers must chain from the input to the outputs (3 for a student, 1 for a member), and every value must
+       decode to a finite number. Throws otherwise, so a truncated or mismatched file never becomes a 50% forecast. */
+    addBuffer(file, arrayBuffer) {
+      const want = this.L.files && this.L.files[file] ? this.L.files[file].bytes : undefined;
+      if (want !== undefined && arrayBuffer.byteLength !== want) throw new Error(`model file ${file}: ${arrayBuffer.byteLength} bytes, the manifest says ${want}`);
+      const u = new Uint16Array(arrayBuffer), mine = this.L.weights.filter(w => w.file === file);
+      if (!mine.length) throw new Error(`model file ${file}: the manifest lists no tensors in it`);
+      for (const w of mine) {
+        const n = w.shape.reduce((a, c) => a * c, 1);
+        if (w.offset % 2 || w.offset / 2 + n > u.length) throw new Error(`model file ${file}: tensor ${w.position}/${w.chain}/${w.member}/${w.layer}/${w.name} lies outside the file`);
+      }
+      this.buf[file] = u;
+      try { for (const k of new Set(mine.map(w => `${w.position}|${w.chain}|${w.member}`))) { const [p, c, m] = k.split("|"); this.net(+p, c, +m); } }
+      catch (e) { delete this.buf[file]; this.cache.clear(); throw e; }
+    }
     ready(chain) { return !!this.buf[this.S || chain === "optimal" ? "opt" : "aux"]; }
     band(r0) { let b = 0; for (const t of this.L.bands) if (r0 > t) b++; return b; }
     ours(firstUs, i) { return (this.ORDER[i] === 0) === firstUs; }
@@ -56,8 +71,12 @@
         const w = this.index.get(`${key}|${l}|W`), b = this.index.get(`${key}|${l}|b`); if (!w) break;
         const u = this.buf[w.file]; if (!u) return null;
         const dec = (e) => { const n = e.shape.reduce((a, c) => a * c, 1), o = new Float64Array(n), off = e.offset / 2; for (let i = 0; i < n; i++) o[i] = f16(u[off + i]); return o; };   // float64: the same values, faster loops
-        layers.push({ W: dec(w), b: dec(b), nin: w.shape[0], nout: w.shape[1] });
+        const lay = { W: dec(w), b: dec(b), nin: w.shape[0], nout: w.shape[1] };
+        if (lay.b.length !== lay.nout || lay.nin !== (l ? layers[l - 1].nout : this.FD)) throw new Error(`network ${key} layer ${l}: shape ${w.shape} does not chain`);
+        for (const a of [lay.W, lay.b]) for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) throw new Error(`network ${key} layer ${l}: a weight is not finite`);
+        layers.push(lay);
       }
+      if (!layers.length || layers[layers.length - 1].nout !== (this.S ? 3 : 1)) throw new Error(`network ${key}: missing or wrong output layer`);
       this.cache.set(key, layers); return layers;
     }
     static first(layers, x) {                        // first-layer pre-activation for input x
@@ -203,13 +222,23 @@
     /* The networks' range for a value v (points against the baseline): the members' lowest and highest, and the members
        themselves; for the student, one SD either side of the mean. */
     spread(mv, v, sd) { return mv ? { lo: Math.min(...mv), hi: Math.max(...mv), pts: mv } : { lo: v - sd, hi: v + sd, pts: [] }; }
-    /* A two-ban turn: after each of the top first bans x, every second ban y from network e + 2. Values against the same
-       typical-first-ban baseline as the single bans (a typical first ban, then the best second ban). */
+    /* A two-ban turn as the advice plays it (and as the notebook evaluates it): the advised first ban, then the advice again at
+       the state after it, with the support rule at each state. Values against the single bans' baseline (a typical first ban,
+       then the best second ban). */
+    sequence(s, R) {
+      const R2 = this.ourTurn(Object.assign({}, s, { bans: s.bans.concat([R.best]) })); if (!R2) return null;
+      const b = R2.best, mv = R2.Q ? R2.Q.map(q => q[b] - R.base) : null, V = R2.mu[b] - R.base;
+      return { a: R.best, b, mu: R2.mu[b], sd: R2.sd[b], V, mv, spread: this.spread(mv, V, R2.sd[b]), seq: true };
+    }
+    /* Pairs scored together, for comparison with the advice (not the advice itself): after each of the top supported first bans
+       x, every second ban y that is supported at the state after x (all legal ones when none is), from network e + 2. */
     pairs(s, R, nFirst = 6, bothOrders = false) {
-      const e = R.e, H = this.H, first = R.cands.slice().sort((a, b) => (R.mu[b] - this.KAPPA * R.sd[b]) - (R.mu[a] - this.KAPPA * R.sd[a])).slice(0, nFirst), out = [];
+      const e = R.e, H = this.H, sc = h => R.mu[h] - this.KAPPA * R.sd[h], pool1 = R.supported.size ? R.cands.filter(h => R.supported.has(h)) : R.cands;
+      const first = pool1.slice().sort((a, b) => sc(b) - sc(a)).slice(0, nFirst), out = [];
       for (const x of first) {
         const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), VV = this.values(s2, e + 1, cands, true); if (!VV) return null;
-        for (const y of cands) {
+        const al2 = new Uint8Array(H); for (const h of cands) al2[h] = 1; const pe2 = this.banProbs(s2, e + 1, al2), sup2 = cands.filter(h => pe2[h] >= this.SUPP);
+        for (const y of (sup2.length ? sup2 : cands)) {
           const mv = VV.Q ? VV.Q.map(q => q[y] - R.base) : null, V = VV.mu[y] - R.base;
           out.push({ a: x, b: y, mu: VV.mu[y], sd: VV.sd[y], V, mv, spread: this.spread(mv, V, VV.sd[y]) });
         }
