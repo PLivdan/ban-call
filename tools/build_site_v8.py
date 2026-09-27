@@ -52,8 +52,16 @@ B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8")); SUM = js
 H = len(L["heroes"]); vnum = tuple(int(x) for x in str(L.get("version", "v0")).lstrip("v").split(".")[:2] + ["0"])[:2]
 if SUM.get("version") != L.get("version") or SUM.get("run") != L.get("run"): refuse(f"the summary is {SUM.get('version')} run {SUM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
 if vnum >= (8, 4) and "deploy_ok" not in SUM: refuse("a v8.4+ summary without deploy_ok (the null-world gate)")
-if SUM.get("deploy_ok") is False and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4 runs: the null-world gate
-    refuse("this run failed the null-world gate (summary_v8.json deploy_ok is false); FORCE_DEPLOY=1 overrides")
+# v8.6: a run whose only problem was the notebook's simulator step (training_ok, not release_bundle_ok) is importable once
+# export/build_sim_v8.py has built the simulator locally; every other reason needs FORCE_DEPLOY=1
+SIM_REBUILT = (SUM.get("training_ok") is True and SUM.get("release_bundle_ok") is False
+               and os.path.exists(f"{RUN}/site/sim_v8.json") and os.path.exists(f"{RUN}/site/sim_v8.bin"))
+if SIM_REBUILT: print("note: the notebook did not write the simulator; using the one built locally (export/build_sim_v8.py)")
+if SUM.get("deploy_ok") is False and not SIM_REBUILT and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4: the null-world gate; v8.6: also forced tests, D-taught students, C contradicted
+    refuse("the run is marked not for deployment (" + ("; ".join(SUM.get("deploy_notes") or []) or "the null-world gate failed") + "); FORCE_DEPLOY=1 overrides")
+_pm = (SUM.get("experiments") or {}).get("premade") or {}
+if _pm.get("mix") or _pm.get("outcome") or _pm.get("kept"):                 # v8.6: the page's engine and simulator still use v8.5's single premade share
+    refuse("the run kept a premade correction (ban mixture or outcome term); engine8.js and sim8.js need it before such a run can be imported")
 if B.get("heroes") is not None and B["heroes"] != L["heroes"]: refuse("the ban model's hero order differs from the networks'")
 if B.get("maps") is not None and [m["label"] if isinstance(m, dict) else m for m in L["maps"]] != list(B["maps"]): refuse("the ban model's map order differs from the networks'")
 for w in L["weights"]:
@@ -63,6 +71,7 @@ if HAS_SIM:
     SM = json.load(open(f"{RUN}/site/sim_v8.json", encoding="utf-8")); sbin = open(f"{RUN}/site/sim_v8.bin", "rb").read()
     if SM.get("run") != L.get("run") or SM.get("version") != L.get("version"): refuse(f"the simulator is {SM.get('version')} run {SM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
     if SM["heroes"] != L["heroes"]: refuse("the simulator's hero order differs from the networks'")
+    if "bin_bytes" in SM and (SM["bin_bytes"] != len(sbin) or SM.get("bin_sha256") != hashlib.sha256(sbin).hexdigest()): refuse("sim_v8.bin does not match the size and hash in sim_v8.json")
     for a_ in SM["arrays"]:
         if a_["offset"] + int(np.prod(a_["shape"])) * np.dtype(a_["dtype"]).itemsize > len(sbin): refuse(f"simulator array {a_['name']} lies outside sim_v8.bin")
 elif os.environ.get("ALLOW_NO_SIM") != "1":
