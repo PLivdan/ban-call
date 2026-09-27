@@ -619,7 +619,7 @@
   const chunks = (a, k) => { const n = Math.ceil(a.length / k), o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const PAIRS = 8;                                                // two-ban turns: pairs among the best PAIRS single bans (28 pairs, every run)
   let pool = [], RUN = null, SIM = null, SIMP = null, simId = 0;
-  function newWorker() { const w = new Worker("../sim-worker.js?v=0885f1f45c"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
+  function newWorker() { const w = new Worker("../sim-worker.js?v=6208fc75c2"); w.onmessage = ev => TB && ev.data.id === TB.id ? onTB(ev.data) : onSim(ev.data);
     w.onerror = () => { if (TB && !TB.finished) { TB.finished = true; return; } simFail(); }; return w; }
   function ensurePool(fresh) { if (fresh) { pool.forEach(w => w.terminate()); pool = []; } while (pool.length < NW) pool.push(newWorker()); }
   function simFail() {

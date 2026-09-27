@@ -621,7 +621,7 @@
     ],
     [
      "Rocket Raccoon",
-     0.0275
+     0.0276
     ]
    ]
   },
@@ -862,7 +862,7 @@
   {
    "hero": "Moon Knight",
    "mains": 881,
-   "same_role": 0.69,
+   "same_role": 0.6899,
    "top": [
     [
      "Namor",
@@ -901,7 +901,7 @@
   {
    "hero": "Squirrel Girl",
    "mains": 359,
-   "same_role": 0.6386,
+   "same_role": 0.6385,
    "top": [
     [
      "Scarlet Witch",
@@ -1970,7 +1970,7 @@
     ],
     [
      "Gambit",
-     0.0416
+     0.0417
     ],
     [
      "Scarlet Witch",
@@ -2025,7 +2025,7 @@
     ],
     [
      "Emma Frost",
-     0.0321
+     0.032
     ]
    ]
   },
@@ -2149,7 +2149,7 @@
   {
    "hero": "Deadpool (Strategist)",
    "mains": 1511,
-   "same_role": 0.3614,
+   "same_role": 0.3615,
    "top": [
     [
      "Deadpool (Duelist)",
