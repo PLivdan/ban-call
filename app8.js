@@ -451,24 +451,94 @@
   }
 
   // ---------------------------------------------------------------- advice
-  function winLine() {                                 // your win chance as things stand: following the advice, and if both teams ban as usual
+  /* Your win chance as a scoreboard: the number with the advice as the headline, the gain over both teams banning as usual as
+     a chip, and a small 45-60% scale with a coin flip marked, so a one-point gain is visible but not inflated. */
+  function winLine() {
     if (!WIN) return "";
-    const o = mean(WIN.opt), b = WIN.beh ? WIN.beh[0] : null;
-    return nextBan() >= 6 ? `<p class="winl">Win chance after these bans: <b>${pct1(o)}</b></p>`
-      : `<p class="winl">Win chance <b>${pct1(o)}</b> if you follow the advice${b !== null ? ` · ${pct1(b)} if both teams ban as usual` : ""}</p>`;
+    // with none of your bans left, following the advice and banning as usual are the same thing: one number, no chip
+    const left = [0, 1, 2, 3, 4, 5].slice(nextBan()).some(ours), o = mean(WIN.opt), b = WIN.beh && left ? WIN.beh[0] : null, done = nextBan() >= 6, gain = b === null ? null : o - b;
+    const vs = [o].concat(b === null || done ? [] : [b]), lo = Math.min(.45, Math.floor(100 * Math.min(...vs) - 2) / 100), hi = Math.max(.60, Math.ceil(100 * Math.max(...vs) + 2) / 100);
+    const Wd = 440, X = v => 12 + (v - lo) / (hi - lo) * (Wd - 24), half = .5 >= lo && .5 <= hi;
+    const scale = `<svg viewBox="0 0 ${Wd} 42" aria-hidden="true"><line x1="12" x2="${Wd - 12}" y1="14" y2="14" stroke="var(--hair)" stroke-width="6" stroke-linecap="round"/>
+      ${half ? `<line x1="${X(.5)}" x2="${X(.5)}" y1="4" y2="24" stroke="var(--faint)" stroke-dasharray="2 2"/><text x="${X(.5)}" y="38" font-size="12" text-anchor="middle" class="faint">50%, a coin flip</text>` : ""}
+      ${b !== null && !done ? `<line x1="${X(Math.min(o, b))}" x2="${X(Math.max(o, b))}" y1="14" y2="14" stroke="var(--blue)" stroke-width="6"/><circle cx="${X(b)}" cy="14" r="5" fill="var(--paper)" stroke="var(--faint)" stroke-width="2"><title>both teams ban as usual: ${pct1(b)}</title></circle>` : ""}
+      <circle cx="${X(o)}" cy="14" r="7" fill="var(--blue)"><title>${pct1(o)}</title></circle>
+      <text x="12" y="38" font-size="12" class="faint">${Math.round(100 * lo)}%</text><text x="${Wd - 12}" y="38" font-size="12" text-anchor="end" class="faint">${Math.round(100 * hi)}%</text></svg>`;
+    const gainTxt = !done && gain !== null ? `<div class="wgain"><span class="wchip">${pp(gain, 1)}</span>points over both teams banning as usual (${pct1(b)})</div>` : "";
+    return `<div class="wscore"><div class="wtop"><div class="wbig">${pct1(o)}</div><div class="wlab">${done ? "your win chance after these bans" : left ? "your win chance if you follow the advice" : "your win chance, whatever they ban last"}</div></div>${gainTxt}${scale}</div>`;
   }
   const quiet = html => html.replace(/<(figcaption|caption)>([\s\S]*?)<\/\1>/g, (m, t, x) => `<${t}><details class="more"><summary>How to read this</summary>${x}</details></${t}>`);
   const more = (label, body) => `<details class="more" style="margin:2px 0 10px 0"><summary>${label}</summary>${body}</details>`;
-  function openers() {
-    if (!LU) return "";
-    const bans = bannedSet(), revs = teamSet();
-    const them = Array.from(LU.pt.keys()).filter(h => !bans.has(h)).sort((a, b) => LU.pt[b] - LU.pt[a]).slice(0, 10);
-    const us = Array.from(LU.pu.keys()).filter(h => !bans.has(h) && !revs.has(h)).sort((a, b) => LU.pu[b] - LU.pu[a]).slice(0, 10);
-    return `<figure>${butterfly(them, us, LU.pt, LU.pu, revs)}<figcaption>Chance each team opens a hero, given the bans so far and the heroes your team shows (from the previous model's draft predictions).</figcaption></figure>`;
+  // ---- likely comps: the v8 simulator plays this lobby out in background workers (stand-ins near your rank, the rest of the
+  // bans as typical teams make them, both teams' drafts from the pick model) and counts what each team opens
+  const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CRUNS = 64, CDRAWS = 32;
+  let compPool = [], COMP = null, compId = 0;
+  const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
+  function compStart() {
+    const key = compKey(); if (COMP && COMP.key === key) return;
+    if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=a6261486d4"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
+    for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
+    COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
+    parts.forEach((runs, k) => { if (!runs.length) return; COMP.pending++; compPool[k].postMessage({ id, v: LAY.run, type: "values", st: s, cands: ["typ"], opens: true, runs }); });
   }
+  function compMsg(d) {
+    const C = COMP; if (!C || d.id !== C.id || !d.done) return;
+    if (d.error) { compFail(); return; }
+    const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
+    for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
+    if (--C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
+  }
+  function compFail() { if (!COMP || COMP.failed) return; COMP.failed = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
+  const splitName = k => k.split("-").map((n, r) => `${n} ${RN[r]}${n === "1" ? "" : "s"}`).join(", ");
+  const RNC = ["Vanguard", "Duelist", "Strategist"];
+  /* One team's numbers: open chances per hero, role splits by frequency, and per role a ranked list: the heroes that fill the
+     most common split (picks), then the next two (alternatives, at least 3% of drafts). */
+  function compSide(side) {
+    const C = COMP, n = side === "us" ? C.nu : C.nt, P = Array.from(C[side], x => x / Math.max(n, 1));   // a plain array: a typed array's map can only return numbers
+    const sp = Object.entries(C.splits[side]).map(([k, c]) => ({ k, p: c / Math.max(n, 1) })).sort((a, b) => b.p - a.p);
+    const best = sp.length ? sp[0].k.split("-").map(Number) : [2, 2, 2];
+    const roles = [0, 1, 2].map(r => { const cand = P.map((p, h) => ({ h, p })).filter(x => ROLES[x.h] === r && x.p > 0).sort((a, b) => b.p - a.p);
+      const k = Math.max(1, best[r]); return { picks: cand.slice(0, k), alts: cand.slice(k, k + 2).filter(x => x.p >= .03) }; });
+    return { side, P, sp, best, roles };
+  }
+  function compCell(S, r, mx, adv) {
+    const you = shownOf(0), shown = new Set([1, 2, 3, 4, 5].map(shownOf).filter(h => h >= 0)), R = S.roles[r], cls = S.side === "us" ? "u" : "t";
+    const row = (x, alt) => { const tag = S.side === "us" && x.h === you ? "you" : S.side === "us" && shown.has(x.h) ? "shown" : adv.has(x.h) ? "ban?" : "";
+      const w = tag === "you" || tag === "shown" ? 100 : Math.min(100, 100 * x.p / mx);
+      return `<div class="crow${alt ? " calt" : ""}" title="${esc(NAMES[x.h])}: opened in ${pct(x.p)} of simulated drafts"><img src="${img(x.h)}" alt="">
+        <div class="cn"><div class="cl"><span class="nm">${esc(nm(x.h))}</span><span class="pv">${tag === "you" || tag === "shown" ? "" : pct(x.p)}</span></div>
+        <i class="cbar ${cls}"><b style="width:${w.toFixed(1)}%"></b></i>${tag ? `<span class="ctag${tag === "ban?" ? " cban" : ""}">${tag === "ban?" ? "advised ban" : tag}</span>` : ""}</div></div>`; };
+    return R.picks.map(x => row(x, false)).join("") + (R.alts.length ? `<div class="cor">or</div>${R.alts.map(x => row(x, true)).join("")}` : "");
+  }
+  const shapes = S => S.sp.filter(x => x.p >= .02).slice(0, 3).map((x, i) => `<span class="cshape${i ? "" : " on"}" title="${splitName(x.k)}">${x.k.replaceAll("-", "·")}<b>${pct(x.p)}</b></span>`).join("");
+  function compInner() {
+    if (!COMP || COMP.key !== compKey() || (!COMP.done && !COMP.failed)) return `<h2>Likely comps</h2><p class="small">Drafting both teams&hellip;</p>`;
+    if (COMP.failed) return `<h2>Likely comps</h2><p class="small">The drafts could not be run in this browser.</p>`;
+    const T = compSide("them"), U = compSide("us"), adv = new Set(ourTurn() && RES ? (turnCount() === 2 && PAIRS && PAIRS.length ? [PAIRS[0].a, PAIRS[0].b] : [RES.best]) : []);
+    const vis = [T, U].flatMap(S => S.roles.flatMap(R => R.picks.concat(R.alts))).filter(x => !(x.h === shownOf(0))).map(x => x.p), mx = Math.max(...vis, .05);
+    const same = T.sp[0] && U.sp[0] && T.sp[0].k === U.sp[0].k;
+    const head = T.sp[0] ? `<p class="chead">Most likely, <span class="t">they</span> run ${splitName(T.sp[0].k)} (${pct(T.sp[0].p)} of drafts)${U.sp[0] ? same ? `, and <span class="u">your team</span> the same (${pct(U.sp[0].p)})` : `, and <span class="u">your team</span> ${splitName(U.sp[0].k)} (${pct(U.sp[0].p)})` : ""}.</p>` : "";
+    const narrow = ($("adviceBody").clientWidth || 700) < 600;
+    let grid;
+    if (!narrow) {                                           // roles across, the two teams down: compare role by role
+      grid = `<div class="cgrid"><div></div>${RNC.map(t => `<div class="cgh">${t}</div>`).join("")}` +
+        [T, U].map((S, i) => `${i ? `<div class="csep"></div>` : ""}<div class="cgt ${S.side === "us" ? "u" : "t"}"><b>${S.side === "us" ? "Your team" : "Other team"}</b><div class="cshapes">${shapes(S)}</div></div>` +
+          [0, 1, 2].map(r => `<div class="ccell ${S.side}">${compCell(S, r, mx, adv)}</div>`).join("")).join("") + `</div>`;
+    } else {                                                 // phones: one block per role, the two teams side by side
+      grid = `<div class="cshapes2"><div><b class="t">Other team</b>${shapes(T)}</div><div><b class="u">Your team</b>${shapes(U)}</div></div>` +
+        [0, 1, 2].map(r => `<div class="cgh">${RNC[r]}</div><div class="cgrid2"><div class="ccell them">${compCell(T, r, mx, adv)}</div><div class="ccell us">${compCell(U, r, mx, adv)}</div></div>`).join("");
+    }
+    return `<h2>Likely comps</h2>${head}${grid}<figure style="margin:6px 0 0 0"><figcaption>From ${COMP.runs} simulated ban phases of this lobby: players near your rank, the rest of the bans as
+      typical teams make them, and both teams' drafts from the pick model. Split chips count vanguards, duelists and strategists. In each role, the heroes above "or" fill that
+      role in the team's most common split; below it, the next likeliest. Bars and percentages: how often the hero is opened, on one scale for both teams.
+      Lineups vary too much for any single one to be likely, so this is who fills each role, not one fixed lineup.</figcaption></figure>`;
+  }
+  function openers() { compStart(); return `<section class="comp" id="comp">${compInner()}</section>`; }
   function renderAdvice() {
     const e = nextBan(), W = figW(); let html = "";
-    if (e >= 6) html += `<h2>Ban phase complete</h2>${winLine()}${more("Likely openers", openers())}`;
+    if (e >= 6) html += `<h2>Ban phase complete</h2>${winLine()}${openers()}`;
     else if (ourTurn() && RES) {
       const cnt = turnCount(), R = RES, pair = cnt === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null;
       const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], clr = runner !== undefined && R.clear(R.best, runner);
@@ -485,14 +555,14 @@
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Bar: the range. Typical: how often a
         typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's draft predictions.`));
-      html += more("Likely openers", openers());
+      html += openers();
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
       html += `<h2>Their ban #${e + 1}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}, ${pp(T.mu[F.worst] - T.base)} for you`)}` : ""}</p>`;
       html += winLine() + `<div class="fig8">${F.svg}</div>`;
       html += more("Why they would ban these", `<figure>${whySplit(T)}<figcaption>The ban model's reasons against an average hero (log-odds). "Your team plays it": teams go after the heroes the
         other team's players play, and the heroes your team shows say who your players are.</figcaption></figure>`);
-      html += more("Likely openers", openers());
+      html += openers();
     }
     $("adviceBody").innerHTML = quiet(html);
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });

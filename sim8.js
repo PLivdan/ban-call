@@ -167,6 +167,11 @@
     static opens(H, res, acc, bans) {                  // bans: this phase's six bans, so rates can be read for the phases where a hero was available
       for (const pk of res.pu) for (const h of pk) acc.us[h]++; for (const pk of res.po) for (const h of pk) acc.them[h]++; acc.nu += res.pu.length; acc.nt += res.po.length;
       if (bans && acc.av) { acc.runs = (acc.runs || 0) + 1; for (let h = 0; h < H; h++) if (!bans.includes(h)) acc.av[h]++; }
+      if (acc.splits && acc.roles) {                     // role splits (vanguards-duelists-strategists) of the drafted lineups
+        const key = pk => { const c = [0, 0, 0]; for (const h of pk) c[acc.roles[h]]++; return c.join("-"); };
+        for (const pk of res.pu) { const k = key(pk); acc.splits.us[k] = (acc.splits.us[k] || 0) + 1; }
+        for (const pk of res.po) { const k = key(pk); acc.splits.them[k] = (acc.splits.them[k] || 0) + 1; }
+      }
     }
   }
   Sim8.rng = rng; Sim8.hash = hash; Sim8.gumbel = gumbel;

@@ -95,6 +95,49 @@
   .head .n { font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin-right: 3px; } .head .u { color: var(--blue); } .head .t { color: var(--red); }
   .head .hs { font-size: 14px; font-weight: 600; color: var(--faint); }
   .winl { font-size: 13px; color: var(--faint); margin: 0 0 8px 0; } .winl b { color: var(--ink); font-weight: 600; }
+  /* your win chance as a scoreboard */
+  .wscore { margin: 6px 0 16px 0; }
+  .wscore .wtop { display: flex; align-items: flex-end; gap: 6px 14px; flex-wrap: wrap; }
+  .wscore .wbig { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; font-size: 56px; font-weight: 800; line-height: .9; letter-spacing: -.02em; color: var(--blue); }
+  .wscore .wlab { font-size: 14px; color: var(--faint); max-width: 24ch; line-height: 1.25; padding-bottom: 3px; }
+  .wscore .wgain { margin-top: 10px; font-size: 14px; color: var(--faint); line-height: 1.6; }
+  .wscore .wchip { display: inline-block; font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--paper); background: var(--blue); padding: 1px 8px; margin-right: 8px; }
+  .wscore svg { display: block; width: 100%; max-width: 440px; margin-top: 10px; overflow: visible; }
+  @media (max-width: 720px) { .wscore .wbig { font-size: 44px; } }
+  /* likely comps: roles across, the two teams down; each cell a ranked list with bars on one scale */
+  .comp { margin: 18px 0 8px 0; }
+  .comp .chead { font-size: 15px; margin: 0 0 12px 0; line-height: 1.4; max-width: 70ch; }
+  .comp .t { color: var(--red); } .comp .u { color: var(--blue); } .comp .chead .t, .comp .chead .u { font-weight: 600; white-space: nowrap; }
+  .comp .cgrid { display: grid; grid-template-columns: 108px repeat(3, minmax(0, 1fr)); column-gap: 18px; max-width: 760px; }
+  .comp .cgh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); padding: 0 0 6px 0; border-bottom: 1px solid var(--ink); margin-bottom: 10px; }
+  .comp .cgrid > .cgh:first-of-type { border: 0; }
+  .comp .cgt { padding: 2px 0 14px 0; } .comp .cgt > b { display: block; font-size: 14px; margin-bottom: 6px; }
+  .comp .cgt.t > b { color: var(--red); } .comp .cgt.u > b { color: var(--blue); }
+  .comp .csep { grid-column: 1 / -1; border-top: 1px solid var(--hair); margin: 0 0 14px 0; }
+  .comp .cshapes { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .comp .cshape { display: inline-flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--faint); border: 1px solid var(--hair); padding: 1px 6px; white-space: nowrap; }
+  .comp .cshape b { font-weight: 600; } .comp .cshape.on { color: var(--ink); border-color: var(--ink); }
+  .comp .ccell { padding: 0 0 16px 0; min-width: 0; }
+  .comp .crow { display: flex; align-items: center; gap: 8px; margin: 0 0 7px 0; min-width: 0; }
+  .comp .crow img { width: 38px; height: 38px; object-fit: cover; flex: none; border: 2px solid var(--red); }
+  .comp .us .crow img { border-color: var(--blue); }
+  .comp .crow.calt img { width: 26px; height: 26px; border-width: 1px; opacity: .8; margin-left: 6px; }
+  .comp .cn { flex: 1; min-width: 0; }
+  .comp .cl { display: flex; align-items: baseline; gap: 6px; font-size: 13px; line-height: 1.2; }
+  .comp .calt .cl { font-size: 12px; color: var(--faint); }
+  .comp .cl .nm { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .comp .calt .cl .nm { font-weight: 400; }
+  .comp .cl .pv { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--faint); flex: none; }
+  .comp .ctag { display: inline-block; font-size: 10.5px; line-height: 1.35; border: 1px solid var(--blue); color: var(--blue); padding: 0 4px; margin-top: 4px; }
+  .comp .ctag.cban { border-style: dashed; }
+  .comp .cbar { display: block; height: 4px; background: var(--hair); margin-top: 4px; } .comp .cbar b { display: block; height: 4px; }
+  .comp .cbar.t b { background: var(--red); } .comp .cbar.u b { background: var(--blue); }
+  .comp .calt .cbar { height: 3px; } .comp .calt .cbar b { height: 3px; opacity: .6; }
+  .comp .cor { font-size: 11px; color: var(--faint); margin: 2px 0 5px 0; display: flex; align-items: center; gap: 6px; }
+  .comp .cor::after { content: ""; flex: 1; border-top: 1px dashed var(--hair); }
+  .comp .cshapes2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .comp .cshapes2 > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; } .comp .cshapes2 > div > b { font-size: 14px; }
+  .comp .cgrid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; }
   .fig8 { margin: 6px 0 18px 0; } .fig8 svg { overflow: visible; }
   svg image.rare { filter: grayscale(1); opacity: .42; } svg [data-ban] { cursor: pointer; } svg [data-ban]:hover .ring { stroke-width: 2.5; }
   .sk .flow { transition: opacity .15s; } .sk.hl .flow { opacity: .06 !important; } .sk.hl .flow.on { opacity: .92 !important; }
@@ -329,5 +372,5 @@
 
 <script src="engine.js?v=9be12d9260"></script>
 <script src="engine8.js?v=22d91bf987"></script>
-<script src="app8.js?v=aeb6e83980"></script>
+<script src="app8.js?v=28ac0109ff"></script>
 </html>

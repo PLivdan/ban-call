@@ -11,7 +11,9 @@ def sub_script(page, name, src_name=None, prefix=""):
     t = page.read_text(encoding="utf-8"); src = src_name or name
     t = re.sub(rf'<script src="{re.escape(prefix + name)}(\?v=[^"]*)?"></script>', f'<script src="{prefix}{name}?v={h(src)}"></script>', t); page.write_text(t, encoding="utf-8")
     return t
-# the page
+# the page; app8.js starts the simulator worker (likely comps), whose address is stamped first so app8.js is hashed after it
+app = root / "app8.js"
+app.write_text(re.sub(r'new Worker\("sim8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("sim8-worker.js?v={h("sim8.js", "engine8.js", "sim8-worker.js")}")', app.read_text(encoding="utf-8")), encoding="utf-8")
 page = root / "index.html"
 for name in ("engine.js", "engine8.js", "app8.js"): t = sub_script(page, name)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
