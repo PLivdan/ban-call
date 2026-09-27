@@ -403,6 +403,12 @@
     const worst = ok ? seg.filter(h => T.pe[h] >= .04).sort((a, b) => d(a) - d(b))[0] : undefined;
     return { svg: `<svg viewBox="0 0 ${W} ${Hh}" width="${W}">${g}</svg>`, top: top[0], worst };
   }
+  /* The ban of theirs that would hurt you most, in plain words, only when it costs you at least 0.1 points: "worst for you:
+     Emma Frost (−0.25 points)", or "also the worst for you" when it is their likeliest ban anyway. */
+  function worstTxt(F, T) {
+    if (F.worst === undefined) return ""; const d = T.mu[F.worst] - T.base; if (!(d <= -.001)) return "";
+    return hs(F.worst === F.top ? `also the worst for you (${pp(d)} points)` : `worst for you: ${esc(nm(F.worst))} (${pp(d)} points)`);
+  }
   // ---- two-ban turns: first ban (rows) then second (columns), colour only, the best pair outlined with its value; click a cell to ban both
   function pairGrid(P, W) {
     const rows = [], seen = new Set(); for (const p of P) if (!seen.has(p.a)) { seen.add(p.a); rows.push(p.a); }
@@ -550,7 +556,7 @@
       const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
       if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n u">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
       if (cnt === 1 && REPLY) { const F = forecastStrip(REPLY, W);
-        html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}`)}` : ""}</p><div class="fig8">${F.svg}</div>`; }
+        html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span> ${worstTxt(F, REPLY)}</p><div class="fig8">${F.svg}</div>`; }
       html += more("All bans as a table", rankTable(topBans(12), [
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Bar: the range. Typical: how often a
@@ -558,7 +564,7 @@
       html += openers();
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
-      html += `<h2>Their ban #${e + 1}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span>${F.worst !== undefined && F.worst !== F.top ? ` ${hs(`the one to fear: ${esc(nm(F.worst))}, ${pp(T.mu[F.worst] - T.base)} for you`)}` : ""}</p>`;
+      html += `<h2>Their ban #${e + 1}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span> ${worstTxt(F, T)}</p>`;
       html += winLine() + `<div class="fig8">${F.svg}</div>`;
       html += more("Why they would ban these", `<figure>${whySplit(T)}<figcaption>The ban model's reasons against an average hero (log-odds). "Your team plays it": teams go after the heroes the
         other team's players play, and the heroes your team shows say who your players are.</figcaption></figure>`);
