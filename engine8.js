@@ -37,6 +37,10 @@
       for (const w of layout.weights) this.index.set(`${w.position}|${w.chain}|${w.member}|${w.layer}|${w.name}`, w);
       const P = ban.params, H = this.H; this.B = P; this.pre = ban.premade_share; this.C = ban.counter;
       this.T = ban.stand_in_team_shares; this.SS = ban.shown_shares; this.PS = ban.player_shares; this.J = this.T[0].length;
+      this.TP = ban.stand_in_players || null; this.SP = ban.shown_profiles || null;          // v8.4: six profiles per stand-in team
+      if (this.TP) {                                 // TAIL[b][j][k]: the summed profiles of team j's players k..5
+        this.TAIL = this.TP.map(tb => tb.map(pl => { const t = [new Float64Array(H)]; for (let k = 5; k >= 0; k--) { const u = Float64Array.from(t[0]); for (let h = 0; h < H; h++) u[h] += pl[k][h]; t.unshift(u); } return t; }));
+      }
       this.hasTau = P.tau !== undefined; this.hasB = !!P.Lo; this.hasV8 = !!P.acm;
     }
     addBuffer(file, arrayBuffer) { this.buf[file] = new Uint16Array(arrayBuffer); }
@@ -82,6 +86,7 @@
       if (e > 0 && !zeroLast) x[O.last_ban + s.bans[e - 1]] = 1;
       if (s.you >= 0) x[O.your_hero + s.you] = 1;
       for (const h of s.mates) x[O.teammates_heroes + h] = 1;
+      if (O.ban_order !== undefined) for (let i = 0; i < e; i++) x[O.ban_order + i * H + s.bans[i]] = 1;   // v8.4: which hero went at which position
       return x;
     }
     /* Values of every candidate as the next ban (position e, made by `usBan`): Q[member][h] from network e + 1. chain:
@@ -92,10 +97,10 @@
       for (let m = 0; m < ms; m++) {
         const n = this.net(e + 1, chain, m); if (!n) return null;
         const z0 = Engine8.first(n, x), W = n[0].W, nout = n[0].nout, Q = new Float64Array(this.H).fill(NaN), z = new Float64Array(nout);
-        const blk = usBan ? O.our_bans : O.their_bans;
+        const blk = usBan ? O.our_bans : O.their_bans, sq = O.ban_order !== undefined ? O.ban_order + e * this.H : -1;
         for (const h of cands) {
-          const r1 = (blk + h) * nout, r2 = (O.last_ban + h) * nout;
-          for (let j = 0; j < nout; j++) z[j] = z0[j] + W[r1 + j] + W[r2 + j];
+          const r1 = (blk + h) * nout, r2 = (O.last_ban + h) * nout, r3 = sq >= 0 ? (sq + h) * nout : -1;
+          for (let j = 0; j < nout; j++) z[j] = z0[j] + W[r1 + j] + W[r2 + j] + (r3 >= 0 ? W[r3 + j] : 0);
           Q[h] = sig(Engine8.tail(n, z));
         }
         out.push(Q);
@@ -107,9 +112,10 @@
       const O = this.O, x = this.input(s, e, true), n = this.net(e + 1); if (!n) return null;
       const z0 = Engine8.first(n, x), W = n[0].W, nout = n[0].nout, z = new Float64Array(nout), blk = usBan ? O.our_bans : O.their_bans;
       const mu = new Float64Array(this.H).fill(NaN), sd = new Float64Array(this.H).fill(NaN), beh = new Float64Array(this.H).fill(NaN);
+      const sq = O.ban_order !== undefined ? O.ban_order + e * this.H : -1;
       for (const h of cands) {
-        const r1 = (blk + h) * nout, r2 = (O.last_ban + h) * nout;
-        for (let j = 0; j < nout; j++) z[j] = z0[j] + W[r1 + j] + W[r2 + j];
+        const r1 = (blk + h) * nout, r2 = (O.last_ban + h) * nout, r3 = sq >= 0 ? (sq + h) * nout : -1;
+        for (let j = 0; j < nout; j++) z[j] = z0[j] + W[r1 + j] + W[r2 + j] + (r3 >= 0 ? W[r3 + j] : 0);
         const o = Engine8.outs(n, z); mu[h] = sig(o[0]); sd[h] = softplus(o[1]); beh[h] = sig(o[2]);
       }
       return { mu, sd, beh };
@@ -130,11 +136,17 @@
     }
     // ---- the ban model
     relTables(s) {                                   // stand-in teams' summed hero shares: ours (following the shown heroes) and theirs
-      const bd = this.band(s.r0), H = this.H, T = this.T[bd], J = this.J, shown = [s.you].concat(s.mates).filter(h => h >= 0);
+      const bd = this.band(s.r0), H = this.H, T = this.T[bd], J = this.J, shown = [...new Set([s.you].concat(s.mates).filter(h => h >= 0))];
       const us = [], them = [];
       for (let j = 0; j < J; j++) {
-        const u = Float64Array.from(T[j]);
-        if (this.SS) for (const h of shown) { const S = this.SS[bd][h], A = this.PS[bd]; for (let k = 0; k < H; k++) u[k] += S[k] - A[k]; }
+        let u;
+        if (this.TP) {                               // v8.4: the shown heroes' profiles in the first slots, team j's own players after
+          u = Float64Array.from(this.TAIL[bd][j][Math.min(shown.length, 6)]);
+          for (const h of shown) { const S = this.SP[bd][h]; for (let k = 0; k < H; k++) u[k] += S[k]; }
+        } else {
+          u = Float64Array.from(T[j]);
+          if (this.SS) for (const h of shown) { const S = this.SS[bd][h], A = this.PS[bd]; for (let k = 0; k < H; k++) u[k] += S[k] - A[k]; }
+        }
         us.push(u); them.push(Float64Array.from(T[(j + (J >> 1)) % J]));   // their stand-ins: a different draw
       }
       return { us, them };

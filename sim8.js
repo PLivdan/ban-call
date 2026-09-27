@@ -53,7 +53,7 @@
     /* One stand-in draw for a lobby: our MU lineups (conditioned on the shown heroes) and their K lineups, the draft's random
        numbers, and the stand-in teams' hero shares for the ban model. Everything comes from the seed. */
     draw(L, s, seed) {
-      const r = rng(seed), H = this.H, MU = this.MU, K = this.K, [lo, hi] = this.window(s.r0), PL = [];
+      const r = rng(seed), H = this.H, MU = this.MU, K = this.K, [lo, hi] = this.window(s.r0), PL = [], NALT = this.meta.nalt || 8;
       // players who open a shown hero: weight x their pick-model chance of opening it, exact over the window
       const cond = new Map();
       for (const h of L.shown) if (h >= 0 && !cond.has(h)) {
@@ -65,11 +65,18 @@
       const pickC = cw => { const x = r() * cw[cw.length - 1]; let a = 0, b = cw.length - 1; while (b - a > 1) { const md = (a + b) >> 1; if (cw[md] <= x) a = md; else b = md; } return lo + a; };
       for (let u = 0; u < MU + K; u++) {
         const team = new Int32Array(6), keep = new Uint8Array(6);
-        for (let j = 0; j < 6; j++) { const h = u < MU ? L.shown[j] : -1; if (h >= 0) { team[j] = pickC(cond.get(h)); keep[j] = 1; } else team[j] = this.drawAny(r, lo, hi); }
+        for (let j = 0; j < 6; j++) {
+          const h = u < MU ? L.shown[j] : -1;
+          if (h < 0) { team[j] = this.drawAny(r, lo, hi); continue; }
+          // v8.4 (the notebook's _sir): up to NALT draws, the first one no earlier shown slot holds; none free: a window draw
+          for (let t = 0; t < NALT && !keep[j]; t++) { const p = pickC(cond.get(h)); let held = false; for (let k = 0; k < j; k++) if (keep[k] && team[k] === p) held = true; if (!held) { team[j] = p; keep[j] = 1; } }
+          if (!keep[j]) team[j] = this.drawAny(r, lo, hi);
+        }
         for (let tries = 0; tries < 30; tries++) {                  // the notebook's dedupe: a repeated stand-in is redrawn (not one drawn for a shown hero)
           let dup = false; for (let j = 0; j < 6; j++) { if (keep[j]) continue; for (let k = 0; k < 6; k++) if (k !== j && team[k] === team[j] && (k < j || keep[k])) { team[j] = this.drawAny(r, lo, hi); dup = true; break; } }
           if (!dup) break;
         }
+        if (new Set(team).size < 6) throw new Error("a stand-in team still repeats a player after 30 redraws");
         PL.push(team);
       }
       const S = this.SW, NZ = new Float64Array((MU + K) * 6 * S * H), OD = [], CU = new Float64Array(MU * 6);

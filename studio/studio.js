@@ -464,7 +464,7 @@
     const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]); if (!d.length) return null; const m = d.reduce((p, q) => p + q, 0) / d.length; return { d: m, se: cse(js, d, m) }; }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   let pool = [], jobs = new Map(), jobId = 0;
-  function newWorker() { const w = new Worker("../sim8-worker.js?v=a6261486d4"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
+  function newWorker() { const w = new Worker("../sim8-worker.js?v=f94880c003"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
   function ensurePool(fresh) {
     if (fresh) { pool.forEach(w => w.terminate()); pool = []; jobs.clear(); for (const [k, F] of FLOWC) if (!F.done) FLOWC.delete(k); OPNRUN = ""; }
     while (pool.length < NW) pool.push(newWorker());
@@ -685,7 +685,7 @@
     if (TREE.key !== key && R8) {
       TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
       if (treeW) treeW.terminate();
-      treeW = new Worker("tree8-worker.js?v=f99d859236");
+      treeW = new Worker("tree8-worker.js?v=bede3bf6f2");
       treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; if (ev.data.error) { TREE.failed = true; drawTree(); return; } TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
       const opts = turnCount() === 2 && P8 ? P8.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: R8.V[h] }));
       treeW.postMessage({ id, base: lobby(), opts, v: LAY.run });

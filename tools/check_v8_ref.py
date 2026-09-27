@@ -12,7 +12,10 @@ RUN = sys.argv[1] if len(sys.argv) > 1 else "../ban-solver/data/runs/20260926_21
 MOD = pickle.load(open(f"{RUN}/models_v8.pkl", "rb")); BN = {k: np.asarray(v, np.float64) for k, v in MOD["ban"].items()}
 B = json.load(open("model8/ban_v8.json", encoding="utf-8")); L = json.load(open("model8/value_v8.json", encoding="utf-8"))
 H = len(L["heroes"]); ORDER = np.array(L["order"]); bands = np.array(L["bands"]); NM = len(L["maps"])
-CMAT = np.asarray(B["counter"]); PRE = B["premade_share"]; T = np.asarray(B["stand_in_team_shares"]); SS = np.asarray(B["shown_shares"]); PS = np.asarray(B["player_shares"])
+CMAT = np.asarray(B["counter"]); PRE = B["premade_share"]; T = np.asarray(B["stand_in_team_shares"])
+TP = np.asarray(B["stand_in_players"]) if B.get("stand_in_players") is not None else None    # v8.4: six profiles per stand-in team
+if TP is None: SS = np.asarray(B["shown_shares"]); PS = np.asarray(B["player_shares"])
+else: SP = np.asarray(B["shown_profiles"]); TAIL = np.concatenate([np.flip(np.cumsum(np.flip(TP, 2), 2), 2), np.zeros(TP[:, :, :1].shape)], 2)
 J = T.shape[1]; Z = lambda *s: np.zeros(s)
 G = {"B_" + k: v for k, v in BN.items()}
 for k, v in dict(lam_e=Z(6), gam_e=Z(6), Lo=Z(H, H), Lt=Z(H, H), acm=Z(NM, H), lam_p=0., gam_p=0., tau=0., tau_e=Z(6)).items(): G.setdefault("B_" + k, v)
@@ -32,7 +35,9 @@ def ban_probs(mo, bo, camp, RELu, RELo, ourB, thB, last, e, allowed):
     return softmax(np.where(allowed[None], uj, NEG)).mean(0)
 
 def rel_tables(bd, shown):
-    us = T[bd].copy(); them = T[bd][(np.arange(J) + J // 2) % J].copy()
+    them = T[bd][(np.arange(J) + J // 2) % J].copy(); shown = sorted(set(shown))
+    if TP is not None: return TAIL[bd][:, min(len(shown), 6)] + sum((SP[bd, h] for h in shown), np.zeros(H))[None], them   # notebook vis_rel (v8.4)
+    us = T[bd].copy()
     for h in shown: us += SS[bd, h] - PS[bd]
     return us, them
 

@@ -19,6 +19,12 @@ shift it makes to our team's hero shares), the same tables it used for our side'
 baselines, so the page and the notebook agree exactly. For earlier runs the shift is rebuilt here from the data bundle:
 the players at that rank band weighted by their share of minutes on the hero (as of the end of the validation window).
 Without either, a shown hero adds nothing to the stand-in tables (the ban forecast then ignores who shows what).
+
+From v8.4 the stand-in teams come as six players' hero shares each (stand_in_players) with, per shown hero, the profile of
+a player who shows it (shown_profiles): our team takes the shown heroes' profiles in its first slots and its own players
+after them, so every share stays nonnegative and the team's shares sum to six. The value networks also see the order of the
+bans (the ban_order block). A v8.4 run that failed the null-world gate (deploy_ok false in the summary) is refused unless
+FORCE_DEPLOY=1.
 """
 import json, os, shutil, sys
 import numpy as np, pandas as pd
@@ -47,7 +53,10 @@ print(f"value networks: " + ", ".join(f"{f} {off[f] / 1e6:.1f} MB" for f in part
 B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8"))
 SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
 bands = np.array(B["bands"]); NB = len(bands) + 1
-if B.get("shown_shares") is not None:
+if SUM.get("deploy_ok") is False and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4 runs: the null-world gate
+    sys.exit("this run failed the null-world gate (summary_v8.json deploy_ok is false): not building the site from it; FORCE_DEPLOY=1 overrides")
+FROM_RUN = B.get("shown_profiles") is not None or B.get("shown_shares") is not None   # v8.4: players' profiles; v8.3: shifts by an average player
+if FROM_RUN:
     shown = avg = None; print("shown-hero tables: from the run (the notebook's own page view)")
 elif os.path.exists(f"{DATA}/segs.parquet"):
     M = pd.read_parquet(f"{DATA}/matches.parquet"); S = pd.read_parquet(f"{DATA}/slots.parquet", columns=["match_idx", "player_idx", "pre_score", "start_hero"])
@@ -70,7 +79,7 @@ elif os.path.exists(f"{DATA}/segs.parquet"):
     print(f"shown-hero tables from {len(pool):,} players (histories up to match {cut:,}, the end of validation)")
 else:
     shown = None; avg = None; print("no data bundle: shown heroes will not shift the stand-in tables")
-BAN = dict(B) if B.get("shown_shares") is not None else dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
+BAN = dict(B) if FROM_RUN else dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
 json.dump(BAN, open(f"{OUT}/ban_v8.json", "w", encoding="utf-8"), ensure_ascii=False, default=lambda x: np.asarray(x).tolist())
 for f in ("substitutes_v8.json", "parity_v8.json"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
 # the simulator (the notebook's world model), when the run folder has it: ban-solver export/build_sim_v8.py writes it there

@@ -483,7 +483,7 @@
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;
     if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=a6261486d4"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=f94880c003"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
     const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
     for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
     COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
