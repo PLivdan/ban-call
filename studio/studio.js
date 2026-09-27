@@ -124,6 +124,8 @@
     POPC.set(bd, p); return p;
   }
   const openUs = () => OPN && OPN.key === lobbyKey() ? OPN.us : null, openThem = () => OPN && OPN.key === lobbyKey() ? OPN.them : null;
+  const openA = () => OPN && OPN.key === lobbyKey() ? OPN : null;          // rates when the hero is available, and how often it is banned anyway
+  const whenOpen = (x, h) => isNaN(x.themA[h]) ? "" : `When nobody bans ${esc(short(h))}, they open it in <b>${Math.round(100 * x.themA[h])} of 100</b> drafts`;
   function quickList() {
     if (st.active.kind === "team") {
       const bans = bannedSet(), team = teamSet(), ok = h => !bans.has(h) && !team.has(h), pop = popularity();
@@ -253,7 +255,7 @@
         if (simReady() && !isNaN(SIM.V[h])) rows.push(`Simulator <em>${pp(SIM.V[h])}</em> ± ${(196 * SIM.se[h]).toFixed(2)} pts`);
         if (!R8.supported.has(h)) rows.push(`A ban teams almost never make here, so it is not advised`); }
       if (T8 && !ourTurn() && nextBan() < 6) rows.push(`They ban it next <em>${pct(T8.pe[h])}</em>`);
-      if (openThem()) rows.push(`They open it <em>${pct(openThem()[h])}</em>, your team <em>${teamSet().has(h) ? "shown" : pct(openUs()[h])}</em>`);
+      if (openA()) { const x = openA(); rows.push(`When it is open, they open it <em>${pct(x.themA[h])}</em>, your team <em>${teamSet().has(h) ? "shown" : pct(x.usA[h])}</em>`); if (nextBan() < 6) rows.push(`Banned anyway in <em>${pct(x.ban[h])}</em> of ban phases`); }
     }
     tip.innerHTML = `<img src="${img(h)}" alt=""><div><b>${esc(NAMES[h])}</b><div class="r">${ROLE_NAMES[ROLE[h]]}<br>${rows.join("<br>")}</div></div>`;
     tip.classList.add("on"); moveTip(ev);
@@ -350,8 +352,8 @@
     return html;
   }
   function reasonFor(h, pairs) {                                // the value in plain words, from this lobby's simulated drafts and the ban model
-    const P = openThem(), U = openUs(), sh = shiftFor(h), bits = [];
-    if (P) bits.push(`They open ${esc(short(h))} in <b>${Math.round(100 * P[h])} of 100</b> drafts of lobbies like this one${U && U[h] >= .03 ? `, your team in ${Math.round(100 * U[h])}` : ", your team almost never"}.`);
+    const OA = openA(), sh = shiftFor(h), bits = [];
+    if (OA && !isNaN(OA.themA[h])) bits.push(`${whenOpen(OA, h)} of lobbies like this one${OA.usA[h] >= .03 ? `, your team in ${Math.round(100 * OA.usA[h])}` : ", your team almost never"}${OA.ban[h] >= .15 ? `. Someone bans it anyway in ${pct(OA.ban[h])} of ban phases` : ""}.`);
     if (sh && sh.up) bits.push(`Banning it moves their next ban toward <b>${esc(short(sh.up.h))}</b> (${pct(sh.up.a)} instead of ${pct(sh.up.b)}).`);
     bits.push(st.model === "sim" ? "The simulator plays your later bans the way a typical team would." : "The value assumes you follow the advice for your later bans.");
     if (pairs) bits.unshift("The two are scored as a pair, so heroes that replace each other are not counted twice.");
@@ -462,7 +464,7 @@
     const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]); if (!d.length) return null; const m = d.reduce((p, q) => p + q, 0) / d.length; return { d: m, se: cse(js, d, m) }; }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   let pool = [], jobs = new Map(), jobId = 0;
-  function newWorker() { const w = new Worker("../sim8-worker.js?v=f37666eb71"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
+  function newWorker() { const w = new Worker("../sim8-worker.js?v=534c7a9aa9"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
   function ensurePool(fresh) {
     if (fresh) { pool.forEach(w => w.terminate()); pool = []; jobs.clear(); for (const [k, F] of FLOWC) if (!F.done) FLOWC.delete(k); OPNRUN = ""; }
     while (pool.length < NW) pool.push(newWorker());
@@ -480,7 +482,8 @@
     if (d.error) { console.error(d.error); fail(J); return; }
     if (!d.done) { J.ticks += d.tick || 0; if (J.tick) J.tick(J); return; }
     if (d.vals) for (const c in d.vals) Object.assign(J.vals[c] || (J.vals[c] = {}), d.vals[c]);
-    if (d.opens) { if (!J.opens) J.opens = { us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0 }; for (let h = 0; h < H; h++) { J.opens.us[h] += d.opens.us[h]; J.opens.them[h] += d.opens.them[h]; } J.opens.nu += d.opens.nu; J.opens.nt += d.opens.nt; }
+    if (d.opens) { if (!J.opens) J.opens = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), nu: 0, nt: 0, runs: 0 };
+      for (let h = 0; h < H; h++) { J.opens.us[h] += d.opens.us[h]; J.opens.them[h] += d.opens.them[h]; J.opens.av[h] += d.opens.av[h]; } J.opens.nu += d.opens.nu; J.opens.nt += d.opens.nt; J.opens.runs += d.opens.runs; }
     if (d.flow) { if (!J.flow) J.flow = { us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, mu: d.flow.mu, k: d.flow.k }; for (let h = 0; h < H; h++) { J.flow.us[h] += d.flow.us[h]; J.flow.them[h] += d.flow.them[h]; } J.flow.nu += d.flow.nu; J.flow.nt += d.flow.nt; J.flow.runs += d.flow.runs; }
     if (--J.pending > 0) return;
     jobs.delete(J.id); J.done(J);
@@ -513,7 +516,13 @@
     const t = $("simCount"); if (t) t.textContent = `${fmt(SIM.ticks)} of ${fmt(SIM.total)} ban phases played out`;
     $("busyT").textContent = `simulating ${Math.round(100 * f)}%`;
   }
-  function setOpens(o, runs, key) { OPN = { key, runs, us: o.us.map(x => x / Math.max(o.nu, 1)), them: o.them.map(x => x / Math.max(o.nt, 1)) }; }
+  /* Who opens what: us / them over every simulated phase (a hero banned in a phase counts as not opened), usA / themA only over
+     the phases where the hero was available, and ban: the share of phases in which someone banned it. */
+  function setOpens(o, runs, key) {
+    const n = Math.max(o.runs, 1), perU = o.nu / n, perT = o.nt / n;
+    OPN = { key, runs, us: o.us.map(x => x / Math.max(o.nu, 1)), them: o.them.map(x => x / Math.max(o.nt, 1)),
+            usA: o.us.map((x, h) => o.av[h] ? x / (o.av[h] * perU) : NaN), themA: o.them.map((x, h) => o.av[h] ? x / (o.av[h] * perT) : NaN), ban: o.av.map(a => 1 - a / n) };
+  }
   let OPNRUN = "";
   function startOpens() {                                        // who opens what, for the board and the chapters: 32 typical ban phases
     const key = lobbyKey(), s = simLobby(); if (OPNRUN === key) return; OPNRUN = key;
@@ -555,16 +564,18 @@
   }
   const flowTargets = (F, side) => { const n = side === "them" ? F.nt : F.nu, v = F[side]; return n ? [...v.keys()].filter(h => v[h] > 0).map(y => ({ y, d: v[y] / n })).sort((a, b) => b.d - a.d) : []; };
   function chapD(h, hs) {
-    const C = chEl("chD"), P = openThem(), U = openUs(), F = startFlow(h), sh = shiftFor(h), V = valueNow(), r = rangeOf(h), nm = esc(short(h));
+    const C = chEl("chD"), OA = openA(), F = startFlow(h), sh = shiftFor(h), V = valueNow(), r = rangeOf(h), nm = esc(short(h));
     C.h2.innerHTML = `What banning <span class="us">${esc(NAMES[h])}</span> does in this lobby`;
     C.p.innerHTML = `From simulated drafts of this lobby (stand-in players near your rank, the rest of the bans from the ban model) and the ban model's reactions. The value comes from the ${simReady() ? "simulator" : "value networks"}.`;
     chipRow(C.chips, hs, h, x => CHS.d = x);
     const them = F.done ? flowTargets(F, "them") : [], wait = `<div class="wait" style="min-height:120px"><i></i>drafting</div>`;
     const pn = [
-      [P ? `They open ${nm} in <b>${Math.round(100 * P[h])} of 100</b> drafts.` : `How often they open ${nm}`, P ? dots(Math.round(100 * P[h]), "var(--them)") : wait, "the other team's drafted lineups"],
+      [OA && !isNaN(OA.themA[h]) ? `${whenOpen(OA, h)}.` : `How often they open ${nm}`, OA && !isNaN(OA.themA[h]) ? dots(Math.round(100 * OA.themA[h]), "var(--them)") : wait,
+        OA ? `in the ban phases where it stays open; someone bans it anyway in ${pct(OA.ban[h])} of them` : "the other team's drafted lineups"],
       [them.length ? `Without it, those players move to <b>${esc(short(them[0].y))}</b>${them[1] ? ` and ${esc(short(them[1].y))}` : ""}.` : `Where their players go`, F.done ? (them.length ? miniFlow(them, "var(--them)") : `<p class="note">They almost never open it here.</p>`) : wait, "the same drafts with it banned too"],
       [sh ? (sh.up ? `Their next ban moves toward <b>${esc(short(sh.up.h))}</b>: ${pct(sh.up.a)} instead of ${pct(sh.up.b)}.` : `Their next ban hardly changes.`) : `Their next ban`, sh ? shiftSvg(sh, h) : `<p class="note">No ban of theirs follows this one directly.</p>`, "the ban model, against a typical ban"],
-      [U ? `Your team opens it in <b>${Math.round(100 * U[h])} of 100</b>.` : `Your team`, U ? dots(Math.round(100 * U[h]), "var(--us)") : wait, U && U[h] < .03 ? "so the ban costs you almost nothing" : "your team's drafted lineups"],
+      [OA && !isNaN(OA.usA[h]) ? `Your team opens it in <b>${Math.round(100 * OA.usA[h])} of 100</b> when it is open.` : `Your team`, OA && !isNaN(OA.usA[h]) ? dots(Math.round(100 * OA.usA[h]), "var(--us)") : wait,
+        OA && OA.usA[h] < .03 ? "so the ban costs you almost nothing" : "your team's drafted lineups"],
       [`What the ban is worth to your team.`, `<div class="op">${pp(V[h])}</div>`, `points of win chance against a typical ban, range ${pp(r.lo)} to ${pp(r.hi)}${simReady() ? " (the simulator's 95% interval)" : ""}`]];
     C.f.innerHTML = `<div class="strip">${pn.map(([t, fig, sub], k) => `<div class="pn" style="animation-delay:${k * 90}ms"><span class="n">${k + 1}</span><p>${t}</p>${fig}<span class="sub">${sub}</span></div>`).join("")}</div>`;
   }
@@ -649,7 +660,7 @@
     return `<svg class="flowsvg" viewBox="0 0 ${Wd} ${Hh}">${g}</svg>`;
   }
   function chapB(h, hs) {
-    const C = chEl("chB"), F = startFlow(h), W2 = fw(C.f), P = openThem(), U = openUs();
+    const C = chEl("chB"), F = startFlow(h), W2 = fw(C.f), OA = openA();
     chipRow(C.chips, hs, h, x => CHS.b = x);
     if (!F.done) { C.h2.innerHTML = `Ban <span class="us">${esc(short(h))}</span>: where do the players go?`; C.p.innerHTML = "Drafting this lobby with and without it.";
       C.f.innerHTML = F.failed ? `<p class="note">The drafts could not be run in this browser.</p>` : `<div class="wait"><i></i>drafting</div>`; return; }
@@ -658,8 +669,8 @@
     C.h2.innerHTML = them.length ? `Ban <span class="us">${esc(short(h))}</span> and their players move to ${list}` : `They rarely open ${esc(short(h))} in this lobby`;
     C.p.innerHTML = `The same simulated drafts of this lobby, once as they are and once with ${esc(short(h))} banned too, with the same stand-in players and the same random numbers. Each ribbon is where a player who would have opened it goes instead: team-ups, roles and the rest of the lineup all count.`;
     const sub = SUB.get(NAMES[h]);
-    C.f.innerHTML = `<div class="two"><div><h4 style="color:var(--them)">Their players</h4>${them.length ? flowSvg(h, them, 7, "var(--them)", Math.max(520, W2 * .56), `${P ? Math.round(100 * P[h]) : "?"} in 100 drafts`) : `<p class="note">Too few of their drafts open it to draw.</p>`}</div>
-      <div><h4 style="color:var(--us)">Your players</h4>${us.length && F.nu >= 8 ? flowSvg(h, us, 5, "var(--us)", Math.max(420, W2 * .4), `${U ? Math.round(100 * U[h]) : "?"} in 100 drafts`) : `<p class="note">Your team rarely opens ${esc(short(h))}, so the ban moves almost none of your players.</p>`}</div></div>
+    C.f.innerHTML = `<div class="two"><div><h4 style="color:var(--them)">Their players</h4>${them.length ? flowSvg(h, them, 7, "var(--them)", Math.max(520, W2 * .56), `${OA && !isNaN(OA.themA[h]) ? Math.round(100 * OA.themA[h]) : "?"} in 100 drafts`) : `<p class="note">Too few of their drafts open it to draw.</p>`}</div>
+      <div><h4 style="color:var(--us)">Your players</h4>${us.length && F.nu >= 8 ? flowSvg(h, us, 5, "var(--us)", Math.max(420, W2 * .4), `${OA && !isNaN(OA.usA[h]) ? Math.round(100 * OA.usA[h]) : "?"} in 100 drafts`) : `<p class="note">Your team rarely opens ${esc(short(h))}, so the ban moves almost none of your players.</p>`}</div></div>
       <p class="note">${F.runs} simulated ban phases${sub && sub.top.length ? `. Across all Season 10 players whose main is ${esc(short(h))}, the pick model sends them to ${sub.top.slice(0, 3).map(t => `${esc(SHORT[t[0]] || t[0])} (${pct(t[1])})`).join(", ")}, before teammates pick` : ""}.</p>`;
     C.f.querySelectorAll(".flowsvg").forEach(sv => sv.querySelectorAll(".rib").forEach(p => { p.onmouseenter = () => { sv.classList.add("focus"); p.classList.add("hot"); }; p.onmouseleave = () => { sv.classList.remove("focus"); p.classList.remove("hot"); }; }));
   }

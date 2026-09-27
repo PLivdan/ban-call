@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ban Call options</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root { --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6; --blue: #2a4bad; --red: #b0382d; --wash: #dfe6f7; --redwash: #f6e1de; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --wash: #27304a; --redwash: #3a2522; } }
+  :root[data-theme="dark"] { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --wash: #27304a; --redwash: #3a2522; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.45 "Archivo Narrow", system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font: 800 30px/1.1 Archivo, sans-serif; font-stretch: 112%; margin: 0 0 6px; }
+  h2 { font: 700 20px/1.2 Archivo, sans-serif; margin: 44px 0 4px; border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+  .lede { color: var(--faint); max-width: 76ch; margin: 0 0 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 18px; margin-top: 18px; }
+  .opt { border: 1px solid var(--hair); background: var(--panel); padding: 16px 18px 14px; min-width: 0; }
+  .opt .tag { font: 600 12px "IBM Plex Mono", monospace; color: var(--faint); letter-spacing: .04em; }
+  .opt h3 { font: 700 17px/1.2 Archivo, sans-serif; margin: 2px 0 10px; }
+  .opt .fig { background: var(--paper); border: 1px solid var(--hair); padding: 14px; overflow-x: auto; }
+  .opt .why { color: var(--faint); font-size: 14px; margin: 10px 0 0; }
+  .opt .why b { color: var(--ink); font-weight: 600; }
+  svg text { fill: var(--ink); font-family: "Archivo Narrow", sans-serif; }
+  svg .f { fill: var(--faint); } svg .bl { fill: var(--blue); } svg .rd { fill: var(--red); }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  button { font: 600 13px "Archivo Narrow", sans-serif; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 5px 10px; cursor: pointer; }
+  /* W1 */
+  .score { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  .score .big { font: 800 64px/0.9 Archivo, sans-serif; font-stretch: 115%; color: var(--blue); }
+  .score .lab { font-size: 14px; color: var(--faint); max-width: 22ch; }
+  .chip { display: inline-block; font: 700 18px Archivo, sans-serif; color: var(--paper); background: var(--blue); padding: 3px 9px; margin-right: 8px; }
+  /* O1, O2, O3 */
+  .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .teams h4 { margin: 0 0 8px; font: 700 14px Archivo, sans-serif; } .teams h4.them { color: var(--red); } .teams h4.us { color: var(--blue); }
+  .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .roles .rc h5 { margin: 0 0 6px; font: 600 12px "Archivo Narrow"; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+  .pp { display: flex; align-items: center; gap: 6px; margin: 0 0 5px; font-size: 12.5px; line-height: 1.1; }
+  .pp img { object-fit: cover; border: 2px solid transparent; display: block; }
+  .pp .n { font-weight: 600; } .pp .p { color: var(--faint); }
+  .them .pp img { border-color: var(--red); } .us .pp img { border-color: var(--blue); }
+  .slots { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slot { width: 76px; text-align: center; font-size: 12px; }
+  .slot img.main { width: 64px; height: 64px; object-fit: cover; display: block; margin: 0 auto 3px; border: 2px solid var(--ink); }
+  .them .slot img.main { border-color: var(--red); } .us .slot img.main { border-color: var(--blue); }
+  .slot .alt { display: flex; justify-content: center; gap: 3px; margin-top: 4px; } .slot .alt img { width: 22px; height: 22px; object-fit: cover; opacity: .8; }
+  .slot .rl { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .split { display: flex; height: 22px; margin: 6px 0 12px; font-size: 12px; }
+  .split div { display: flex; align-items: center; justify-content: center; color: var(--paper); font-weight: 600; overflow: hidden; white-space: nowrap; }
+  .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; }
+  .rt { font-size: 11px; text-align: center; line-height: 1.1; }
+  .rt img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .rt .bars { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 3px 0 2px; height: 6px; }
+  .rt .bars i { display: block; height: 6px; background: var(--hair); position: relative; } .rt .bars i b { position: absolute; inset: 0 auto 0 0; }
+  .rt .bars i.t b { background: var(--red); } .rt .bars i.u b { background: var(--blue); }
+  .rt.faded img { opacity: .35; filter: grayscale(1); }
+  .rgh { font: 600 12px "Archivo Narrow"; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 6px; }
+</style>
+<main>
+  <div class="top"><h1>Main page options</h1><button id="theme">Dark</button></div>
+  <p class="lede" id="lobby"></p>
+  <p class="lede">Real numbers from the live v8.3 model for one lobby. Pick one of each (or mix). Nothing here is on the main page yet.</p>
+
+  <h2>Your win chance</h2>
+  <p class="lede">Right now the page says it in one grey line: <i>Win chance 52.9% if you follow the advice · 51.7% if both teams ban as usual</i>. The honest size of a ban's effect is about a point or two of win chance, so each option makes that visible without inflating it.</p>
+  <div class="grid">
+    <section class="opt"><span class="tag">W1</span><h3>Scoreboard: the number as the headline</h3><div class="fig" id="w1"></div>
+      <p class="why"><b>For:</b> impossible to miss, sits next to the ban advice, the gain is the chip. <b>Against:</b> a big 53% can read as a promise; the scale bar keeps it honest.</p></section>
+    <section class="opt"><span class="tag">W2</span><h3>Tug of war: your share of the match</h3><div class="fig" id="w2"></div>
+      <p class="why"><b>For:</b> shows both teams at once, and the zoomed strip makes a one-point swing visible. <b>Against:</b> at full width the gain is a sliver, which is true but can feel like nothing.</p></section>
+    <section class="opt"><span class="tag">W3</span><h3>Ban phase timeline: where the edge comes from</h3><div class="fig" id="w3"></div>
+      <p class="why"><b>For:</b> shows where the edge comes from: your advised bans step it up, theirs barely move it. It updates as bans are entered. <b>Against:</b> the most to read; it needs the whole width.</p></section>
+    <section class="opt"><span class="tag">W4</span><h3>Out of 100 games like this</h3><div class="fig" id="w4"></div>
+      <p class="why"><b>For:</b> the plainest way to say what a point is worth: one more win in about a hundred games. <b>Against:</b> small effects look small, because they are.</p></section>
+  </div>
+
+  <h2>Likely openers</h2>
+  <p class="lede">Right now: a mirrored bar chart of hero names, from the previous model, hidden in a closed section. All four options use the v8 simulator's drafts of this lobby (<span id="runs"></span> simulated ban phases, the rest of the bans as typical teams make them), so they match the model that gives the advice. On the page that means one background run of a couple of seconds.</p>
+  <div class="grid">
+    <section class="opt"><span class="tag">O1</span><h3>By role, portraits sized by chance</h3><div class="fig" id="o1"></div>
+      <p class="why"><b>For:</b> reads like a draft screen, and role balance is visible at a glance. <b>Against:</b> shows the top four per role only.</p></section>
+    <section class="opt"><span class="tag">O2</span><h3>Their likely comp: role split, then each slot</h3><div class="fig" id="o2"></div>
+      <p class="why"><b>For:</b> answers "what are we playing into" in one line (2-2-2 in most drafts), then the likeliest hero in each slot with the next two. <b>Against:</b> the slots are the likeliest per role, not one real lineup: no single lineup comes up in more than a fraction of a percent of drafts.</p></section>
+    <section class="opt"><span class="tag">O3</span><h3>The whole roster with two bars per hero</h3><div class="fig" id="o3"></div>
+      <p class="why"><b>For:</b> every hero in one place, in the same order as the hero picker; heroes likely to be banned fade out. <b>Against:</b> dense; the eye has to hunt for the long bars.</p></section>
+    <section class="opt"><span class="tag">O4</span><h3>The current mirror, done properly</h3><div class="fig" id="o4"></div>
+      <p class="why"><b>For:</b> the smallest change: portraits in the middle, the ten likeliest, bars on both sides. <b>Against:</b> still a list, with no sense of roles or comps.</p></section>
+  </div>
+</main>
+<script>
+(async function () {
+  const D = await fetch("data.json").then(r => r.json()), N = D.heroes, RO = D.roles, img = h => `../img/heroes/${D.port[h]}.webp`, RN = ["Vanguard", "Duelist", "Strategist"];
+  const pc = x => (100 * x).toFixed(1) + "%", p0 = x => (100 * x < 1 && x > 0 ? "<1" : Math.round(100 * x)) + "%", pts = x => (x >= 0 ? "+" : "−") + Math.abs(100 * x).toFixed(1);
+  const $ = id => document.getElementById(id), SHORT = { "Gorr The God Butcher": "Gorr", "Jeff The Land Shark": "Jeff", "Rocket Raccoon": "Rocket", "Elsa Bloodstone": "Elsa", "Doctor Strange": "Dr. Strange", "Devil Dinosaur": "Devil Dino", "Invisible Woman": "Invisible W.", "Deadpool (Strategist)": "Deadpool S", "Deadpool (Duelist)": "Deadpool D", "Deadpool (Vanguard)": "Deadpool V", "Captain America": "Cap", "Mister Fantastic": "Mr. Fantastic" };
+  const sh = h => SHORT[N[h]] || N[h];
+  $("lobby").textContent = `Lobby: ${D.lobby.tier}, ${D.lobby.map.replace(" · ", " (")}), your team bans first, you play ${N[D.lobby.you]}, no teammates entered, before any ban.`;
+  $("runs").textContent = D.opens.runs;
+  const tb = $("theme"), themeNow = () => document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const setT = () => tb.textContent = themeNow() === "dark" ? "Light" : "Dark"; tb.onclick = () => { document.documentElement.dataset.theme = themeNow() === "dark" ? "light" : "dark"; setT(); }; setT();
+  const adv = D.now.opt, usual = D.now.beh, gain = adv - usual;
+
+  // ---- W1: the scoreboard
+  { const lo = .45, hi = .60, W = 440, X = v => 10 + (v - lo) / (hi - lo) * (W - 20);
+    const scale = `<svg viewBox="0 0 ${W} 44" width="100%" style="max-width:${W}px;margin-top:14px"><line x1="10" x2="${W - 10}" y1="16" y2="16" stroke="var(--hair)" stroke-width="6"/>
+      <line x1="${X(.5)}" x2="${X(.5)}" y1="6" y2="26" stroke="var(--faint)" stroke-dasharray="2 2"/><text class="f" x="${X(.5)}" y="40" font-size="11" text-anchor="middle">50%, a coin flip</text>
+      <line x1="${X(usual)}" x2="${X(adv)}" y1="16" y2="16" stroke="var(--blue)" stroke-width="6"/><circle cx="${X(usual)}" cy="16" r="5" fill="var(--paper)" stroke="var(--faint)" stroke-width="2"/><circle cx="${X(adv)}" cy="16" r="7" fill="var(--blue)"/>
+      <text class="f" x="${X(lo)}" y="40" font-size="11">45%</text><text class="f" x="${X(hi)}" y="40" font-size="11" text-anchor="end">60%</text></svg>`;
+    $("w1").innerHTML = `<div class="score"><div class="big">${pc(adv)}</div><div class="lab">your win chance if you follow the advice</div></div>
+      <div style="margin-top:12px"><span class="chip">${pts(gain)}</span><span style="color:var(--faint)">points over both teams banning as usual (${pc(usual)})</span></div>${scale}`; }
+
+  // ---- W2: tug of war, full match and zoomed
+  { const W = 480, full = `<svg viewBox="0 0 ${W} 58" width="100%"><rect x="0" y="14" width="${W * adv}" height="26" fill="var(--blue)"/><rect x="${W * adv}" y="14" width="${W * (1 - adv)}" height="26" fill="var(--red)"/>
+      <text x="8" y="32" font-size="14" font-weight="700" fill="var(--paper)" style="fill:var(--paper)">You ${pc(adv)}</text><text x="${W - 8}" y="32" font-size="14" font-weight="700" text-anchor="end" style="fill:var(--paper)">${pc(1 - adv)} Them</text>
+      <line x1="${W / 2}" x2="${W / 2}" y1="8" y2="46" stroke="var(--ink)" stroke-dasharray="2 2"/><text class="f" x="${W / 2}" y="56" font-size="11" text-anchor="middle">even</text></svg>`;
+    const lo = .48, hi = .56, X = v => 10 + (v - lo) / (hi - lo) * (W - 20);
+    const zoom = `<div style="font-size:12px;color:var(--faint);margin:10px 0 2px">Zoomed to 48 to 56%: what the bans move</div><svg viewBox="0 0 ${W} 60" width="100%">
+      <rect x="10" y="18" width="${X(adv) - 10}" height="16" fill="var(--wash)"/><rect x="${X(adv)}" y="18" width="${W - 10 - X(adv)}" height="16" fill="var(--redwash)"/>
+      <line x1="${X(usual)}" x2="${X(usual)}" y1="12" y2="40" stroke="var(--faint)" stroke-width="2" stroke-dasharray="3 2"/><text class="f" x="${X(usual)}" y="10" font-size="11" text-anchor="middle">both ban as usual ${pc(usual)}</text>
+      <line x1="${X(adv)}" x2="${X(adv)}" y1="12" y2="40" stroke="var(--blue)" stroke-width="3"/><text x="${X(adv)}" y="54" font-size="12" font-weight="700" text-anchor="middle" class="bl" style="fill:var(--blue)">with the advice ${pc(adv)}</text>
+      <path d="M${X(usual) + 3} 26H${X(adv) - 6}" stroke="var(--blue)" stroke-width="2" marker-end="url(#ar)"/><defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0L8,4L0,8Z" fill="var(--blue)"/></marker></defs>
+      ${[.48, .50, .52, .54, .56].map(v => `<text class="f" x="${X(v)}" y="54" font-size="10.5" text-anchor="middle"${Math.abs(v - adv) < .014 ? ' opacity="0"' : ""}>${Math.round(100 * v)}%</text>`).join("")}</svg>`;
+    $("w2").innerHTML = full + zoom; }
+
+  // ---- W3: the ban-phase timeline
+  // along the advised path: the win chance if everyone bans as usual from that point on, so each advised ban shows as a step
+  { const A = [{ w: D.now.beh }].concat(D.advised.map(x => ({ w: x.w.beh, h: x.h, us: x.us }))), T = [{ w: D.now.beh }].concat(D.typical.map(x => ({ w: x.w.beh, h: x.h, us: x.us })));
+    const W = 580, Hh = 250, L = 46, R = 92, top = 22, bot = 60, vs = A.concat(T).map(p => p.w), lo = Math.floor(Math.min(...vs) * 200 - 1) / 200, hi = Math.ceil(Math.max(...vs) * 200 + 1) / 200;
+    const X = i => L + i * (W - L - R) / 6, Y = v => top + (hi - v) / (hi - lo) * (Hh - top - bot);
+    let g = ""; for (let v = Math.ceil(lo * 100) / 100; v <= hi + 1e-9; v += .01) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--hair)"/><text class="f" x="${L - 6}" y="${Y(v) + 4}" font-size="10.5" text-anchor="end">${Math.round(100 * v)}%</text>`;
+    const line = (P, col, dash) => `<path d="${P.map((p, i) => `${i ? "L" : "M"}${X(i)} ${Y(p.w)}`).join("")}" fill="none" stroke="${col}" stroke-width="${dash ? 2 : 3}"${dash ? ' stroke-dasharray="5 4"' : ""}/>`;
+    g += line(T, "var(--faint)", true) + line(A, "var(--blue)", false);
+    A.forEach((p, i) => { if (!i) return; const r = 13, y = Y(p.w), ring = p.us ? "var(--blue)" : "var(--red)", dy = p.us ? -r - 8 : r + 8, d = p.w - A[i - 1].w;
+      g += `<text x="${X(i) + 16}" y="${y + (p.us ? -14 : 24)}" font-size="11" font-weight="700" style="fill:${d >= 0 ? "var(--blue)" : "var(--red)"}">${pts(d)}</text>`;
+      g += `<circle cx="${X(i)}" cy="${y}" r="4" fill="var(--blue)"/><clipPath id="c${i}"><circle cx="${X(i)}" cy="${y + dy}" r="${r}"/></clipPath><circle cx="${X(i)}" cy="${y + dy}" r="${r + 1.5}" fill="${ring}"/>
+        <image href="${img(p.h)}" x="${X(i) - r}" y="${y + dy - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#c${i})" preserveAspectRatio="xMidYMid slice"/>`; });
+    g += `<circle cx="${X(0)}" cy="${Y(A[0].w)}" r="5" fill="var(--ink)"/><text x="${X(0) + 8}" y="${Y(A[0].w) + 20}" font-size="12" font-weight="700">now ${pc(A[0].w)}</text>`;
+    g += `<text x="${X(6) + 30}" y="${Y(A[6].w) + 4}" font-size="13" font-weight="700" style="fill:var(--blue)">${pc(A[6].w)}</text><text class="f" x="${X(6) + 30}" y="${Y(A[6].w) + 18}" font-size="11">advice</text>`;
+    g += `<text class="f" x="${X(6) + 30}" y="${Y(T[6].w) + 4}" font-size="13" font-weight="700">${pc(T[6].w)}</text><text class="f" x="${X(6) + 30}" y="${Y(T[6].w) + 18}" font-size="11">as usual</text>`;
+    for (let i = 1; i <= 6; i++) g += `<text class="f" x="${X(i)}" y="${Hh - 20}" font-size="11" text-anchor="middle">ban ${i}</text><text x="${X(i)}" y="${Hh - 6}" font-size="10.5" text-anchor="middle" style="fill:${D.advised[i - 1].us ? "var(--blue)" : "var(--red)"}">${D.advised[i - 1].us ? "you" : "them"}</text>`;
+    $("w3").innerHTML = `<svg viewBox="0 0 ${W} ${Hh}" width="100%">${g}</svg><div style="font-size:12px;color:var(--faint)">Solid: follow the advice (your bans as advised, theirs the likeliest), with the win chance at each point if both teams ban as usual from there, so every step is what that ban changed. Dashed: both teams ban as usual throughout. The numbers are points of win chance each ban added or took away.</div>`; }
+
+  // ---- W4: out of 100 games
+  { const base = Math.round(100 * usual), extra = Math.max(1, Math.round(100 * adv) - base); let s = "";
+    for (let i = 0; i < 100; i++) { const x = (i % 20) * 22 + 11, y = Math.floor(i / 20) * 22 + 11, won = i < base, add = i >= base && i < base + extra;
+      s += add ? `<circle cx="${x}" cy="${y}" r="8" fill="var(--blue)"/><circle cx="${x}" cy="${y}" r="10.5" fill="none" stroke="var(--blue)" stroke-width="2"/>` : `<circle cx="${x}" cy="${y}" r="8" fill="${won ? "var(--wash)" : "var(--hair)"}"${won ? ' stroke="var(--blue)" stroke-width="1"' : ""}/>`; }
+    $("w4").innerHTML = `<div style="font:700 22px Archivo,sans-serif;margin-bottom:8px">You win about <span style="color:var(--blue)">${Math.round(100 * adv)} of 100</span> games like this</div>
+      <svg viewBox="0 0 440 110" width="100%" style="max-width:440px">${s}</svg>
+      <div style="font-size:13px;color:var(--faint);margin-top:6px">Light: the ${base} you win when both teams ban as usual. Ringed: the extra win the advice adds, about ${pc(gain).replace("%", "")} per 100 games. Over a season of 200 ranked games that is about ${Math.round(200 * gain)} more wins.</div>`; }
+
+  // ---- openers
+  const O = D.opens, byRole = (P, r, k, skip = new Set()) => P.map((p, h) => ({ h, p })).filter(x => RO[x.h] === r && !skip.has(x.h)).sort((a, b) => b.p - a.p).slice(0, k);
+  // O1: by role, portrait size by chance
+  { const block = (P, cls, title) => `<div class="${cls}"><h4 class="${cls}">${title}</h4><div class="roles">${[0, 1, 2].map(r => `<div class="rc"><h5>${RN[r]}</h5>${byRole(P, r, 4).map(x => { const s = Math.round(22 + 36 * Math.sqrt(x.p / .6)); return `<div class="pp"><img src="${img(x.h)}" width="${s}" height="${s}" alt=""><div><div class="n">${sh(x.h)}</div><div class="p">${p0(x.p)}</div></div></div>`; }).join("")}</div>`).join("")}</div></div>`;
+    $("o1").innerHTML = `${block(O.them, "them", "Other team")}<div style="height:14px"></div>${block(O.us, "us", "Your team")}`; }
+  // O2: role split, then the likeliest hero in each slot with the next two
+  { const cols = { "2-2-2": "var(--ink)" }, team = (P, splits, cls, title) => {
+      const sp = splits.slice(0, 3), rest = 1 - sp.reduce((a, b) => a + b.p, 0), best = sp[0].x.split("-").map(Number);
+      const bar = `<div class="split">${sp.map((s, i) => `<div style="width:${100 * s.p}%;background:${i ? "var(--faint)" : cls === "them" ? "var(--red)" : "var(--blue)"};opacity:${1 - i * .25}">${s.x.replaceAll("-", " ")} · ${p0(s.p)}</div>`).join("")}<div style="width:${100 * rest}%;background:var(--hair)"></div></div>`;
+      let slots = "", used = new Set(); for (let r = 0; r < 3; r++) { const cand = byRole(P, r, best[r] + 2);
+        for (let k = 0; k < best[r]; k++) { const m = cand[k]; if (!m) continue; used.add(m.h); const alts = cand.slice(best[r]).slice(0, 2);
+          slots += `<div class="slot"><div class="rl">${RN[r]}</div><img class="main" src="${img(m.h)}" alt=""><b>${sh(m.h)}</b><div style="color:var(--faint)">${m.h === D.lobby.you && cls === "us" ? "you" : p0(m.p)}</div>${k === best[r] - 1 && alts.length ? `<div class="alt">${alts.map(a => `<img src="${img(a.h)}" title="${N[a.h]} ${p0(a.p)}" alt="">`).join("")}</div>` : ""}</div>`; } }
+      return `<div class="${cls}"><h4 class="${cls}">${title}: ${sp[0].x.replaceAll("-", "-")} in ${p0(sp[0].p)} of drafts</h4>${bar}<div class="slots">${slots}</div></div>`; };
+    $("o2").innerHTML = team(O.them, O.roles.them, "them", "Other team") + `<div style="height:14px"></div>` + team(O.us, O.roles.us, "us", "Your team") +
+      `<div style="font-size:12px;color:var(--faint);margin-top:10px">Role split: vanguard, duelist, strategist. Small portraits: the next likeliest in that role.</div>`; }
+  // O3: the whole roster, two bars per hero, faded if it is likely to be banned
+  { let html = ""; const mx = Math.max(...O.them, ...O.us.filter((p, h) => h !== D.lobby.you));
+    for (let r = 0; r < 3; r++) { const hs = N.map((n, h) => h).filter(h => RO[h] === r).sort((a, b) => (O.them[b] + O.us[b]) - (O.them[a] + O.us[a]));
+      html += `<div class="rgh">${RN[r]}</div><div class="roster">${hs.map(h => { const you = h === D.lobby.you;
+        return `<div class="rt${O.banned[h] > .5 ? " faded" : ""}" title="${N[h]}: they open it ${p0(O.them[h])}, your team ${you ? "(you)" : p0(O.us[h])}, banned in ${p0(O.banned[h])} of ban phases"><img src="${img(h)}" alt=""><div class="bars"><i class="t"><b style="width:${Math.min(100, 100 * O.them[h] / mx)}%"></b></i><i class="u"><b style="width:${you ? 100 : Math.min(100, 100 * O.us[h] / mx)}%"></b></i></div>${sh(h)}</div>`; }).join("")}</div>`; }
+    $("o3").innerHTML = html + `<div style="font-size:12px;color:var(--faint);margin-top:10px">Left bar: the other team opens it. Right bar: your team does. Faded: banned in more than half of ban phases. Hover a hero for the numbers.</div>`; }
+  // O4: the mirror, cleaned up
+  { const hs = N.map((n, h) => h).filter(h => h !== D.lobby.you).sort((a, b) => Math.max(O.them[b], O.us[b]) - Math.max(O.them[a], O.us[a])).slice(0, 10);
+    const W = 520, mid = W / 2, half = mid - 70, rowH = 34, top = 24, mx = Math.max(...hs.map(h => Math.max(O.them[h], O.us[h])));
+    let g = `<text x="${mid - 40}" y="14" font-size="12.5" font-weight="700" text-anchor="end" style="fill:var(--red)">Other team</text><text x="${mid + 40}" y="14" font-size="12.5" font-weight="700" style="fill:var(--blue)">Your team</text>`;
+    hs.forEach((h, k) => { const y = top + k * rowH, a = O.them[h] / mx * (half - 40), b = O.us[h] / mx * (half - 40), c = `cl${k}`;
+      g += `<rect x="${mid - 34 - a}" y="${y + 9}" width="${Math.max(1, a)}" height="12" style="fill:var(--red)"/><text class="f" x="${mid - 40 - a}" y="${y + 19}" font-size="11" text-anchor="end">${p0(O.them[h])}</text>
+        <clipPath id="${c}"><rect x="${mid - 14}" y="${y + 1}" width="28" height="28" rx="3"/></clipPath><image href="${img(h)}" x="${mid - 14}" y="${y + 1}" width="28" height="28" clip-path="url(#${c})" preserveAspectRatio="xMidYMid slice"><title>${N[h]}</title></image>
+        <rect x="${mid + 34}" y="${y + 9}" width="${Math.max(1, b)}" height="12" style="fill:var(--blue)"/><text class="f" x="${mid + 40 + b}" y="${y + 19}" font-size="11">${p0(O.us[h])}</text>
+        <text class="f" x="6" y="${y + 19}" font-size="11">${sh(h)}</text>`; });
+    $("o4").innerHTML = `<svg viewBox="0 0 ${W} ${top + hs.length * rowH}" width="100%">${g}</svg>`; }
+})();
+</script>

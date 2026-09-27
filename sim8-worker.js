@@ -43,17 +43,17 @@ onmessage = async ev => {
       postMessage({ id: d.id, done: true, flow: { us: Array.from(us), them: Array.from(them), nu, nt, runs: n, mu: SIM.MU, k: SIM.K } });
       return;
     }
-    const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0 };
+    const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), nu: 0, nt: 0, runs: 0 };
     for (const c of d.cands) vals[String(c)] = {};
     for (const j of d.runs) {
       const D = drawFor(L, s, j % DRAWS);
       for (const c of d.cands) {
         const pre = c === "typ" ? s.bans : s.bans.concat(Array.isArray(c) ? c : [c]), B = SIM.complete(L, D, pre, j, op);
-        if (c === "typ" && d.opens) { const r = SIM.terminal(L, D, B, true); vals.typ[j] = r.win; Sim8.opens(H, r, acc); }
+        if (c === "typ" && d.opens) { const r = SIM.terminal(L, D, B, true); vals.typ[j] = r.win; Sim8.opens(H, r, acc, B); }
         else vals[String(c)][j] = SIM.terminal(L, D, B);
         postMessage({ id: d.id, tick: 1 });
       }
     }
-    postMessage({ id: d.id, done: true, vals, opens: d.opens ? { us: Array.from(acc.us), them: Array.from(acc.them), nu: acc.nu, nt: acc.nt } : null });
+    postMessage({ id: d.id, done: true, vals, opens: d.opens ? { us: Array.from(acc.us), them: Array.from(acc.them), av: Array.from(acc.av), nu: acc.nu, nt: acc.nt, runs: acc.runs } : null });
   } catch (e) { postMessage({ id: d.id, error: String(e && e.stack || e) }); }
 };

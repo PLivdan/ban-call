@@ -164,7 +164,10 @@
       return out;
     }
     /* Who opens what when the lobby is played out: counts of each hero in our and their drafted lineups. */
-    static opens(H, res, acc) { for (const pk of res.pu) for (const h of pk) acc.us[h]++; for (const pk of res.po) for (const h of pk) acc.them[h]++; acc.nu += res.pu.length; acc.nt += res.po.length; }
+    static opens(H, res, acc, bans) {                  // bans: this phase's six bans, so rates can be read for the phases where a hero was available
+      for (const pk of res.pu) for (const h of pk) acc.us[h]++; for (const pk of res.po) for (const h of pk) acc.them[h]++; acc.nu += res.pu.length; acc.nt += res.po.length;
+      if (bans && acc.av) { acc.runs = (acc.runs || 0) + 1; for (let h = 0; h < H; h++) if (!bans.includes(h)) acc.av[h]++; }
+    }
   }
   Sim8.rng = rng; Sim8.hash = hash; Sim8.gumbel = gumbel;
   root.Sim8 = Sim8;
