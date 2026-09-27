@@ -114,5 +114,24 @@ if (seqBad || pairBad) { bad++; log("  FAIL: a two-ban recommendation or a compa
   for (const [nm, buf] of cases) { const E2 = new Engine8(L, BAN); try { E2.addBuffer(f0, buf); log(`  FAIL: a ${nm} weight file was accepted`); } catch (e) { refused++; } if (E2.ready("optimal")) { bad++; log(`  FAIL: ready after a ${nm} file`); } }
   log(`bad weight files refused before any forecast: ${refused} of ${cases.length} (empty, truncated, oversized, a NaN weight)`); if (refused < cases.length) bad++;
 }
+// ---- 6. complete decisions against an independent transcription of the exported policy (tools/check_decisions.py): the
+// advice the page shows on every own turn, both camps, ordered histories and 0-6 shown heroes, and on two-ban turns the
+// sequence (the best ban, then the best ban after it). A difference counts only where the reference's lead is above 1e-6.
+if (fs.existsSync("tools/reports/check_decisions.json")) {
+  const DC = JSON.parse(fs.readFileSync("tools/reports/check_decisions.json", "utf8"));
+  if (DC.run !== L.run) { bad++; log(`  FAIL: the decision reference is for run ${DC.run}, the model is ${L.run} (rerun tools/check_decisions.py)`); }
+  else {
+    let n = 0, same = 0, n2 = 0, same2 = 0, ties = 0, ties2 = 0;
+    for (const c of DC.cases) {
+      const R = E.ourTurn(c.state); n++;
+      if (R.best === c.best) same++; else if (c.margin < 1e-6) ties++; else log(`  decision ${n}: the page advises ${L.heroes[R.best]}, the reference ${L.heroes[c.best]} (lead ${c.margin.toExponential(1)})`);
+      if (c.second !== undefined) { n2++; const Q = E.sequence(c.state, R); if (Q && Q.a === c.best && Q.b === c.second) same2++; else if (Q && Q.a === c.best && c.second_margin < 1e-6) ties2++;
+        else log(`  two-ban turn ${n}: the page advises ${L.heroes[Q.a]} then ${L.heroes[Q.b]}, the reference ${L.heroes[c.best]} then ${L.heroes[c.second]}`); }
+    }
+    const camps = new Set(DC.cases.map(c => c.state.firstUs)).size, shownK = new Set(DC.cases.map(c => [c.state.you].concat(c.state.mates).filter(h => h >= 0).length)).size;
+    log(`complete decisions against the exported policy: ${same} of ${n} turns and ${same2} of ${n2} two-ban sequences the same (${ties + ties2} exact ties); both camps ${camps === 2}, ${shownK} shown-hero counts`);
+    if (same + ties < n || same2 + ties2 < n2) { bad++; log("  FAIL: the page's decisions differ from the exported policy"); }
+  }
+} else log("complete decisions: tools/reports/check_decisions.json not found (run python tools/check_decisions.py)");
 log(bad ? `${bad} problem(s)` : "all checks passed");
 fs.writeFileSync("tools/reports/check_v8.txt", out.join("\n") + "\n"); process.exit(bad ? 1 : 0);

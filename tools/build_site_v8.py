@@ -29,7 +29,7 @@ FORCE_DEPLOY=1.
 A release is all or nothing. Everything is read and checked before anything is written: the gate (from v8.4 the summary must
 carry deploy_ok), the files, versions and run identities, the hero and map order across the value networks, the ban model and
 the simulator, and that every tensor and array lies inside its binary. The bundle is then built in model8.staging, checked
-there (tools/check_v8_ref.py, check_v8.js and check_sim_v8.js with MODEL_DIR; SKIP_CHECKS=1 skips them), and only then
+there (tools/check_v8_ref.py, check_decisions.py, check_v8.js and check_sim_v8.js with MODEL_DIR; SKIP_CHECKS=1 skips them), and only then
 swapped in for model8 in one step. A rejected or failed import leaves model8 as it was. The simulator is part of a release: a
 run without sim_v8.json is refused (ALLOW_NO_SIM=1 publishes without one and removes the old simulator, so no page mixes
 runs). The manifest records each binary's size and SHA-256 and the ban model and simulator carry the run, so the page can
@@ -121,7 +121,11 @@ else: print("simulator: none in this release (ALLOW_NO_SIM=1); the pages show th
 # ---- the numbers the page quotes
 CHK = json.load(open(f"{RUN}/reports/world_model_checks_v8.json", encoding="utf-8")); OPE = json.load(open(f"{RUN}/reports/ope_v8.json", encoding="utf-8"))
 TEST = json.load(open(f"{RUN}/reports/test_report_v8.json", encoding="utf-8")); SEL = json.load(open(f"{RUN}/reports/selection_v8.json", encoding="utf-8"))
-REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SUM["selected"], comparisons=SEL["comparisons"], test=TEST["test"],
+# the selection as exported: v8.5 wrote pick_recent before the joint-draft check could veto it, so the final state comes from
+# the experiment record (the exported pick model has recent preferences only if that record says they stayed on)
+_rp = ((SUM.get("experiments") or {}).get("recent_preferences") or {}).get("selected") or {}
+SELF = dict(SUM["selected"], **({"pick_recent": bool(_rp.get("on"))} if "pick_recent" in SUM["selected"] else {}))
+REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SELF, comparisons=SEL["comparisons"], test=TEST["test"],
            world_model=SUM["world_model"], checks=dict(terminal=CHK["terminal"], brute_force=CHK["brute_force"], policy=CHK["policy"], drafts=CHK["drafts"],
            first_ban=CHK["first_ban"], first_ban_by_role=CHK.get("first_ban_by_role"), agreement_by_shown=CHK.get("agreement_by_shown"), students=CHK.get("students"),
            null_world=CHK.get("null_world"), world_model_uncertainty=CHK.get("world_model_uncertainty"), drafts_planner_path=CHK.get("drafts_planner_path")),
@@ -130,12 +134,16 @@ REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SU
            ope=dict(decisions=OPE["decisions"], behaviour_calibration={k: dict(slope=v["behaviour"]["calib_slope"], spread_pts=v["spread_pts"]) for k, v in OPE["behaviour_calibration"].items()},
                     ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"]),
            recalibration=SUM.get("recalibration"), draft_calibration={k: v for k, v in SUM.get("draft_calibration", {}).items() if k in ("lam_g", "delta")})
+# Season 10 matches per model map in the data bundle: the pages leave out maps the model has barely seen
+if os.path.exists(f"{DATA}/maps.parquet"):
+    _mp = pd.read_parquet(f"{DATA}/maps.parquet"); _n = dict(zip(_mp.map_id.astype(int), _mp.n_s10.astype(int)))
+    REP["map_matches"] = {m["label"]: int(_n.get(int(m["map_id"]), 0)) for m in L["maps"]}
 json.dump(REP, open(f"{OUT}/report_v8.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=lambda x: np.asarray(x).tolist())
 print("staged", ", ".join(sorted(os.listdir(OUT))))
 # ---- check the staged bundle; publish it only if every check passes
 if os.environ.get("SKIP_CHECKS") != "1":
     env = dict(os.environ, MODEL_DIR=OUT)
-    steps = [[sys.executable, "tools/check_v8_ref.py", RUN], ["node", "tools/check_v8.js"]] + ([["node", "tools/check_sim_v8.js"]] if HAS_SIM else [])
+    steps = [[sys.executable, "tools/check_v8_ref.py", RUN], [sys.executable, "tools/check_decisions.py", "400"], ["node", "tools/check_v8.js"]] + ([["node", "tools/check_sim_v8.js"]] if HAS_SIM else [])
     for cmd in steps:
         r = subprocess.run(cmd, env=env, capture_output=True, text=True); print(r.stdout.strip()[-1500:])
         if r.returncode: print(r.stderr.strip()[-1500:]); refuse(f"{' '.join(cmd[1:])} failed on the staged bundle (left in {OUT} for inspection)")

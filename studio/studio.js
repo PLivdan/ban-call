@@ -49,7 +49,8 @@
   E.addBuffer("opt", await fetchBin(`../model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, `Loading the value networks (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)`, LAY.files.opt.sha256));
   const img = h => `../img/heroes/${PORT[NAMES[h]]}.webp`, short = h => SHORT[NAMES[h]] || NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
-  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label) })).sort((a, b) => a.name.localeCompare(b.name));
+  const MAPN = REP.map_matches || null;                                        // maps the model has barely seen (fewer than 1,000 matches) are left out
+  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label) })).filter(m => !MAPN || (MAPN[LAY.maps[m.i].label] ?? 0) >= 1000).sort((a, b) => a.name.localeCompare(b.name));
   const TIERS = Object.keys(META.tiers);
   const SUB = new Map(SUBS.table.map(r => [r.hero, r]));
 
@@ -466,7 +467,7 @@
     const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]); if (!d.length) return null; const m = d.reduce((p, q) => p + q, 0) / d.length; return { d: m, se: cse(js, d, m) }; }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   let pool = [], jobs = new Map(), jobId = 0;
-  function newWorker() { const w = new Worker("../sim8-worker.js?v=d7fc5b4c5a"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
+  function newWorker() { const w = new Worker("../sim8-worker.js?v=052b6b4c33"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
   function ensurePool(fresh) {
     if (fresh) { pool.forEach(w => w.terminate()); pool = []; jobs.clear(); for (const [k, F] of FLOWC) if (!F.done) FLOWC.delete(k); OPNRUN = ""; }
     while (pool.length < NW) pool.push(newWorker());
@@ -601,7 +602,9 @@
           <rect x="${X(r.lo)}" y="${y - 5}" width="${Math.max(1, X(r.hi) - X(r.lo))}" height="10" fill="var(--us-soft)"/><line x1="${X(r.lo)}" x2="${X(r.hi)}" y1="${y}" y2="${y}" stroke="var(--ink)" stroke-width="1.5"/>
           <circle cx="${X(R8.V[h])}" cy="${y}" r="5.5" fill="var(--us)" stroke="var(--paper)" stroke-width="2"/><text class="t13 ink" x="${Wd}" y="${y + 4}" text-anchor="end" font-weight="700">${pp(R8.V[h])}</text>`; });
       C.f.innerHTML = `<div class="lab2"><span>Value of each ban with the networks' range</span><span>points of win chance</span></div><svg viewBox="0 0 ${Wd} ${top.length * rowH + 4}" class="fadein">${g}</svg>
-        ${BF ? `<p class="note">In the notebook's test on held-out lobbies, the networks picked the same last ban as a brute-force simulation of every ban in ${pct(BF.same_choice)} of lobbies and lost ${BF.regret_network_pts.toFixed(2)} points on average where they differed (a typical ban loses ${BF.regret_typical_pts.toFixed(2)}).</p>` : ""}
+        ${BF ? (BF.gap_network_pts !== undefined
+          ? `<p class="note">In the notebook's test on held-out lobbies, a brute-force simulation of every last ban, which knows the hidden players, beat the networks' ban by ${BF.gap_network_pts.toFixed(2)} ± ${BF.gap_network_se_pts.toFixed(2)} points (and a typical ban by ${BF.gap_typical_pts.toFixed(2)}), with its best ban picked and scored on separate runs. They picked the same ban in ${pct(BF.same_choice)} of lobbies.</p>`
+          : `<p class="note">In the notebook's test on held-out lobbies, the networks picked the same last ban as a brute-force simulation of every ban in ${pct(BF.same_choice)} of lobbies and lost ${BF.regret_network_pts.toFixed(2)} points on average where they differed (a typical ban loses ${BF.regret_typical_pts.toFixed(2)}).</p>`) : ""}
         <div class="go runsim"><button class="btn us" id="runSim">Play it out: simulator, ${st.runs} runs</button><span class="note" style="margin:0">stand-in players, both teams re-drafted, for the networks' ${turnCount() === 2 ? NPAIR + " best pairs" : NSIM + " best bans"}</span></div>`;
       $("runSim").onclick = () => { st.model = "sim"; update(false); };
       return;
@@ -687,7 +690,7 @@
     if (TREE.key !== key && R8) {
       TREE.key = key; TREE.root = null; TREE.done = false; TREE.calls = 0; const id = ++TREE.id;
       if (treeW) treeW.terminate();
-      treeW = new Worker("tree8-worker.js?v=f8800533e3");
+      treeW = new Worker("tree8-worker.js?v=ba218d30e7");
       treeW.onmessage = ev => { if (ev.data.id !== TREE.id) return; if (ev.data.error) { TREE.failed = true; drawTree(); return; } TREE.root = ev.data.root; TREE.calls = ev.data.calls; TREE.done = ev.data.done; ev.data.done ? drawTree() : drawTreeSoon(); };
       const opts = turnCount() === 2 && P8 ? P8.slice(0, 3).map(p => ({ hs: [p.a, p.b], V: p.V })) : topBans(3).map(h => ({ hs: [h], V: R8.V[h] }));
       treeW.postMessage({ id, base: lobby(), opts, v: LAY.run });
@@ -766,7 +769,7 @@
       R8 = P8 = T8 = BEH = null; PATH = null; SIM = SIMP = null; SHIFTC.clear();
       if (e < 6 && ourTurn()) {
         R8 = E.ourTurn(s);
-        if (turnCount() === 2 && R8) { const SQ = E.sequence(s, R8), P = E.pairs(s, R8, 6) || []; P8 = SQ ? [SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))) : P; }
+        if (turnCount() === 2 && R8) { const SQ = E.sequence(s, R8), P = E.pairs(s, R8, 6) || []; P8 = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; }
       } else if (e < 6) T8 = E.theirTurn(s);
       const w = E.winNow(s), wb = E.winNow(s, "behaviour"); WIN = w ? { opt: w[0], beh: e < 6 && wb ? wb[0] : null } : null;
       PATH = e < 6 ? ghostPath() : null;

@@ -227,8 +227,15 @@
        then the best second ban). */
     sequence(s, R) {
       const R2 = this.ourTurn(Object.assign({}, s, { bans: s.bans.concat([R.best]) })); if (!R2) return null;
-      const b = R2.best, mv = R2.Q ? R2.Q.map(q => q[b] - R.base) : null, V = R2.mu[b] - R.base;
-      return { a: R.best, b, mu: R2.mu[b], sd: R2.sd[b], V, mv, spread: this.spread(mv, V, R2.sd[b]), seq: true };
+      const b = R2.best;   // value: the first ban's, from network e + 1, which already assumes the best second ban (one network, so it
+                           // never mixes two positions' fits); V2: the second ban against a typical second ban, from network e + 2
+      return { a: R.best, b, mu: R2.mu[b], sd: R2.sd[b], V: R.V[R.best], V2: R2.V[b], mv: null, spread: R.spread(R.best), seq: true };
+    }
+    /* Pairs on the advice's scale: the advice's value plus each pair's difference from the advised pair in network e + 2, so the
+       comparison uses one network and never subtracts values from two positions' fits. */
+    onAdviceScale(P, Q) {
+      return P.map(p => { if (p === Q || (p.a === Q.a && p.b === Q.b)) return Q; const V = Q.V + (p.mu - Q.mu), d = V - p.V;
+        return Object.assign({}, p, { V, spread: { lo: p.spread.lo + d, hi: p.spread.hi + d, pts: p.spread.pts.map(x => x + d) } }); });
     }
     /* Pairs scored together, for comparison with the advice (not the advice itself): after each of the top supported first bans
        x, every second ban y that is supported at the state after x (all legal ones when none is), from network e + 2. */

@@ -51,7 +51,9 @@
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
   const V7 = new Map(META.maps.map((m, i) => [m.name, i]));                          // the lineup network's map index, by name
-  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label), v7: V7.get(m.label) })).sort((a, b) => a.name.localeCompare(b.name));   // the v8 model's maps
+  // the v8 model's maps, less those it has barely seen (fewer than MAPMIN Season 10 matches in the data: its advice there is a guess)
+  const MAPMIN = 1000, MAPN = REP.map_matches || null, THIN = MAPN ? LAY.maps.filter(m => (MAPN[m.label] ?? 0) < MAPMIN).map(m => ({ name: mapName(m.label), n: MAPN[m.label] ?? 0 })) : [];
+  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label), v7: V7.get(m.label) })).filter((m, _, a) => !MAPN || (MAPN[LAY.maps[m.i].label] ?? 0) >= MAPMIN).sort((a, b) => a.name.localeCompare(b.name));
   const v7map = i => (MAPS.find(m => m.i === i) || {}).v7;                           // the previous model's index, undefined where it lacks the map
   const TIERS = Object.keys(META.tiers);
   const SUB = new Map(SUBS.table.map(r => [r.hero, r]));
@@ -481,7 +483,7 @@
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;
     if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=d7fc5b4c5a"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=052b6b4c33"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
     const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
     for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
     COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
@@ -553,7 +555,7 @@
       const cnt = turnCount(), R = RES, pair = cnt === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null;
       const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], clr = runner !== undefined && R.clear(R.best, runner);
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
-      html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it")}</p>`
+      html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
       html += `<div class="fig8">${banBoard(W)}</div>`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
@@ -606,7 +608,7 @@
       if (RES && turnCount() === 2) setTimeout(() => {                      // pairs take about half a second: after the first render
         if (my !== pending) return;
         const SQ = E.sequence(s, RES), P = E.pairs(s, RES, 6, true) || [];   // the advice first; the other pairs for comparison
-        PAIRS = SQ ? [SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))) : P; renderBans(); renderRoster(); renderAdvice();
+        PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice();
       }, 20);
     }, 15);
   }
@@ -651,7 +653,9 @@
         <tr><td>Their bans: log loss per ban (the previous model's ban model)</td><td class="r">${banT[R.selected.ban].toFixed(4)} (${banT.A.toFixed(4)})</td></tr>
         <tr><td>Who wins: log loss per match (previous model), calibration slope</td><td class="r">${out8.logloss.toFixed(4)} (${out7.logloss.toFixed(4)}), ${out8.calib_slope.toFixed(2)}</td></tr>
         <tr><td>Simulated drafts on real teams: 2-2-2 / triple support / stays in role when the main is banned</td><td class="r">${pct(d.two_two_two.model)} / ${pct(d.triple_support.model)} / ${pct(d.role_stay_when_forced.model)} (real ${pct(d.two_two_two.real)} / ${pct(d.triple_support.real)} / ${pct(d.role_stay_when_forced.real)})</td></tr>
-        <tr><td>The model against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${C.brute_force.regret_network_pts.toFixed(2)} (${C.brute_force.regret_typical_pts.toFixed(2)})</td></tr>
+        ${(bf => bf.gap_network_pts !== undefined
+          ? `<tr><td>The model against a brute-force simulation of your last ban that knows the hidden players: its lead over the model (over a typical ban), picked and scored on separate runs</td><td class="r">${bf.gap_network_pts.toFixed(2)} ± ${bf.gap_network_se_pts.toFixed(2)} (${bf.gap_typical_pts.toFixed(2)})</td></tr>`
+          : `<tr><td>The model against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${bf.regret_network_pts.toFixed(2)} (${bf.regret_typical_pts.toFixed(2)})</td></tr>`)(C.brute_force)}
         ${stu ? `<tr><td>The compact copy on this page against the full model, at your first ban: same advice, points lost</td><td class="r">${pct(stu.same)}, ${stu.regret.toFixed(3)}</td></tr>` : ""}
         <tr><td>Inside the simulation: following the advice against banning as players do</td><td class="r">+${simGain.toFixed(2)} pts</td></tr>
         ${ope.map(q => `<tr><td>Real games: following the advice at your ban ${q.decision} (${v83 ? "" : "weights capped, "}95% interval)</td><td class="r">${cq(drq(q))} pts</td></tr>`).join("")}
@@ -669,6 +673,7 @@
         <li>Hovers are not in the data. A shown hero is treated as that player's likely pick, and a teammate keeps a shown hero about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
         <li>The forecasts of their bans and the likely comps average over typical players at your rank. Their earlier bans are not used to guess who they are.</li>
+        ${THIN.length ? `<li>Left off the map menu because the data has almost no ranked matches there: ${THIN.map(m => `${esc(m.name)} (${fmt(m.n)})`).join(", ")}.</li>` : ""}
         <li>Mid-match swaps are outside the model (it drafts opening lineups). Tested separately on real matches: they did not measurably change what a ban is worth.</li>
         <li>A range shows where the model's fits disagree, not a full interval: ${WU ? `refitting the models on resampled matches moves a last ban's value by about
           ${WU.world_sd_pts.toFixed(2)} points, against ranges of about ${WU.network_sd_pts.toFixed(2)} here.` : "refitting everything on other matches would move the values more."}</li>
