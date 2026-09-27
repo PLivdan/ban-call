@@ -551,7 +551,7 @@
       html += `<h2>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</h2>`;
       html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("scored as a pair")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
-      html += winLine() + `<div class="fig8">${banBoard(W)}</div>`;
+      html += `<div class="fig8">${banBoard(W)}</div>`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
       if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n u">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
@@ -565,7 +565,7 @@
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
       html += `<h2>Their ban #${e + 1}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span> ${worstTxt(F, T)}</p>`;
-      html += winLine() + `<div class="fig8">${F.svg}</div>`;
+      html += `<div class="fig8">${F.svg}</div>`;
       html += more("Why they would ban these", `<figure>${whySplit(T)}<figcaption>The ban model's reasons against an average hero (log-odds). "Your team plays it": teams go after the heroes the
         other team's players play, and the heroes your team shows say who your players are.</figcaption></figure>`);
       html += openers();
