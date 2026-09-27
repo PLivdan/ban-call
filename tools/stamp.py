@@ -2,7 +2,8 @@
 GitHub Pages lets browsers cache files for ten minutes; without this a fresh index.html can load a stale app8.js.
 Run before every commit that changes a script:  python tools/stamp.py
 The page (index.html) runs engine.js (lineup network), engine8.js and app8.js; the previous model's page (v7/) runs
-../engine.js and v7/app.js with the simulator worker ../sim-worker.js; the studio (studio/) the same engine and worker."""
+../engine.js and v7/app.js with the simulator worker ../sim-worker.js; the studio (studio/) runs ../engine8.js, studio.js and the
+v8 simulator and tree workers."""
 import hashlib, re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 h = lambda *names: hashlib.sha1(b"".join((root / n).read_bytes() for n in names)).hexdigest()[:10]
@@ -25,12 +26,14 @@ lab = root / "lab" / "index.html"
 if lab.exists():
     sub_script(lab, "engine.js", "engine.js", "../"); sub_script(lab, "engine8.js", "engine8.js", "../"); tl = sub_script(lab, "lab.js", "lab/lab.js")
     print("stamped lab:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tl)))
-# the studio page uses the same engine and worker
+# the studio: the v8 engine on the page, the simulator worker (../sim8-worker.js with ../sim8.js and ../engine8.js) and the
+# tree worker (tree8-worker.js with ../engine8.js); each worker passes its own stamp on to the scripts it imports
 st_js = root / "studio" / "studio.js"
 if st_js.exists():
-    s2 = re.sub(r'new Worker\("\.\./sim-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim-worker.js?v={h("sim.js", "sim-worker.js")}")', st_js.read_text(encoding="utf-8")); st_js.write_text(s2, encoding="utf-8")
-    s2 = re.sub(r'new Worker\("tree-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree-worker.js?v={h("engine.js", "studio/tree-worker.js")}")', st_js.read_text(encoding="utf-8")); st_js.write_text(s2, encoding="utf-8")
+    s2 = st_js.read_text(encoding="utf-8")
+    s2 = re.sub(r'new Worker\("\.\./sim8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("../sim8-worker.js?v={h("sim8.js", "engine8.js", "sim8-worker.js")}")', s2)
+    s2 = re.sub(r'new Worker\("tree8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("tree8-worker.js?v={h("engine8.js", "studio/tree8-worker.js")}")', s2); st_js.write_text(s2, encoding="utf-8")
     sp = root / "studio" / "index.html"; t2 = sp.read_text(encoding="utf-8")
-    t2 = re.sub(r'<script src="\.\./engine\.js(\?v=[^"]*)?"></script>', f'<script src="../engine.js?v={h("engine.js")}"></script>', t2)
+    t2 = re.sub(r'<script src="\.\./engine8?\.js(\?v=[^"]*)?"></script>', f'<script src="../engine8.js?v={h("engine8.js")}"></script>', t2)
     t2 = re.sub(r'<script src="studio\.js(\?v=[^"]*)?"></script>', f'<script src="studio.js?v={h("studio/studio.js")}"></script>', t2)
-    sp.write_text(t2, encoding="utf-8"); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)))
+    sp.write_text(t2, encoding="utf-8"); print("stamped studio:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t2)) + ", workers " + ", ".join(re.findall(r'new Worker\("([^"]+)"\)', s2)))

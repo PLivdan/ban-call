@@ -51,7 +51,7 @@
       for (let l = 0; ; l++) {
         const w = this.index.get(`${key}|${l}|W`), b = this.index.get(`${key}|${l}|b`); if (!w) break;
         const u = this.buf[w.file]; if (!u) return null;
-        const dec = (e) => { const n = e.shape.reduce((a, c) => a * c, 1), o = new Float32Array(n), off = e.offset / 2; for (let i = 0; i < n; i++) o[i] = f16(u[off + i]); return o; };
+        const dec = (e) => { const n = e.shape.reduce((a, c) => a * c, 1), o = new Float64Array(n), off = e.offset / 2; for (let i = 0; i < n; i++) o[i] = f16(u[off + i]); return o; };   // float64: the same values, faster loops
         layers.push({ W: dec(w), b: dec(b), nin: w.shape[0], nout: w.shape[1] });
       }
       this.cache.set(key, layers); return layers;

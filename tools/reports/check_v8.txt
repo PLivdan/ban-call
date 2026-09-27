@@ -1,5 +1,5 @@
 value networks: 8 parity cases x the student's 3 outputs, largest output difference 1.61e-8; page input against the notebook's 2.16e-15
 ban model: 40 states against the notebook's formula with the fitted parameters, largest probability difference 2.24e-6 (export rounding 5.01e-6)
 whole turns: 32 (20 ours), same advice 20 of 20; largest difference in value 4.26e-5, spread 5.14e-6, ban probability 5.02e-6
-advice on 15 of our turns (1 clear of the runner-up, 0 outside the support): 305 ms each; 4 two-ban turns, pairs 2009 ms; 15 of their turns 284 ms
+advice on 15 of our turns (1 clear of the runner-up, 0 outside the support): 219 ms each; 4 two-ban turns, pairs 1485 ms; 15 of their turns 262 ms
 all checks passed

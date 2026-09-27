@@ -10,6 +10,7 @@ Writes:
   model8/ban_v8.json                          their ban model (the selected family), stand-in team tables per rank band, and
                                               per band and hero the share vector of a stand-in who shows that hero
   model8/substitutes_v8.json, parity_v8.json  copied from the run
+  model8/sim_v8.json, sim_v8.bin              the simulator for the studio, when ban-solver export/build_sim_v8.py has written it
   model8/report_v8.json                       the numbers the method section quotes (selection, test window, world-model
                                               checks, real-outcome test)
 
@@ -72,6 +73,11 @@ else:
 BAN = dict(B) if B.get("shown_shares") is not None else dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
 json.dump(BAN, open(f"{OUT}/ban_v8.json", "w", encoding="utf-8"), ensure_ascii=False, default=lambda x: np.asarray(x).tolist())
 for f in ("substitutes_v8.json", "parity_v8.json"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
+# the simulator (the notebook's world model), when the run folder has it: ban-solver export/build_sim_v8.py writes it there
+if os.path.exists(f"{RUN}/site/sim_v8.json"):
+    for f in ("sim_v8.json", "sim_v8.bin"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
+    print("simulator: copied sim_v8.json and sim_v8.bin (check with node tools/check_sim_v8.js)")
+else: print(f"simulator: {RUN}/site/sim_v8.json not found; run ban-solver export/build_sim_v8.py {RUN} first for the studio's simulator")
 
 # ---- the numbers the page quotes
 CHK = json.load(open(f"{RUN}/reports/world_model_checks_v8.json", encoding="utf-8")); OPE = json.load(open(f"{RUN}/reports/ope_v8.json", encoding="utf-8"))

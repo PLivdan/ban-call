@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ban Call Studio</title>
-<meta name="description" content="Which hero to ban in Marvel Rivals ranked, drawn as a model of the lobby. The ban value model and the re-draft simulator run in your browser.">
+<meta name="description" content="Which hero to ban in Marvel Rivals ranked, drawn as a model of the lobby. The v8 value networks and the re-draft simulator run in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 3 29 10.5 16 18 3 10.5Z%27 fill=%27%232340FF%27/%3E%3Cpath d=%27M3 10.5 16 18v11L3 21.5Z%27 fill=%27%23111%27/%3E%3Cpath d=%27M29 10.5 16 18v11l13-7.5Z%27 fill=%27%23777%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
@@ -267,6 +267,8 @@
     .tiles { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
     .search { width: 100%; }
   }
+  .tile.rare:not(.gone):not(.mine) .pic img { filter: grayscale(.85); opacity: .55; }
+  .winl { margin: 10px 0 4px; font-size: 14px; color: var(--graphite); } .winl b { color: var(--text); }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 
@@ -276,7 +278,7 @@
     <div class="fld"><label for="tierSel">Rank</label><select id="tierSel"></select></div>
     <div class="fld"><label for="mapSel">Map</label><select id="mapSel"></select></div>
     <div class="fld"><span class="lb">We ban</span><div class="seg"><button id="firstBtn">First</button><button id="secondBtn">Second</button></div></div>
-    <div class="fld"><span class="lb">Model</span><div class="seg"><button id="valueBtn" title="Lineup networks and removal costs. Answers in a fraction of a second.">Ban value</button><button id="simBtn" title="Re-drafts both teams with stand-in players. Slower, and it catches composition effects.">Simulator</button></div></div>
+    <div class="fld"><span class="lb">Model</span><div class="seg"><button id="valueBtn" title="The v8 value networks, trained on simulated lobbies. Answers in a fraction of a second.">Value networks</button><button id="simBtn" title="Plays the lobby out with stand-in players near your rank and re-drafts both teams. Slower: a check on the networks.">Simulator</button></div></div>
     <div class="fld runs" id="runsCtl" hidden><span class="lb">Runs</span><div class="seg"><button data-n="32">32</button><button data-n="64">64</button><button data-n="128">128</button><button data-n="256">256</button></div></div>
     <div class="fld"><span class="lb">&nbsp;</span><div style="display:flex;gap:14px"><button class="ghost" id="linkBtn">Copy link</button><button class="ghost" id="themeBtn">Dark</button></div></div>
   </div>
@@ -304,15 +306,12 @@
   <article class="ch" id="chB"><div class="chL"><span class="k">What it does</span><h2></h2><p></p><div class="chips"></div></div><div class="chF"></div></article>
   <article class="ch" id="chC"><div class="chL"><span class="k">What comes next</span><h2></h2><p></p></div><div class="chF"></div></article>
   <article class="ch" id="chW"><div class="chL"><span class="k">Why</span><h2 id="whyH"></h2><p id="whyP"></p></div><div class="chF" id="why"></div></article>
-  <article class="ch" id="chO"><div class="chL"><span class="k">Both teams</span><h2>Who opens what</h2><p>The chance each team opens a hero, given the bans so far and the heroes your team shows. Long bars on both sides mean a ban costs both teams.</p></div><div class="chF"><div class="fly" id="fly"></div></div></article>
+  <article class="ch" id="chO"><div class="chL"><span class="k">Both teams</span><h2>Who opens what</h2><p>The chance each team opens a hero, from simulated drafts of this lobby with the bans so far and the heroes your team shows. Long bars on both sides mean a ban costs both teams.</p></div><div class="chF"><div class="fly" id="fly"></div></div></article>
   <article class="ch" id="chP"><div class="chL"><span class="k">The models</span><h2>How the answer is made</h2><p id="pipeP"></p></div><div class="chF"><div class="pipe" id="pipe"></div><div class="facts" id="facts"></div></div></article>
 </section>
-
-</section>
-</div>
 
 <footer><span id="fitted"></span><span>Not affiliated with NetEase Games or Marvel.</span></footer>
 <div class="tip" id="tip"></div>
 
-<script src="../engine.js?v=9be12d9260"></script>
-<script src="studio.js?v=6a034df2be"></script>
+<script src="../engine8.js?v=22d91bf987"></script>
+<script src="studio.js?v=9a05463691"></script>
