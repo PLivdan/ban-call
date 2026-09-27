@@ -534,6 +534,9 @@
     const R = REP, C = R.checks, cmp = R.comparisons, t = R.test, d = C.drafts, ope = R.ope.decisions, bc = R.ope.behaviour_calibration;
     const ci = r => `${(r.mean >= 0 ? "+" : "−") + Math.abs(r.mean).toFixed(4)} (${r.lo.toFixed(4)} to ${r.hi.toFixed(4)})`;
     const cq = q => `${q.mean_pts >= 0 ? "+" : "−"}${Math.abs(q.mean_pts).toFixed(2)} (${q.lo_pts.toFixed(2)} to ${q.hi_pts.toFixed(2)})`;
+    // v8.3 runs: the uncapped doubly robust estimate is the result (capping is a sensitivity check), and the simulated gain is the page's own policy
+    const v83 = !!R.estimator_checks, drq = q => v83 ? q.doubly_robust : q.doubly_robust_capped, simGain = (C.policy.students_vs_players || C.policy.optimal_vs_players).gain_pts;
+    const allZero = ope.every(q => drq(q).lo_pts <= 0 && drq(q).hi_pts >= 0), WU = C.world_model_uncertainty;
     const out8 = t.outcome_recalibrated || t.outcome.v8, out7 = t.outcome["v7.2"], banT = t.ban;
     const slopes = Object.values(bc).map(v => v.slope), sLo = Math.min(...slopes).toFixed(2), sHi = Math.max(...slopes).toFixed(2);
     const fb = C.first_ban_by_role;
@@ -560,18 +563,19 @@
           (${cmp["placebo_" + R.selected.ban] ? ci(cmp["placebo_" + R.selected.ban]) : "not tested"} nats per ban better with the real other team).</li>
       </ul>
       </div><div class="mcol"><h2>Checks on ${fmt(R.splits.test.n)} later matches</h2>
-      <p class="small">From the notebook run ${esc(R.run)} that fitted these models. Every model was chosen on earlier matches, by a rule fixed before any result, and the last ${fmt(R.splits.test.n)} matches were scored once.</p>
+      <p class="small">From the notebook run ${esc(R.run)} that fitted these models. Every model was chosen on earlier matches, by a rule fixed before any result, and the last ${fmt(R.splits.test.n)} matches were scored once.${R.test_consulted ? ` Those matches were also looked at while earlier
+      versions were built, so treat these as development checks until newer matches are scored.` : ""}</p>
       <table><tr><th>Check</th><th class="r">Result</th></tr>
         <tr><td>Their bans: log loss per ban (the previous model's ban model)</td><td class="r">${banT[R.selected.ban].toFixed(4)} (${banT.A.toFixed(4)})</td></tr>
         <tr><td>Who wins: log loss per match (previous model), calibration slope</td><td class="r">${out8.logloss.toFixed(4)} (${out7.logloss.toFixed(4)}), ${out8.calib_slope.toFixed(2)}</td></tr>
         <tr><td>Simulated drafts on real teams: 2-2-2 / triple support / stays in role when the main is banned</td><td class="r">${pct(d.two_two_two.model)} / ${pct(d.triple_support.model)} / ${pct(d.role_stay_when_forced.model)} (real ${pct(d.two_two_two.real)} / ${pct(d.triple_support.real)} / ${pct(d.role_stay_when_forced.real)})</td></tr>
         <tr><td>The model against a brute-force simulation of your last ban: points left on the table (a typical ban)</td><td class="r">${C.brute_force.regret_network_pts.toFixed(2)} (${C.brute_force.regret_typical_pts.toFixed(2)})</td></tr>
         ${stu ? `<tr><td>The compact copy on this page against the full model, at your first ban: same advice, points lost</td><td class="r">${pct(stu.same)}, ${stu.regret.toFixed(3)}</td></tr>` : ""}
-        <tr><td>Inside the simulation: following the advice against banning as players do</td><td class="r">+${C.policy.optimal_vs_players.gain_pts.toFixed(2)} pts</td></tr>
-        ${ope.map(q => `<tr><td>Real games: following the advice at your ban ${q.decision} (weights capped, 95% interval)</td><td class="r">${cq(q.doubly_robust_capped)} pts</td></tr>`).join("")}
+        <tr><td>Inside the simulation: following the advice against banning as players do</td><td class="r">+${simGain.toFixed(2)} pts</td></tr>
+        ${ope.map(q => `<tr><td>Real games: following the advice at your ban ${q.decision} (${v83 ? "" : "weights capped, "}95% interval)</td><td class="r">${cq(drq(q))} pts</td></tr>`).join("")}
       </table>
-      <p class="small">In real games the advice cannot be told apart from what players do: every interval includes zero. The gain the simulation expects (about
-      ${C.policy.optimal_vs_players.gain_pts.toFixed(1)} points per game) is too small for ${fmt(R.ope.matches)} games to show, players made the advised ban only about ${pct(ope[0].match_rate)} of the time,
+      <p class="small">${allZero ? "In real games the advice cannot be told apart from what players do: every interval includes zero." : "In real games the intervals are wide."} The gain the simulation expects (about
+      ${simGain.toFixed(1)} points per game) is too small for ${fmt(R.ope.matches)} games to show, players made the advised ban only about ${pct(ope[0].match_rate)} of the time,
       and bans players almost never make (like many of the support bans the advice likes) cannot be tested on past games at all. The simulation's win chances also spread lobbies further
       apart than real games do (a calibration slope of ${sLo} to ${sHi} against real results), so read the win-chance lines as a ranking more than as exact percentages.</p>
       ${fb ? `<p class="small">The advice's first ban by role (vanguard / duelist / strategist): ${fb.policy.map(pct).join(" / ")}, against ${fb.players.map(pct).join(" / ")} for players.
@@ -583,7 +587,8 @@
         <li>Hovers are not in the data. A shown hero is treated as that player's likely pick, and a teammate keeps a shown hero about four times in five.</li>
         <li>Every other player is anonymous. The values average over the real players who play at your rank, not the people in your lobby.</li>
         <li>Mid-match swaps are outside the model (it drafts opening lineups). Tested separately on real matches: they did not measurably change what a ban is worth.</li>
-        <li>A range shows where the model's fits disagree, not a full interval: refitting everything on other matches would move the values more.</li>
+        <li>A range shows where the model's fits disagree, not a full interval: ${WU ? `refitting the models on resampled matches moves a last ban's value by about
+          ${WU.world_sd_pts.toFixed(2)} points, against ranges of about ${WU.network_sd_pts.toFixed(2)} here.` : "refitting everything on other matches would move the values more."}</li>
         <li>God Quarry is left out (7 matches in the data).</li>
       </ul></div></div></details>
       <h2>Where mains go when their hero is banned</h2>

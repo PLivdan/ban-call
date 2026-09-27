@@ -13,10 +13,11 @@ Writes:
   model8/report_v8.json                       the numbers the method section quotes (selection, test window, world-model
                                               checks, real-outcome test)
 
-The stand-in who shows a hero: the notebook draws that teammate from players near the lobby's rank in proportion to their
-chance of opening the hero. The page approximates it by the players at that rank band weighted by their share of minutes
-on the hero (as of the end of the validation window), so it needs the data bundle. Without it, a shown hero adds nothing
-to the stand-in tables (the ban forecast then ignores who shows what).
+From v8.3 the notebook exports the page's view of a lobby itself (stand-in teams per rank band, and per shown hero the
+shift it makes to our team's hero shares), the same tables it used for our side's bans, support sets and typical-ban
+baselines, so the page and the notebook agree exactly. For earlier runs the shift is rebuilt here from the data bundle:
+the players at that rank band weighted by their share of minutes on the hero (as of the end of the validation window).
+Without either, a shown hero adds nothing to the stand-in tables (the ban forecast then ignores who shows what).
 """
 import json, os, shutil, sys
 import numpy as np, pandas as pd
@@ -45,7 +46,9 @@ print(f"value networks: " + ", ".join(f"{f} {off[f] / 1e6:.1f} MB" for f in part
 B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8"))
 SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
 bands = np.array(B["bands"]); NB = len(bands) + 1
-if os.path.exists(f"{DATA}/segs.parquet"):
+if B.get("shown_shares") is not None:
+    shown = avg = None; print("shown-hero tables: from the run (the notebook's own page view)")
+elif os.path.exists(f"{DATA}/segs.parquet"):
     M = pd.read_parquet(f"{DATA}/matches.parquet"); S = pd.read_parquet(f"{DATA}/slots.parquet", columns=["match_idx", "player_idx", "pre_score", "start_hero"])
     G = pd.read_parquet(f"{DATA}/segs.parquet", columns=["match_idx", "player_idx", "hero_idx", "minutes"])
     last_val = SUM["splits"]["validation"]["last_utc"]; ts_cut = pd.Timestamp(last_val, tz="UTC").timestamp() + 60
@@ -66,7 +69,7 @@ if os.path.exists(f"{DATA}/segs.parquet"):
     print(f"shown-hero tables from {len(pool):,} players (histories up to match {cut:,}, the end of validation)")
 else:
     shown = None; avg = None; print("no data bundle: shown heroes will not shift the stand-in tables")
-BAN = dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
+BAN = dict(B) if B.get("shown_shares") is not None else dict(B, shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
 json.dump(BAN, open(f"{OUT}/ban_v8.json", "w", encoding="utf-8"), ensure_ascii=False, default=lambda x: np.asarray(x).tolist())
 for f in ("substitutes_v8.json", "parity_v8.json"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
 
@@ -75,7 +78,9 @@ CHK = json.load(open(f"{RUN}/reports/world_model_checks_v8.json", encoding="utf-
 TEST = json.load(open(f"{RUN}/reports/test_report_v8.json", encoding="utf-8")); SEL = json.load(open(f"{RUN}/reports/selection_v8.json", encoding="utf-8"))
 REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SUM["selected"], comparisons=SEL["comparisons"], test=TEST["test"],
            world_model=SUM["world_model"], checks=dict(terminal=CHK["terminal"], brute_force=CHK["brute_force"], policy=CHK["policy"], drafts=CHK["drafts"],
-           first_ban=CHK["first_ban"], first_ban_by_role=CHK.get("first_ban_by_role"), agreement_by_shown=CHK.get("agreement_by_shown"), students=CHK.get("students")),
+           first_ban=CHK["first_ban"], first_ban_by_role=CHK.get("first_ban_by_role"), agreement_by_shown=CHK.get("agreement_by_shown"), students=CHK.get("students"),
+           null_world=CHK.get("null_world"), world_model_uncertainty=CHK.get("world_model_uncertainty"), drafts_planner_path=CHK.get("drafts_planner_path")),
+           test_consulted=SUM.get("test_consulted"), estimator_checks=OPE.get("estimator_checks"),
            value_chain=CHK["value_chain"], networks=dict(student=bool(L.get("student")), members=L["members"], hidden=L["hidden"], layers=L["layers"], teachers=L.get("teachers")),
            ope=dict(decisions=OPE["decisions"], behaviour_calibration={k: dict(slope=v["behaviour"]["calib_slope"], spread_pts=v["spread_pts"]) for k, v in OPE["behaviour_calibration"].items()},
                     ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"]),

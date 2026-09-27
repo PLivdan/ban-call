@@ -3,7 +3,8 @@
       the student's three outputs (v8.2 on); the input the page builds from the same lobby must equal the notebook's input
       exactly.
    2. Ban model: the probabilities for 40 random states against the notebook's formula with the fitted parameters
-      (tools/check_v8_ref.py writes them).
+      (tools/check_v8_ref.py writes them). From v8.3 also whole turns as the notebook computed them with the float16
+      students and the exported tables: every candidate's value, spread and typical-ban probability, and the advice.
    3. The advice on random lobbies: finite values, the advice supported, pairs on two-ban turns, and timings. */
 const fs = require("fs"), { Engine8 } = require("../engine8.js");
 const L = JSON.parse(fs.readFileSync("model8/value_v8.json", "utf8")), BAN = JSON.parse(fs.readFileSync("model8/ban_v8.json", "utf8"));
@@ -34,6 +35,18 @@ for (const c of REF.cases) {
 }
 log(`ban model: ${REF.cases.length} states against the notebook's formula with the fitted parameters, largest probability difference ${worstP.toExponential(2)} (export rounding ${REF.export_rounding_max.toExponential(2)})`);
 if (worstP > 1e-4) { bad++; log("  FAIL"); }
+if (PAR.turns) {                                           // v8.3: whole turns, the notebook's float16 students and exported tables
+  let wm = 0, ws = 0, wp = 0, same = 0, ours = 0;
+  for (const t of PAR.turns) {
+    const s = t.state;
+    if (t.ours) {
+      const R = E.ourTurn(s); ours++; if (R.best === t.best) same++; else log(`  turn at position ${t.position}: the page advises ${L.heroes[R.best]}, the notebook ${L.heroes[t.best]}`);
+      t.cands.forEach((h, k) => { wm = Math.max(wm, Math.abs(R.mu[h] - t.mu[k])); ws = Math.max(ws, Math.abs(R.sd[h] - t.sd[k])); wp = Math.max(wp, Math.abs(R.pe[h] - t.pe[k])); });
+    } else { const T = E.theirTurn(s); t.cands.forEach((h, k) => { wp = Math.max(wp, Math.abs(T.pe[h] - t.pe[k])); }); }
+  }
+  log(`whole turns: ${PAR.turns.length} (${ours} ours), same advice ${same} of ${ours}; largest difference in value ${wm.toExponential(2)}, spread ${ws.toExponential(2)}, ban probability ${wp.toExponential(2)}`);
+  if (same < ours || wm > 1e-4 || ws > 1e-4 || wp > 1e-4) { bad++; log("  FAIL"); }
+}
 // ---- 3. the advice on random lobbies
 let seed = 11; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 const tiers = [4050, 4250, 4450, 4550, 4650, 4850, 5050]; let n = 0, tOur = 0, tPair = 0, tThem = 0, nPair = 0, nThem = 0, unsupported = 0, agree = 0;
