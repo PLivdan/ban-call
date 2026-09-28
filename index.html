@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ban Call</title>
-<meta name="description" content="Which hero to ban in Marvel Rivals ranked: value networks trained on simulated Season 10 lobbies, running in your browser.">
+<meta name="description" content="Which hero to ban in Marvel Rivals ranked: trained on simulated Season 10 lobbies, running in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3Cpath d=%27M7.5 24.5L24.5 7.5%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
@@ -58,6 +58,7 @@
   #lobby { flex: 1 1 540px; min-width: 320px; background: var(--panel); padding: 2px 18px 18px 18px; }
   #lobby .slot .pic, #lobby .tile img { background: var(--paper); }
   #advice { flex: 1 1 620px; min-width: 320px; }
+  #advice.lean .det { display: none; } .methods.lean #methodsBody { display: none; }
   h2 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 24px 0 8px 0;
        border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
   h2 .small { font-weight: 400; }
@@ -139,14 +140,10 @@
   .comp .cshapes2 > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; } .comp .cshapes2 > div > b { font-size: 14px; }
   .comp .cgrid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; }
   .fig8 { margin: 6px 0 18px 0; } .fig8 svg { overflow: visible; }
+  svg.board { max-width: none; } svg.board [data-ban] { cursor: pointer; }
   svg image.rare { filter: grayscale(1); opacity: .42; } svg [data-ban] { cursor: pointer; } svg [data-ban]:hover .ring { stroke-width: 2.5; }
-  .sk .flow { transition: opacity .15s; } .sk.hl .flow { opacity: .06 !important; } .sk.hl .flow.on { opacity: .92 !important; }
-  .sk .rowlab { transition: opacity .15s; } .sk.hl .rowlab { opacity: .35; } .sk.hl .rowlab.on { opacity: 1; font-weight: 600; }
-  .roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; align-items: start; }
-  .roles .head { font-size: 16px; } .roles .head .n { font-size: 26px; }
   .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12.5px; line-height: 1.45; padding: 7px 9px; max-width: 300px; opacity: 0;
          transition: opacity .1s; z-index: 50; } .tip.on { opacity: 1; } .tip b { font-weight: 600; } .tip .d { opacity: .72; }
-  @media (max-width: 1000px) { .roles { grid-template-columns: minmax(0, 1fr); } }
   /* tables */
   table { border-collapse: collapse; }
   caption { caption-side: bottom; text-align: left; font-size: 12px; line-height: 1.45; color: var(--faint); padding-top: 6px; max-width: 78ch; }
@@ -165,7 +162,8 @@
   svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; fill: var(--ink); }
   svg .faint { fill: var(--faint); } svg .us { fill: var(--blue); } svg .them { fill: var(--red); }
   svg .axis { stroke: var(--ink); stroke-width: 1; } svg .grid { stroke: var(--hair); stroke-width: 1; }
-  svg .whisk { stroke: var(--ink); stroke-width: 1; }
+  svg .rng.us { fill: var(--blue); fill-opacity: .25; } svg .rng.them { fill: var(--red); fill-opacity: .25; }
+  svg .rng0 { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
   .cols { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
   .cols > figure { flex: 0 1 auto; margin-top: 4px; min-width: 0; }
   .eq td { border-bottom: none; padding: 0 8px 0 0; }
@@ -200,8 +198,15 @@
   .tile img { width: 48px; height: 48px; display: block; margin: 0 auto 2px auto; border: 1px solid var(--hair); background: var(--active); }
   .tile:hover img { border-color: var(--ink); }
   .tile .nm { display: block; color: var(--faint); overflow-wrap: anywhere; }
-  .tile.banned img { filter: grayscale(1); opacity: .3; }
-  .tile.banned::after { content: "✕"; position: absolute; top: 10px; left: 0; right: 0; color: var(--red); font-size: 22px; font-weight: 600; }
+  /* a banned hero: greyed out, a slash from corner to corner, slash and frame in the banning team's colour */
+  .xs { position: absolute; pointer-events: none; overflow: visible; max-width: none; }
+  .xs line { stroke-width: 2px; } .us .pic .xs line, .us .tx .xs line { stroke: var(--blue); } .them .pic .xs line, .them .tx .xs line { stroke: var(--red); }
+  .tile .tx { position: relative; display: block; width: 48px; height: 48px; margin: 0 auto 2px auto; }
+  .tile .tx img { margin: 0; }
+  .tile.banned { cursor: default; } .tile.banned img { filter: grayscale(1); border-width: 2px; }
+  .tile.banned.us img, .tile.banned.us:hover img { border-color: var(--blue); } .tile.banned.them img, .tile.banned.them:hover img { border-color: var(--red); }
+  .slot.xban .pic { border: 2px solid var(--hair); } .slot.xban.us .pic { border-color: var(--blue); } .slot.xban.them .pic { border-color: var(--red); }
+  .slot.xban .pic img { width: 56px; height: 56px; filter: grayscale(1); }
   .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
   .tile.dim { opacity: .22; }
   .tile .rk { position: absolute; top: 0; right: 4px; background: var(--red); color: #fff; font-size: 10.5px; line-height: 15px; min-width: 15px; font-weight: 600; padding: 0 2px; }
@@ -297,7 +302,29 @@
   pre.term .tp { color: var(--faint); }
   pre.term .tsh { font-weight: 600; }
   @media (max-width: 720px) { [data-view="term"] .tkeys { display: none; } .tcols { grid-template-columns: repeat(2, minmax(0, 1fr)); } #statusbar { padding: 0 12px; } }
-  /* method */
+  /* methods: two animated figures, then the text */
+  .methods { margin-top: 30px; border-top: 1px solid var(--ink); padding-top: 6px; }
+  .methods > h2.msec { border: 0; font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; font-size: 22px; font-weight: 800; margin: 6px 0 4px 0; padding: 0; }
+  .mlede { font-size: 14px; max-width: 82ch; }
+  .mfig { margin: 22px 0 10px 0; }
+  .mfig .mft { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 2px 0; }
+  .mfig .mfs { color: var(--faint); max-width: 82ch; margin: 0 0 8px 0; }
+  .mfig .fig { overflow-x: auto; }
+  .mfig .fig svg { width: 100%; min-width: 760px; max-width: none; }
+  .mfig .note { color: var(--faint); font-size: 12.5px; margin: 6px 0 0 0; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  .mfig .note .key { display: inline-flex; align-items: center; gap: 6px; }
+  .mfig .note .sq { width: 12px; height: 12px; border: 1.5px solid var(--blue); display: inline-block; background: color-mix(in srgb, var(--blue) 18%, var(--paper)); }
+  .mfig .player { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; margin: 12px 0 0 0; }
+  .mfig .pp { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; }
+  .mfig .pp svg { width: 14px; height: 14px; fill: var(--ink); }
+  .mfig .chap { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .mfig .chap button { height: auto; border: 0; background: none; text-align: left; padding: 0; color: var(--faint); font-size: 12.5px; line-height: 1.35; }
+  .mfig .chap button:hover { background: none; color: var(--ink); }
+  .mfig .chap .track { display: block; height: 3px; background: var(--hair); margin-bottom: 6px; }
+  .mfig .chap .fill { display: block; height: 3px; background: var(--ink); width: 0; }
+  .mfig .chap b { display: block; font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 1px; }
+  .mfig .chap button.on, .mfig .chap button.on b { color: var(--ink); }
+  @media (max-width: 720px) { .mfig .chap { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
   .method { margin-top: 12px; }
   .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
   .mcol > h2:first-child { margin-top: 24px; }
@@ -362,7 +389,28 @@
 </section>
 </div>
 
-<section class="method" id="method"></section>
+<section class="methods" id="methods">
+  <h2 class="msec hh"><span>Methods</span><span class="hbtn"><button id="methodsBtn" title="Show or hide the methods">Hide</button></span></h2>
+  <div id="methodsBody">
+  <p class="mlede">Choosing a ban is harder than it looks. A ban removes a hero from both teams, it changes what both teams draft, and you usually can't see who is on the
+    other side. Ban Call plays your lobby out many times before you choose. The two figures show how, with the model's own numbers for the lobby set above<span class="conly">: <span id="figLobby">loading</span></span>.</p>
+  <div class="mfig conly">
+    <h3 class="mft">Forward, then back</h3>
+    <p class="mfs" id="mT2s"></p>
+    <div class="fig" id="t2"></div>
+    <div class="note"><span class="key"><span class="sq"></span>One simulated game, marked with the first ban it tried</span><span id="t2n"></span></div>
+    <div class="player"><button class="pp" id="t2pp" aria-label="Play"></button><div class="chap" id="t2ch" style="--n:3"></div></div>
+  </div>
+  <div class="mfig conly">
+    <h3 class="mft">Inside one ending</h3>
+    <p class="mfs">Where a branch ends, all six bans are in. The seats you can't see are filled with real players from your rank, everyone picks, and every lineup is scored
+      against every opposing one. This repeats at every ending.</p>
+    <div class="fig" id="t3"></div>
+    <div class="player"><button class="pp" id="t3pp" aria-label="Play"></button><div class="chap" id="t3ch" style="--n:5"></div></div>
+  </div>
+  <div class="method" id="method"></div>
+  </div>
+</section>
 
 <div id="statusbar" class="tonly" aria-hidden="true"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs></svg>
@@ -374,5 +422,6 @@
 <script src="engine.js?v=e939ae1125"></script>
 <script src="engine8.js?v=09e25547b0"></script>
 <script src="lobby-state.js?v=f00bf10f68"></script>
-<script src="app8.js?v=f7cb93ba8f"></script>
+<script src="methods8.js?v=6caf5786fa"></script>
+<script src="app8.js?v=3f17dc6f6c"></script>
 </html>
