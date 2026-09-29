@@ -518,7 +518,7 @@
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;
     if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=27cd340b3f"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=052b6b4c33"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
     const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
     for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
     COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
@@ -579,12 +579,13 @@
     return `<h2>Likely comps</h2>${head}${grid}`;
   }
   function openers() { compStart(); return `<section class="comp" id="comp">${compInner()}</section>`; }
-  // the charts under the advice can be hidden, leaving the call itself, so the panel stays still while you enter bans
-  let CHARTS = true; try { CHARTS = localStorage.getItem("bancall-charts") !== "off"; } catch (e) {}
+  // the charts under the advice can be hidden, leaving the call itself, so the panel stays still while you enter bans.
+  // The charts and the methods start hidden on every load; their buttons show them for the visit
+  let CHARTS = false;
   const chartsBtn = () => `<span class="hbtn"><button id="chartsBtn" title="Show or hide the charts under the advice">${CHARTS ? "Hide charts" : "Show charts"}</button></span>`;
-  let METHODS = true; try { METHODS = localStorage.getItem("bancall-methods") !== "off"; } catch (e) {}
+  let METHODS = false;
   const applyMethods = () => { $("methods").classList.toggle("lean", !METHODS); $("methodsBtn").textContent = METHODS ? "Hide" : "Show"; };
-  $("methodsBtn").onclick = () => { METHODS = !METHODS; try { localStorage.setItem("bancall-methods", METHODS ? "on" : "off"); } catch (e) {} applyMethods(); if (METHODS) figUpdate(); else if (window.MethodFigs && MethodFigs.reset) MethodFigs.reset(); };
+  $("methodsBtn").onclick = () => { METHODS = !METHODS; applyMethods(); if (METHODS) figUpdate(); else if (window.MethodFigs && MethodFigs.reset) MethodFigs.reset(); };
   applyMethods();
   const applyCharts = () => { $("advice").classList.toggle("lean", !CHARTS); const b = $("chartsBtn"); if (b) b.textContent = CHARTS ? "Hide charts" : "Show charts"; };
   function renderAdvice() {
@@ -620,7 +621,7 @@
     if (BOARD.svg && BOARD.svg.parentNode) BOARD.svg.parentNode.removeChild(BOARD.svg);
     $("adviceBody").innerHTML = quiet(html); applyCharts();
     if ($("boardSlot")) $("boardSlot").appendChild(drawBoard(W));
-    if ($("chartsBtn")) $("chartsBtn").onclick = () => { CHARTS = !CHARTS; try { localStorage.setItem("bancall-charts", CHARTS ? "on" : "off"); } catch (e) {} applyCharts(); };
+    if ($("chartsBtn")) $("chartsBtn").onclick = () => { CHARTS = !CHARTS; applyCharts(); };
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
     $("adviceBody").querySelectorAll("[data-pair]").forEach(el => el.onclick = () => { if (ourTurn() && turnCount() === 2) { const [a, b] = el.dataset.pair.split(",").map(Number); banBoth(a, b); } });
   }
