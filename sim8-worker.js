@@ -9,7 +9,7 @@
 importScripts("sim8.js" + self.location.search, "engine8.js" + self.location.search);   // the page stamps this worker's address; the scripts share the stamp
 const DRAWS = 32;
 let SIM = null, E8 = null, loading = null;
-const draws = new Map(), probs = new Map(); let lobbyNow = null;
+const draws = new Map(), probs = new Map(); let lobbyNow = null, flowNow = 0;   // flowNow: the latest flow job (an older one stops early)
 async function load(base, v) {
   const q = v ? `?v=${v}` : "";
   const [meta, bin, lay, ban] = await Promise.all([fetch(`${base}model8/sim_v8.json${q}`).then(r => r.json()), fetch(`${base}model8/sim_v8.bin${q}`).then(r => r.arrayBuffer()),
@@ -36,14 +36,15 @@ function ourProbs(s) {                                            // a typical t
   };
 }
 onmessage = async ev => {
-  const d = ev.data;
+  const d = ev.data; if (d.type === "flow") flowNow = d.id;
   try {
     if (!SIM) { loading = loading || load(d.base || "", d.v).catch(e => { loading = null; throw e; }); await loading; }   // a failed load is tried again on the next job
     if (d.type === "warm") { postMessage({ id: d.id, done: true }); return; }       // the page loads the model before the first lobby
     const s = d.st, L = SIM.lobby(s), op = ourProbs(s), H = SIM.H;
     if (d.type === "flow") {
       const us = new Float64Array(H), them = new Float64Array(H); let nu = 0, nt = 0, n = 0;
-      for (const j of d.runs) {
+      for (const [t, j] of d.runs.entries()) {
+        if (t && t % 4 === 0) { await new Promise(r => setTimeout(r, 0)); if (d.id !== flowNow) return; }   // let a newer flow job in; this one is stale
         const D = drawFor(L, s, j % DRAWS), B = SIM.complete(L, D, s.bans, j, op); if (B.includes(d.h)) continue;
         const A = SIM.terminal(L, D, B, true), X = SIM.terminal(L, D, B.concat([d.h]), true, 0, true); n++;   // x is our advised ban
         A.pu.forEach((pk, u) => pk.forEach((h, i) => { if (h === d.h) { us[X.pu[u][i]]++; nu++; } }));

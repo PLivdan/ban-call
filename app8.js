@@ -526,23 +526,23 @@
   // ---- likely comps: the v8 simulator plays this lobby out in background workers (stand-ins near your rank, the rest of the
   // bans as typical teams make them, both teams' drafts from the pick model) and counts what each team opens, and what each of
   // our seats opens (the teammate lists). It runs for every lobby state
-  // The workers stay up (their model files load once, at the start); a lobby's simulated ban phases go out in batches of CBATCH,
-  // one batch per free worker, so a lobby change waits for at most one stale batch, and the seat forecasts show after the first
-  // batch and sharpen as the rest come in. 16 stand-in draws, each played out twice (run j uses draw j % 32, so runs 32-47 reuse
-  // the draws of runs 0-15, which are the slow part): 32 runs, the second batch nearly free
-  const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CBATCH = 8;
-  const CRUNL = [0, 32, 8, 40].flatMap(a => Array.from({ length: 8 }, (_, k) => a + k)), CRUNS = CRUNL.length;
+  // The workers stay up (their model files load once, at the start). A lobby is 16 stand-in draws, each played out twice (run j
+  // uses draw j % 32, so runs 32-47 replay the draws of runs 0-15 with new random numbers for the rest of the ban phase). A draw is
+  // the slow part and each worker keeps its own, so a batch carries a block of draws with both of their runs: one batch per worker
+  // (at least two), so the seat forecasts show after the first batch and sharpen as the rest come in
+  const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CNB = Math.max(CW, 2);
+  const CBATCHES = Array.from({ length: CNB }, (_, i) => { const a = Math.round(i * 16 / CNB), b = Math.round((i + 1) * 16 / CNB), d = Array.from({ length: b - a }, (_, k) => a + k); return d.concat(d.map(x => x + 32)); });
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=2beaca52a0"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=267fa7b6fa"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
     const C = COMP; if (!C || C.failed) return;
     for (const w of compPool) {
-      if (w.busy || C.next >= CRUNS) continue;
-      const runs = CRUNL.slice(C.next, C.next + CBATCH); C.next += runs.length;
+      if (w.busy || C.next >= CBATCHES.length) continue;
+      const runs = CBATCHES[C.next++];
       w.busy = true; C.pending++; w.postMessage({ id: C.id, v: LAY.run, type: "values", st: C.st, cands: ["typ"], opens: true, runs });
     }
   }
@@ -561,7 +561,7 @@
       const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
       if (o.slots) for (let k = 0; k < o.slots.length; k++) C.slots[k] += o.slots[k];
       for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
-      C.pending--; if (C.next >= CRUNS && C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
+      C.pending--; if (C.next >= CBATCHES.length && C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
       renderQuick(); fillOpens();                                               // the forecasts so far
     }
     compDispatch();                                                             // this worker is free: the current lobby's next batch
@@ -666,16 +666,17 @@
   // their players who would have opened it. Run only while the charts are shown
   let FL = null, flowW = null, flowId = 0;
   const adviceBan = () => { if (!ourTurn() || !RES || nextBan() >= 6) return null; const pair = turnCount() === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null; return pair ? pair.a : RES.best; };
-  function flowStart(h) {
+  function flowStart(h) {                                  // one long-lived worker: its model loads once; a newer job makes the older one stop
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
-    if (flowW) flowW.terminate();
-    const id = ++flowId, fill = () => { const el = $("sfSlot"); if (el && adviceBan() === h) el.innerHTML = sfHtml(h, figW()); };
-    FL = { key, h, done: false, failed: false };
-    flowW = new Worker("sim8-worker.js?v=2beaca52a0");
-    flowW.onmessage = ev => { const d = ev.data; if (d.id !== id || !FL || FL.key !== key) return;
-      if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
-    flowW.onerror = () => { if (FL && FL.key === key) { FL.failed = true; fill(); } };
-    flowW.postMessage({ id, v: LAY.run, type: "flow", st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), h, runs: Array.from({ length: 48 }, (_, j) => j) });
+    FL = { key, h, id: ++flowId, done: false, failed: false };
+    if (!flowW) {
+      flowW = new Worker("sim8-worker.js?v=267fa7b6fa");
+      const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
+      flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
+        if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
+      flowW.onerror = () => { flowW.terminate(); flowW = null; if (FL) { FL.failed = true; fill(); } };   // a broken worker is replaced on the next request
+    }
+    flowW.postMessage({ id: FL.id, v: LAY.run, type: "flow", st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), h, runs: Array.from({ length: 48 }, (_, j) => j) });
   }
   function sfHtml(h, W) {
     const F = FL && FL.key === compKey() + "|" + h ? FL : null, head = `<h2>What ${esc(nm(h))} does to them</h2>`;
@@ -754,12 +755,14 @@
   }
   // "Inside one ending": one real draw of the simulator on the figure's six-ban path, from a worker
   let endW = null, endId = 0;
-  function endingStart(d) {
+  function endingStart(d) {                               // one long-lived worker, as for the flow: only the latest request's answer is used
     if (!MethodFigs.ending) return;
-    if (endW) endW.terminate(); const id = ++endId;
-    endW = new Worker("sim8-worker.js?v=2beaca52a0");
-    endW.onmessage = ev => { const m = ev.data; if (m.id !== id || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
-    endW.onerror = () => { if (id === endId) MethodFigs.ending({ failed: true }); };
+    const id = ++endId;
+    if (!endW) {
+      endW = new Worker("sim8-worker.js?v=267fa7b6fa");
+      endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
+      endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
+    }
     endW.postMessage({ id, v: LAY.run, type: "ending", st: lobby(), bans: d.path.slice().sort((a, b) => a.e - b.e).map(p => p.h), n: 9, draw: 0 });
   }
   // the figures are about a third of a second of computing, so they are brought up to date only while the section is open and near
@@ -802,7 +805,8 @@
         <li>Fitted on PC ranked Season 10 matches from ${fitDates}, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
         <li>The values average over real players at your rank, not the people in your lobby. Hovers are not in the data, so a shown hero counts as a likely pick.</li>
         <li>The model drafts opening lineups. Mid-match swaps are left out.</li>
-        <li>Simulated win chances spread lobbies further apart than real games do (a calibration slope of ${sLo} to ${sHi}), so read them as a ranking more than as exact percentages.</li>
+        <li>${+sHi < .8 ? `Simulated win chances spread lobbies further apart than real games do (a calibration slope of ${sLo} to ${sHi}), so read them as a ranking more than as exact percentages.`
+          : `Against real games the win chances are about the right size (calibration slopes of ${sLo} to ${sHi}, where 1 is exact), but a single game is still close to a coin flip.`}</li>
         ${THIN.length ? `<li>Left off the map menu because the data has almost no ranked matches there: ${THIN.map(m => `${esc(m.name)} (${fmt(m.n)})`).join(", ")}.</li>` : ""}
       </ul></div></div>`;
   }

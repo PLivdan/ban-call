@@ -18,7 +18,7 @@
 
   class Sim8 {
     constructor(meta, buffer) {
-      this.meta = meta; const H = this.H = meta.heroes.length; this.ROLE = meta.roles; this.ORDER = meta.order; this.BANDS = meta.bands;
+      this.meta = meta; const H = this.H = meta.heroes.length; this.ROLE = meta.roles; this.ORDER = meta.order; this.BANDS = meta.bands; this.fears = new WeakMap();
       const A = {};
       for (const a of meta.arrays) {
         const n = a.shape.reduce((p, q) => p * q, 1);
@@ -158,17 +158,21 @@
        our and their stand-in teams' summed hero shares. allowed: Uint8Array. */
     banProbs(L, bans, e, allowed, RELu, RELo) {
       const H = this.H, A = this.A, S = this.S, m = L.m, bd = L.bd, us = L.ourpos[e], own = new Uint8Array(H), oth = new Uint8Array(H);
+      const fearOf = RELs => {                         // per stand-in team, sum over k of REL[k] x CT[k][h]: fixed for a draw, so computed once per draw
+        let F = this.fears.get(RELs); if (F) return F; const CT = A["G.CT"];
+        F = RELs.map(REL => { const f = new Float64Array(H); for (let h = 0; h < H; h++) { let x = 0; for (let k = 0; k < H; k++) x += REL[k] * CT[k * H + h]; f[h] = x; } return f; });
+        this.fears.set(RELs, F); return F; };
       for (let i = 0; i < e; i++) ((L.ourpos[i] === us) ? own : oth)[bans[i]] = 1;
       const last = e > 0 ? bans[e - 1] : -1, same = e > 0 && this.ORDER[e - 1] === this.ORDER[e], sg = this.ORDER[e] === 0 ? 1 : -1;
       const base = new Float64Array(H), Ro = A["G.B_Ro"], Rt = A["G.B_Rt"], Lx = A[same ? "G.B_Lo" : "G.B_Lt"];
       const a = A["G.B_a"], am = this.row("G.B_am", m), ab = this.row("G.B_ab", bd), ae = this.row("G.B_ae", e), acm = this.row("G.B_acm", m);
       for (let h = 0; h < H; h++) { let v = a[h] + am[h] + ab[h] + ae[h] + sg * acm[h]; if (last >= 0) v += Lx[last * H + h]; base[h] = v; }
-      for (let i = 0; i < H; i++) { if (own[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Ro[r + h]; } if (oth[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Rt[r + h]; } }
+      for (let i = 0; i < H; i++) { if (own[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Ro[r + h]; } if (oth[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Rt[r + h]; } }   // at most six rows: cheap
       const pre = this.meta.pre_pop, cr = -(S.B_lam + A["G.B_lam_e"][e] + pre * S.B_lam_p), cf = S.B_gam + A["G.B_gam_e"][e] + pre * S.B_gam_p, tau = S.B_tau + A["G.B_tau_e"][e];
-      const CT = A["G.CT"], p = new Float64Array(H), u = new Float64Array(H), J = RELu.length;
+      const p = new Float64Array(H), u = new Float64Array(H), J = RELu.length, FR = fearOf(us ? RELu : RELo);
       for (let j = 0; j < J; j++) {
-        const REL = us ? RELu[j] : RELo[j], RX = us ? RELo[j] : RELu[j]; let mx = -Infinity;
-        for (let h = 0; h < H; h++) { if (!allowed[h]) continue; let f = 0; for (let k = 0; k < H; k++) f += REL[k] * CT[k * H + h]; u[h] = base[h] + cr * REL[h] + cf * f + tau * RX[h]; if (u[h] > mx) mx = u[h]; }
+        const REL = us ? RELu[j] : RELo[j], RX = us ? RELo[j] : RELu[j], F = FR[j]; let mx = -Infinity;
+        for (let h = 0; h < H; h++) { if (!allowed[h]) continue; u[h] = base[h] + cr * REL[h] + cf * F[h] + tau * RX[h]; if (u[h] > mx) mx = u[h]; }
         let se = 0; for (let h = 0; h < H; h++) if (allowed[h]) se += Math.exp(u[h] - mx);
         for (let h = 0; h < H; h++) if (allowed[h]) p[h] += Math.exp(u[h] - mx) / se / J;
       }

@@ -23,6 +23,7 @@
     if (e === 31) return f ? NaN : s * Infinity;
     return s * Math.pow(2, e - 15) * (1 + f / 1024);
   }
+  const F16 = (() => { const t = new Float32Array(65536); for (let u = 0; u < 65536; u++) t[u] = f16(u); return t; })();   // every half value, exact in float32
   const gelu = z => 0.5 * z * (1 + Math.tanh(0.7978845608028654 * (z + 0.044715 * z * z * z)));
   const sig = z => 1 / (1 + Math.exp(-z));
   const softplus = z => z > 30 ? z : Math.log1p(Math.exp(z));
@@ -33,7 +34,7 @@
       this.ORDER = layout.order; this.KAPPA = layout.kappa; this.SUPP = layout.support; this.M = layout.members; this.FD = layout.input_dim;
       this.S = !!layout.student; this.NN = this.S ? layout.teachers.members : this.M;          // networks behind the spread
       this.O = {}; for (const b of layout.blocks) this.O[b[0]] = b[1];
-      this.buf = {}; this.cache = new Map(); this.index = new Map();
+      this.buf = {}; this.cache = new Map(); this.index = new Map(); this.turns = new Map(); this.rel = new Map();
       for (const w of layout.weights) this.index.set(`${w.position}|${w.chain}|${w.member}|${w.layer}|${w.name}`, w);
       const P = ban.params, H = this.H; this.B = P; this.pre = ban.premade_share; this.C = ban.counter;
       this.T = ban.stand_in_team_shares; this.SS = ban.shown_shares; this.PS = ban.player_shares; this.J = this.T[0].length;
@@ -55,9 +56,21 @@
         const n = w.shape.reduce((a, c) => a * c, 1);
         if (w.offset % 2 || w.offset / 2 + n > u.length) throw new Error(`model file ${file}: tensor ${w.position}/${w.chain}/${w.member}/${w.layer}/${w.name} lies outside the file`);
       }
-      this.buf[file] = u;
-      try { for (const k of new Set(mine.map(w => `${w.position}|${w.chain}|${w.member}`))) { const [p, c, m] = k.split("|"); this.net(+p, c, +m); } }
-      catch (e) { delete this.buf[file]; this.cache.clear(); throw e; }
+      for (const k of new Set(mine.map(w => `${w.position}|${w.chain}|${w.member}`))) { const [p, c, m] = k.split("|"); this.check(+p, c, +m, file, u); }
+      this.buf[file] = u; this.turns.clear();                                // validated: the networks decode when first used
+    }
+    /* One network's tensors in a weight file: the layers chain from the input to the outputs (3 for a student, 1 for a member)
+       and no value is an infinity or NaN (float16 exponent bits all ones). Read from the raw bits, so nothing is decoded here. */
+    check(pos, chain, member, file, u) {
+      const key = `${pos}|${chain}|${member}`; let nin = this.FD, n = 0;
+      for (let l = 0; ; l++) {
+        const w = this.index.get(`${key}|${l}|W`), b = this.index.get(`${key}|${l}|b`); if (!w) break;
+        if (!b || w.shape[0] !== nin || b.shape.reduce((a, c) => a * c, 1) !== w.shape[1]) throw new Error(`network ${key} layer ${l}: shape ${w.shape} does not chain`);
+        for (const e of [w, b]) { if (e.file !== file) continue; const o = e.offset / 2, m = e.shape.reduce((a, c) => a * c, 1);
+          for (let i = 0; i < m; i++) if ((u[o + i] & 0x7c00) === 0x7c00) throw new Error(`network ${key} layer ${l}: a weight is not finite`); }
+        nin = w.shape[1]; n++;
+      }
+      if (!n || nin !== (this.S ? 3 : 1)) throw new Error(`network ${key}: missing or wrong output layer`);
     }
     ready(chain) { return !!this.buf[this.S || chain === "optimal" ? "opt" : "aux"]; }
     band(r0) { let b = 0; for (const t of this.L.bands) if (r0 > t) b++; return b; }
@@ -70,11 +83,8 @@
       for (let l = 0; ; l++) {
         const w = this.index.get(`${key}|${l}|W`), b = this.index.get(`${key}|${l}|b`); if (!w) break;
         const u = this.buf[w.file]; if (!u) return null;
-        const dec = (e) => { const n = e.shape.reduce((a, c) => a * c, 1), o = new Float64Array(n), off = e.offset / 2; for (let i = 0; i < n; i++) o[i] = f16(u[off + i]); return o; };   // float64: the same values, faster loops
-        const lay = { W: dec(w), b: dec(b), nin: w.shape[0], nout: w.shape[1] };
-        if (lay.b.length !== lay.nout || lay.nin !== (l ? layers[l - 1].nout : this.FD)) throw new Error(`network ${key} layer ${l}: shape ${w.shape} does not chain`);
-        for (const a of [lay.W, lay.b]) for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) throw new Error(`network ${key} layer ${l}: a weight is not finite`);
-        layers.push(lay);
+        const dec = (e) => { const n = e.shape.reduce((a, c) => a * c, 1), o = new Float32Array(n), off = e.offset / 2; for (let i = 0; i < n; i++) o[i] = F16[u[off + i]]; return o; };   // float32 holds every half value exactly: the same numbers as float64, half the memory
+        layers.push({ W: dec(w), b: dec(b), nin: w.shape[0], nout: w.shape[1] });   // shapes and finiteness were checked when the file was added
       }
       if (!layers.length || layers[layers.length - 1].nout !== (this.S ? 3 : 1)) throw new Error(`network ${key}: missing or wrong output layer`);
       this.cache.set(key, layers); return layers;
@@ -156,6 +166,7 @@
     // ---- the ban model
     relTables(s) {                                   // stand-in teams' summed hero shares: ours (following the shown heroes) and theirs
       const bd = this.band(s.r0), H = this.H, T = this.T[bd], J = this.J, shown = [...new Set([s.you].concat(s.mates).filter(h => h >= 0))];
+      const key = bd + "|" + shown.join(","); if (this.rel.has(key)) return this.rel.get(key);   // they depend on the band and the shown heroes only
       const us = [], them = [];
       for (let j = 0; j < J; j++) {
         let u;
@@ -168,7 +179,10 @@
         }
         us.push(u); them.push(Float64Array.from(T[(j + (J >> 1)) % J]));   // their stand-ins: a different draw
       }
-      return { us, them };
+      // fear of each hero for each team: sum over k of REL[k] x counter[h][k], the same sum in the same order as before, now once per table
+      const C = this.C, fear = REL => { const f = new Float64Array(H); for (let h = 0; h < H; h++) { let x = 0; const Ch = C[h]; for (let k = 0; k < H; k++) x += REL[k] * Ch[k]; f[h] = x; } return f; };
+      const R = { us, them, fearUs: us.map(fear), fearThem: them.map(fear) };
+      if (this.rel.size > 64) this.rel.clear(); this.rel.set(key, R); return R;
     }
     /* P(ban = h) at position e for the team banning there, averaged over the stand-in teams. allowed: Uint8Array. Also
        returns the utility split into its parts for the page's "why" figure (averaged over the stand-in teams). */
@@ -178,19 +192,20 @@
       for (let i = 0; i < e; i++) ((this.ours(s.firstUs, i) === usBan) ? own : oth)[s.bans[i]] = 1;
       const last = e > 0 ? s.bans[e - 1] : -1, same = e > 0 && this.ORDER[e - 1] === this.ORDER[e], sg = this.ORDER[e] === 0 ? 1 : -1;
       const base = new Float64Array(H), react = new Float64Array(H);
+      const done = []; for (let i = 0; i < H; i++) if (own[i] || oth[i]) done.push(i);   // the bans so far, in hero order (the order the sum always used)
       for (let h = 0; h < H; h++) {
         let v = P.a[h] + P.am[m][h] + P.ab[bd][h] + P.ae[e][h]; if (this.hasV8) v += sg * P.acm[m][h];
-        let r = 0; for (let i = 0; i < H; i++) { if (own[i]) r += P.Ro[i][h]; if (oth[i]) r += P.Rt[i][h]; }
+        let r = 0; for (const i of done) r += own[i] ? P.Ro[i][h] : P.Rt[i][h];
         if (last >= 0 && this.hasB) r += (same ? P.Lo : P.Lt)[last][h];
         base[h] = v; react[h] = r;
       }
       const lam = P.lam + (this.hasB ? P.lam_e[e] : 0) + (this.hasV8 ? this.pre * P.lam_p : 0), gam = P.gam + (this.hasB ? P.gam_e[e] : 0) + (this.hasV8 ? this.pre * P.gam_p : 0);
-      const tau = this.hasTau ? P.tau + P.tau_e[e] : 0, R = this.relTables(s), p = new Float64Array(H), J = this.J, C = this.C;
+      const tau = this.hasTau ? P.tau + P.tau_e[e] : 0, R = this.relTables(s), p = new Float64Array(H), J = this.J;
       const avg = parts ? { prot: new Float64Array(H), fear: new Float64Array(H), targ: new Float64Array(H) } : null;
       for (let j = 0; j < J; j++) {
-        const REL = usBan ? R.us[j] : R.them[j], RX = usBan ? R.them[j] : R.us[j], u = new Float64Array(H); let mx = -Infinity;
+        const REL = usBan ? R.us[j] : R.them[j], RX = usBan ? R.them[j] : R.us[j], F = usBan ? R.fearUs[j] : R.fearThem[j], u = new Float64Array(H); let mx = -Infinity;
         for (let h = 0; h < H; h++) {
-          if (!allowed[h]) continue; let fear = 0; const Ch = C[h]; for (let k = 0; k < H; k++) fear += REL[k] * Ch[k];
+          if (!allowed[h]) continue; const fear = F[h];
           u[h] = base[h] + react[h] - lam * REL[h] + gam * fear + tau * RX[h]; if (u[h] > mx) mx = u[h];
           if (avg) { avg.prot[h] += -lam * REL[h] / J; avg.fear[h] += gam * fear / J; avg.targ[h] += tau * RX[h] / J; }
         }
@@ -203,8 +218,17 @@
     state(st) { return { m: st.m, r0: st.r0, firstUs: st.firstUs, bans: st.bans.slice(), you: st.you, mates: st.mates.slice() }; }
     legal(s) { const L = new Uint8Array(this.H).fill(1); for (const h of s.bans) L[h] = 0; return L; }
     shownSet(s) { return new Set([s.you].concat(s.mates).filter(h => h >= 0)); }
+    /* A turn's result, cached by the lobby state (and the rule's constants): the page asks for the same turns several times
+       (the advice, the likeliest path, a two-ban sequence, the Methods figures). Callers only read the results. */
+    memo(kind, s, fn) {
+      const k = [kind, this.SUPP, this.KAPPA, s.m, s.r0, s.firstUs, s.bans.join(","), s.you, s.mates.join(",")].join("|");
+      if (this.turns.has(k)) return this.turns.get(k);
+      const r = fn(); if (r === null) return r; if (this.turns.size > 256) this.turns.clear(); this.turns.set(k, r); return r;
+    }
+    ourTurn(s) { return this.memo("our", s, () => this.ourTurn_(s)); }
+    theirTurn(s) { return this.memo("their", s, () => this.theirTurn_(s)); }
     /* Our turn: every allowed ban's value against a typical ban, the members' spread, the advice. */
-    ourTurn(s) {
+    ourTurn_(s) {
       const e = s.bans.length, H = this.H, legal = this.legal(s), shown = this.shownSet(s), allowed = new Uint8Array(H), cands = [];
       for (let h = 0; h < H; h++) if (legal[h] && !shown.has(h)) { allowed[h] = 1; cands.push(h); }
       const VV = this.values(s, e, cands, true); if (!VV) return null;
@@ -256,7 +280,7 @@
       return uniq;
     }
     /* Their turn: the forecast of their ban, and what each of their likely bans does to our win chance. */
-    theirTurn(s) {
+    theirTurn_(s) {
       const e = s.bans.length, H = this.H, legal = this.legal(s), cands = []; for (let h = 0; h < H; h++) if (legal[h]) cands.push(h);
       const W = this.banProbs(s, e, legal, true), pe = W.p, VV = this.values(s, e, cands, false);
       const mu = VV ? VV.mu : new Float64Array(H).fill(NaN);
