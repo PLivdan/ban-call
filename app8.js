@@ -258,12 +258,13 @@
     if (ev.key === "Enter") {
       const parts = $("search").value.split(",").map(x => x.trim()).filter(Boolean);
       if (parts.length > 1) {
-        const team = st.active.kind === "team"; let i = team ? st.active.i : 0;
+        const team = st.active.kind === "team", miss = []; let i = team ? st.active.i : 0;
         for (const q of parts) {
           if (team) { while (i < 6 && st.team[i] >= 0 && i !== st.active.i) i++; if (i >= 6) break; st.active = { kind: "team", i }; }
-          $("search").value = q; const m = searchMatches(); if (m.length) place(m[0]); if (team) i++;
+          $("search").value = q; const m = searchMatches();
+          if (m.length) { place(m[0]); if (team) i++; } else miss.push(q);           // a name that matches nothing keeps its seat free
         }
-        if (team) st.active = { kind: "ban" }; $("search").value = ""; renderMatches(); update(false); }
+        if (team) st.active = { kind: "ban" }; $("search").value = miss.join(", "); renderMatches(); update(false); }   // unmatched names stay in the box
       else { const m = searchMatches(); if (m.length) place(m[0]); }
       ev.preventDefault(); }
     else if (/^[1-8]$/.test(ev.key) && !$("search").value) { quickPick(+ev.key); ev.preventDefault(); }
@@ -331,10 +332,12 @@
   const sum = a => a.reduce((x, y) => x + y, 0), mean = a => sum(a) / a.length, IDX = new Map(NAMES.map((n, i) => [n, i]));
   const nm = h => SHORT[NAMES[h]] || NAMES[h];
   const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
+  let tipEl = null, tipText = "", tipW = 0, tipH = 0;         // the tooltip is filled and measured once per element, then only moved
   document.addEventListener("mousemove", ev => {
-    const el = ev.target.closest ? ev.target.closest("[data-tip]") : null; if (!el) { tip.classList.remove("on"); return; }
-    tip.innerHTML = el.getAttribute("data-tip"); const w = tip.offsetWidth, h = tip.offsetHeight;
-    let x = ev.clientX + 14, y = ev.clientY + 16; if (x + w > innerWidth - 8) x = ev.clientX - w - 14; if (y + h > innerHeight - 8) y = ev.clientY - h - 12;
+    const el = ev.target.closest ? ev.target.closest("[data-tip]") : null; if (!el) { tipEl = null; tip.classList.remove("on"); return; }
+    const txt = el.getAttribute("data-tip");
+    if (el !== tipEl || txt !== tipText) { tipEl = el; tipText = txt; tip.innerHTML = txt; tipW = tip.offsetWidth; tipH = tip.offsetHeight; }
+    const w = tipW, h = tipH; let x = ev.clientX + 14, y = ev.clientY + 16; if (x + w > innerWidth - 8) x = ev.clientX - w - 14; if (y + h > innerHeight - 8) y = ev.clientY - h - 12;
     tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
   });
   const T_ = html => ` data-tip="${esc(html)}"`;

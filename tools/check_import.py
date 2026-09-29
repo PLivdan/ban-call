@@ -9,7 +9,17 @@ import hashlib, json, os, shutil, subprocess, sys, tempfile
 RUN = os.path.abspath(sys.argv[1]); DATA = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else "../ban-solver/data/colab_v8")
 SITE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 def digest(d): return {f: hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest() for f in sorted(os.listdir(d))} if os.path.isdir(d) else None
-def jedit(path, fn): o = json.load(open(path)); fn(o); json.dump(o, open(path, "w"))
+def jedit(path, fn):
+    with open(path, encoding="utf-8") as f: o = json.load(f)
+    fn(o)
+    with open(path, "w", encoding="utf-8") as f: json.dump(o, f)
+def link_or_copy(src, dst):
+    """The run's large model file, shared rather than copied: a symlink, else (Windows without admin or Developer Mode) a hard
+    link, else a copy."""
+    for how in (os.symlink, os.link, shutil.copy):
+        try: how(src, dst); return
+        except OSError: pass
+    raise OSError(f"could not link or copy {src}")
 bad = 0
 with tempfile.TemporaryDirectory() as T:
     site = os.path.join(T, "site"); os.makedirs(site)
@@ -18,7 +28,7 @@ with tempfile.TemporaryDirectory() as T:
     def run_copy(tag):
         d = os.path.join(T, tag); os.makedirs(d)
         for sub in ("site", "reports"): shutil.copytree(os.path.join(RUN, sub), os.path.join(d, sub))
-        if os.path.exists(os.path.join(RUN, "models_v8.pkl")): os.symlink(os.path.join(RUN, "models_v8.pkl"), os.path.join(d, "models_v8.pkl"))
+        if os.path.exists(os.path.join(RUN, "models_v8.pkl")): link_or_copy(os.path.join(RUN, "models_v8.pkl"), os.path.join(d, "models_v8.pkl"))
         return d
     def importer(run, **env):
         return subprocess.run([sys.executable, "tools/build_site_v8.py", run, DATA], cwd=site, env=dict(os.environ, **env), capture_output=True, text=True)
@@ -38,7 +48,9 @@ with tempfile.TemporaryDirectory() as T:
     d = run_copy("premade"); jedit(f"{d}/reports/summary_v8.json", lambda o: o["experiments"].update(premade=dict(mix=True, outcome=False))); expect_refused("a run that kept a premade correction", d, **fast)
     d = run_copy("forced"); jedit(f"{d}/reports/summary_v8.json", lambda o: o.update(deploy_ok=False, deploy_notes=["a test run: FORCE_RUN / FORCE_KEEP overrode the experiments' gates"])); expect_refused("a forced test run", d, **fast)
     d = run_copy("simhash"); jedit(f"{d}/site/sim_v8.json", lambda o: o.update(bin_bytes=1, bin_sha256="0")); expect_refused("a simulator whose binary does not match its manifest", d, **fast)
-    d = run_copy("trunc"); b_ = open(f"{d}/site/value_v8.bin", "rb").read(); open(f"{d}/site/value_v8.bin", "wb").write(b_[: len(b_) // 2]); expect_refused("truncated value networks", d, **fast)
+    d = run_copy("trunc"); b_ = open(f"{d}/site/value_v8.bin", "rb").read()
+    with open(f"{d}/site/value_v8.bin", "wb") as f_: f_.write(b_[: len(b_) // 2])
+    expect_refused("truncated value networks", d, **fast)
     d = run_copy("nosim"); os.remove(f"{d}/site/sim_v8.json"); os.remove(f"{d}/site/sim_v8.bin"); expect_refused("a run without a simulator", d, **fast)
     r = importer(d, ALLOW_NO_SIM="1", **fast); left = sorted(os.listdir(os.path.join(site, "model8")))
     ok = r.returncode == 0 and not any(f.startswith("sim_v8") for f in left); bad += not ok
