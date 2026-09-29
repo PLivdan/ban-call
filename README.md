@@ -27,7 +27,7 @@ position reproduces the teachers' average, their spread and the behaviour chain,
   their earlier bans (the likely comps in `sim8.js` share this approximation).
 - **Win chance:** the students' mean (the teachers' chain, with the model's best later bans) and the behaviour chain (both
   teams ban as usual). The page shows it once all six bans are in.
-- **The lobby and its link** (`lobby-state.js`, shared by the page and the studio): a hover that gets banned stays shown for
+- **The lobby and its link** (`lobby-state.js`): a hover that gets banned stays shown for
   the model (key `g`), every link value is checked, and `s=8` marks the map numbering that includes God Quarry.
 - **Likely comps** come from the v8 simulator (`sim8.js`, `sim8-worker.js`); the roster order and the previous columns still
   use the old lineup network (`engine.js`, `model/`), which is simply absent on maps it never had.
@@ -43,7 +43,7 @@ Other checks: `python tools/check_import.py <run>` (the importer's contract) and
 
 ## The previous model (v7.2), kept as a backup in `v7/`
 `v7/index.html` and `v7/app.js` are the v7.2 page. They use `engine.js`, `sim.js`, `sim-worker.js` and `model/` from the
-root, which the studio (`studio/`) also uses. Git tag `v7.2-site` is the site before v8. What follows describes that model.
+root. Git tag `v7.2-site` is the site before v8. What follows describes that model.
 
 ### The value model (engine v7.1)
 Every hero banned in the rest of the ban phase, by either team, is worth to us
@@ -114,10 +114,9 @@ The models are fitted in the ban-solver notebook (Colab). This repo only serves 
 Before committing any script change, run `python tools/stamp.py`: it stamps every script address (and the worker's) with a hash of its content, so browsers never mix a new page with a cached old script.
 Node is at `~/tools/node/node.exe` on the development machine (portable, not on PATH).
 
-### Studio (studio/)
-A second interface on the same models, at `studio/`: a step bar for the lobby, one answer card with a primary action, and a
-fixed hero board whose bars show the model's answer for the current step. It
-loads `../engine.js`, `../model/*` and `../sim-worker.js`, so there is one backend. `tools/stamp.py` stamps its scripts too.
+### Studio (retired)
+The studio, a second interface on the same models, was retired on 2026-09-29. `studio/index.html` redirects to the main page, and
+the last version is the git tag `studio-final`.
 
 ### Run locally
     python -m http.server 8765    # then open http://127.0.0.1:8765

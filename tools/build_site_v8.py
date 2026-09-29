@@ -10,7 +10,7 @@ Writes:
   model8/ban_v8.json                          their ban model (the selected family), stand-in team tables per rank band, and
                                               per band and hero the share vector of a stand-in who shows that hero
   model8/substitutes_v8.json, parity_v8.json  copied from the run
-  model8/sim_v8.json, sim_v8.bin              the simulator for the studio, when ban-solver export/build_sim_v8.py has written it
+  model8/sim_v8.json, sim_v8.bin              the simulator (likely comps and seat forecasts), when ban-solver export/build_sim_v8.py has written it
   model8/report_v8.json                       the numbers the method section quotes (selection, test window, world-model
                                               checks, real-outcome test)
 
