@@ -5,7 +5,6 @@ window.MethodFigs = { init: async function (o) {
   "use strict"; o = o || {};
   const $ = id => document.getElementById(id), root = document.documentElement, SVGNS = "http://www.w3.org/2000/svg";
   if (!$("t2") || !$("t3")) return;
-  const SUB = await fetch("model8/substitutes_v8.json" + (o.vq || "")).then(r => r.json());
   let D = null, N, IDX, img, nOurs, paths, VMAX;
   const pts = v => (v >= 0 ? "+" : "−") + Math.abs(100 * v).toFixed(2);
   const ICON = { play: `<svg viewBox="0 0 14 14"><path d="M2 1 L13 7 L2 13 Z"/></svg>`, pause: `<svg viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>` };
@@ -248,28 +247,22 @@ window.MethodFigs = { init: async function (o) {
   // ================================================================ inside one ending
   function buildT3() {
     const Wd = 1000, Hh = 400, path = D.path, banned = new Set(path.map(p => p.h)), ROLE = D.roles, you = D.lobby.youH >= 0 ? D.lobby.youH : undefined;
-    const shownMates = (D.lobby.mates || []).filter(h => h >= 0 && h !== you);
-    const subs = new Map(SUB.table.map(x => [IDX.get(x.hero), x])), mains = N.map((_, h) => (subs.get(h) || { mains: 1 }).mains);
-    const CYC = 5.4, NDRAW = 9, T0 = 1.5, DUR = T0 + CYC * NDRAW;
-    function drawTeam(r, fixed, more = []) {
-      const team = [], picks = [], forced = [], need = [2, 2, 2];
-      // a main takes the seat; if the hero is banned (or taken), the player switches the way real players do, your own hero included
-      const place = m => { team.push(m); let pick = m; const force = banned.has(m) || picks.includes(m);
-        if (force) { const tops = (subs.get(m) || { top: [] }).top.map(([nm, p]) => [IDX.get(nm), p]).filter(([h]) => !banned.has(h) && !picks.includes(h)), ts = tops.reduce((a, b) => a + b[1], 0);
-          let v = r() * ts, q = 0; while (tops.length && v > tops[q][1] && q < tops.length - 1) { v -= tops[q][1]; q++; }
-          pick = tops.length ? tops[q][0] : N.map((_, h) => h).find(h => ROLE[h] === ROLE[m] && !banned.has(h) && !picks.includes(h)); }
-        picks.push(pick); forced.push(force); };
-      for (const h of [fixed].concat(more)) if (h !== undefined && need[ROLE[h]] > 0) { need[ROLE[h]]--; place(h); }
-      need.forEach((cnt, role) => { for (let i = 0; i < cnt; i++) {
-        const cand = N.map((_, h) => h).filter(h => ROLE[h] === role && !team.includes(h)), w = cand.map(h => mains[h]), s = w.reduce((a, b) => a + b);
-        let u = r() * s, j = 0; while (u > w[j] && j < w.length - 1) { u -= w[j]; j++; } place(cand[j]); } });
-      const o = [0, 1, 2, 3, 4, 5].sort((a, b) => (team[a] === fixed ? -1 : team[b] === fixed ? 1 : ROLE[team[a]] - ROLE[team[b]]));
-      return { team: o.map(i => team[i]), picks: o.map(i => picks[i]), forced: o.map(i => forced[i]) };
+    const CYC = 5.4, NDRAW = 9, T0 = 1.5, DUR = T0 + CYC * NDRAW, EN = D.ending;
+    // one real draw from the simulator (the page asks its worker; MethodFigs.ending hands it over): until it is in, a note
+    if (!EN || EN.failed || !EN.us || EN.us.length < 1) {
+      $("t3").innerHTML = `<p class="small" style="padding:48px 0;text-align:center">${EN && EN.failed ? "The simulator could not be run in this browser." : "Drafting one ending with the simulator&hellip;"}</p>`;
+      return { stub: true, start() {}, seek() {}, redraw() {}, get t() { return 0; }, get dur() { return 1; }, get playing() { return false; } };
     }
-    const DR = []; let sd = 101; while (DR.length < NDRAW) { const r = rng(sd), d = { us: drawTeam(r, you, shownMates), them: drawTeam(r) }; sd += 7;
-      if (DR.length < 2 && !d.us.forced.some(Boolean) && !d.them.forced.some(Boolean)) continue; DR.push(d); }
-    const RA = []; { const r = rng(77); let s = 0, n = 0; for (let k = 0; k < NDRAW; k++) { const cells = new Map(); for (let i = 0; i <= k; i++) for (let j = 0; j <= k; j++) if (i === k || j === k) { const v = D.win + (r() - .5) * .22; cells.set(i + "," + j, v); s += v; n++; } RA.push({ cells, avg: s / n }); } }
-    const sh = D.win - RA[NDRAW - 1].avg; RA.forEach((a, k) => a.avg += sh * (k + 1) / NDRAW);
+    // the draw's lineups: each seat's hero (what it shows, else the stand-in's main), the pick, and whether that hero is banned
+    // (the player switched, as the pick model has players switch); lineups with a switch first, so the figure shows one early
+    const pack = (x, youFirst) => { const o = [0, 1, 2, 3, 4, 5].sort((a, b) => (youFirst ? (a === 0 ? -1 : b === 0 ? 1 : 0) : 0) || ROLE[x.picks[a]] - ROLE[x.picks[b]]);
+      return { team: o.map(i => x.mains[i]), picks: o.map(i => x.picks[i]), forced: o.map(i => x.forced[i]) }; };
+    const n = Math.min(NDRAW, EN.n, EN.us.length, EN.them.length), firstForced = xs => xs.map((x, i) => i).sort((a, b) => xs[b].forced.some(Boolean) - xs[a].forced.some(Boolean) || a - b);
+    const ou = firstForced(EN.us.slice(0, n)), ot = firstForced(EN.them.slice(0, n));
+    const DR = []; for (let k = 0; k < NDRAW; k++) DR.push({ us: pack(EN.us[ou[k % n]], you !== undefined), them: pack(EN.them[ot[k % n]], false) });
+    // the matchups' win chances, as the simulator scores them; the running average of the cells scored so far
+    const RA = []; { let s = 0, c = 0; for (let k = 0; k < NDRAW; k++) { const cells = new Map(); for (let i = 0; i <= k; i++) for (let j = 0; j <= k; j++) if (i === k || j === k) {
+      const v = EN.pairs[ou[i % n] * EN.n + ot[j % n]]; cells.set(i + "," + j, v); s += v; c++; } RA.push({ cells, avg: s / c }); } }
     const PX = 112, PY = 232, SX0 = 262, SX = k => SX0 + k * 60, SY = [132, 262], TS = 44, GX = 722, GY = 120, gcs = 18, NX = 938;
     const box = $("t3"); box.innerHTML = ""; const S = el("svg", { viewBox: `0 0 ${Wd} ${Hh}`, role: "img", "aria-label": "One ending: stand-in players, picks and scored matchups" }, box);
     const H = (x, y, s, a = "start") => text(S, x, y, s, { "font-weight": 700, "font-family": "Archivo, sans-serif", "text-anchor": a });
@@ -337,7 +330,7 @@ window.MethodFigs = { init: async function (o) {
     }
     return player($("t3pp"), $("t3ch"), [[0, "Bans", "The six bans on this branch."], [T0, "Players", "Unseen seats are filled with real players from your rank."],
       [T0 + 1.6, "Picks", "Everyone picks. A player whose main is banned switches the way real players do."], [T0 + 3.0, "Matchups", "Each lineup is scored against every opposing lineup."],
-      [T0 + CYC * 2, "Average", "More draws, and the win chance settles."]], DUR, render, 2.5);
+      [T0 + CYC * 2, "Average", `More draws, and the win chance settles. This draw's ${EN.mu} x ${EN.k} matchups average ${(100 * EN.win).toFixed(1)}%.`]], DUR, render, 2.5);
   }
 
   let A, B; const played = { t2: false, t3: false };
@@ -354,7 +347,7 @@ window.MethodFigs = { init: async function (o) {
   new MutationObserver(build).observe(root, { attributes: true, attributeFilter: ["data-theme", "data-view"] });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", build);
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const io = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting || !A) return; const f = e.target.id === "t2" ? A : B; played[e.target.id] = true;
+  const io = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting || !A) return; const f = e.target.id === "t2" ? A : B; if (!f || f.stub) return; played[e.target.id] = true;
     if (still) f.seek(1e3); else f.start(); io.unobserve(e.target); }), { threshold: .45 });
   io.observe($("t2")); io.observe($("t3"));
   // scrolled out of view: a playing figure pauses where it is, and carries on when it comes back into view (one paused by hand stays paused)
@@ -364,5 +357,7 @@ window.MethodFigs = { init: async function (o) {
     else if (away[id]) { away[id] = false; f.start(); } }), { threshold: 0 });
   vis.observe($("t2")); vis.observe($("t3"));
   // the section hidden: both figures stop at their first frame, and play again from there when the section is next seen
+  // the simulator's draw for the lobby being shown: rebuild "Inside one ending" only (a playing "Forward, then back" carries on)
+  window.MethodFigs.ending = e => { if (!D) return; D.ending = e; pal(); B = buildT3(); if (played.t3) B.seek(1e3); else { io.unobserve($("t3")); io.observe($("t3")); } };
   window.MethodFigs.reset = () => { if (A) A.seek(0); if (B) B.seek(0); played.t2 = played.t3 = false; away.t2 = away.t3 = false; io.observe($("t2")); io.observe($("t3")); };
 } };

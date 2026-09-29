@@ -118,8 +118,10 @@
       const T = A["G.TRI"], t3 = A["G.t3"]; for (let k = 0; k < this.K3; k++) if (X[T[3 * k]] && X[T[3 * k + 1]] && X[T[3 * k + 2]]) v += t3[k];
       return v;
     }
-    /* P(we win | all six bans) for one draw: the mean over MU x K pairs of drafted lineups. Returns the picks too. */
-    terminal(L, D, bans, keep = false) {
+    /* P(we win | all six bans) for one draw: the mean over MU x K pairs of drafted lineups. Returns the picks too. nex > 0 (the
+       Methods figure): also the first nex lineups of each team, seat by seat (the seat's hero: the one it shows, else the
+       stand-in's main; the pick; whether that hero is banned), and their nex x nex matchup win chances. */
+    terminal(L, D, bans, keep = false, nex = 0) {
       const H = this.H, A = this.A, MU = this.MU, K = this.K, S = this.SW, legal = new Uint8Array(H).fill(1), ourB = new Float64Array(H), thB = new Float64Array(H);
       bans.forEach((h, e) => { legal[h] = 0; (L.ourpos[e] ? ourB : thB)[h] = 1; });
       const tilt = (vecs) => { const o = new Float64Array(H); for (const [v, M] of vecs) for (let i = 0; i < H; i++) if (v[i]) { const r = i * H; for (let k = 0; k < H; k++) o[k] += M[r + k]; } return o; };
@@ -127,16 +129,20 @@
       const PB = A["pool.PB"], PT = A["pool.PT"], MAIN = A["pool.MAIN"], MSP = A["pool.MSP"], phi0 = this.S.phi, phit = this.S.phi_t, commit = this.meta.commit;
       const side = (u, cb, tl) => { const base = [], phi = []; for (let i = 0; i < 6; i++) { const p = D.PL[u][i], top = !legal[MAIN[p]] && MSP[p] ? 1 : 0, o = new Float64Array(H);
         for (let h = 0; h < H; h++) o[h] = PB[p * H + h] + cb[h] + tl[h] + top * PT[p * H + h]; base.push(o); phi.push(phi0 + phit * top); } return { base, phi }; };
-      const pu = [], po = [], au = new Float64Array(MU), ao = new Float64Array(K);
+      const pu = [], po = [], au = new Float64Array(MU), ao = new Float64Array(K), ex = nex > 0 ? { us: [], them: [], pairs: new Array(nex * nex).fill(0) } : null;
       for (let u = 0; u < MU + K; u++) {
         const us = u < MU, sd = side(u, us ? L.cbu : L.cbo, us ? tu : to), fixed = new Int32Array(6).fill(-1);
         if (us) for (let j = 0; j < 6; j++) { const h = L.shown[j]; if (h >= 0 && legal[h] && (j === 0 || D.CU[u * 6 + j] < commit)) fixed[j] = h; }
         const off = u * 6 * S * H, pk = this.draft(sd.base, legal, fixed, (i, s, h) => D.NZ[off + (i * S + s) * H + h], D.OD[u], sd.phi);
         const v = this.lineup(pk, D.PL[u], legal, us ? L.wu : L.wo); if (us) { pu.push(pk); au[u] = v; } else { po.push(pk); ao[u - MU] = v; }
+        if (ex && (us ? u : u - MU) < nex) { const mains = [], forced = [];
+          for (let i = 0; i < 6; i++) { const m = us && L.shown[i] >= 0 ? L.shown[i] : MAIN[D.PL[u][i]]; mains.push(m); forced.push(!legal[m]); }
+          (us ? ex.us : ex.them).push({ mains, picks: Array.from(pk), forced }); }
       }
       const C = A["G.C"], ca = this.S.cal_a, cbb = this.S.cal_b; let tot = 0;
-      for (let u = 0; u < MU; u++) for (let o = 0; o < K; o++) { let x = au[u] - ao[o] + L.c0; const X = pu[u], Y = po[o]; for (const h of X) { const r = h * H; for (const k of Y) x += C[r + k]; } tot += sig(cbb * x + ca * L.a); }
-      const win = tot / (MU * K); return keep ? { win, pu, po } : win;
+      for (let u = 0; u < MU; u++) for (let o = 0; o < K; o++) { let x = au[u] - ao[o] + L.c0; const X = pu[u], Y = po[o]; for (const h of X) { const r = h * H; for (const k of Y) x += C[r + k]; }
+        const w = sig(cbb * x + ca * L.a); tot += w; if (ex && u < nex && o < nex) ex.pairs[u * nex + o] = w; }
+      const win = tot / (MU * K); return keep ? { win, pu, po, ex } : win;
     }
     /* The ban model for the team banning at position e, averaged over stand-in teams (the notebook's ban_probs): RELu / RELo
        our and their stand-in teams' summed hero shares. allowed: Uint8Array. */

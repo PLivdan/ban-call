@@ -532,7 +532,7 @@
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;
     if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=659393b3bd"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=a2e2e3cc4e"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
     const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
     for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
     COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
@@ -652,7 +652,7 @@
     if (flowW) flowW.terminate();
     const id = ++flowId, fill = () => { const el = $("sfSlot"); if (el && adviceBan() === h) el.innerHTML = sfHtml(h, figW()); };
     FL = { key, h, done: false, failed: false };
-    flowW = new Worker("sim8-worker.js?v=659393b3bd");
+    flowW = new Worker("sim8-worker.js?v=a2e2e3cc4e");
     flowW.onmessage = ev => { const d = ev.data; if (d.id !== id || !FL || FL.key !== key) return;
       if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
     flowW.onerror = () => { if (FL && FL.key === key) { FL.failed = true; fill(); } };
@@ -732,6 +732,16 @@
     return { first: st.first, us: pat, FB, fixed, replay, ours: opts, nOurs: R.cands.length, path, win: W ? W[0] : .5, heroes: NAMES, roles: ROLES, portraits: NAMES.map(n => PORT[n]),
       lobby: { map: mapName(LAY.maps[st.map].label || LAY.maps[st.map]), rank: st.tier, you: you >= 0 ? NAMES[you] : null, youH: you, mates: st.team.slice(1) } };
   }
+  // "Inside one ending": one real draw of the simulator on the figure's six-ban path, from a worker
+  let endW = null, endId = 0;
+  function endingStart(d) {
+    if (!MethodFigs.ending) return;
+    if (endW) endW.terminate(); const id = ++endId;
+    endW = new Worker("sim8-worker.js?v=a2e2e3cc4e");
+    endW.onmessage = ev => { const m = ev.data; if (m.id !== id || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
+    endW.onerror = () => { if (id === endId) MethodFigs.ending({ failed: true }); };
+    endW.postMessage({ id, v: LAY.run, type: "ending", st: lobby(), bans: d.path.slice().sort((a, b) => a.e - b.e).map(p => p.h), n: 9, draw: 0 });
+  }
   // the figures are about a third of a second of computing, so they are brought up to date only while the section is open and near
   // the screen, and only once the lobby has been still for a moment (after the board has moved and the advice has filled in)
   let figKey = null, figTimer = 0, figNear = false;
@@ -739,7 +749,7 @@
     if (!window.MethodFigs || !MethodFigs.show) return;
     const key = JSON.stringify([st.tier, st.map, st.first, st.team, st.bans]); if (key === figKey) return;
     clearTimeout(figTimer); if (!figNear || !METHODS) return;
-    figTimer = setTimeout(() => { if (!figNear || !METHODS) return; try { const d = figData(); if (d) { figKey = key; MethodFigs.show(d); } } catch (e) { console.error(e); } }, figKey ? 1200 : 0);
+    figTimer = setTimeout(() => { if (!figNear || !METHODS) return; try { const d = figData(); if (d) { figKey = key; MethodFigs.show(d); endingStart(d); } } catch (e) { console.error(e); } }, figKey ? 1200 : 0);
   }
   new IntersectionObserver(es => { figNear = es.some(e => e.isIntersecting); if (figNear) figUpdate(); }, { rootMargin: "600px 0px" }).observe($("methods"));
 

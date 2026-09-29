@@ -467,7 +467,7 @@
     const js = Object.keys(A).filter(j => B[j] !== undefined), d = js.map(j => A[j] - B[j]); if (!d.length) return null; const m = d.reduce((p, q) => p + q, 0) / d.length; return { d: m, se: cse(js, d, m) }; }
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
   let pool = [], jobs = new Map(), jobId = 0;
-  function newWorker() { const w = new Worker("../sim8-worker.js?v=659393b3bd"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
+  function newWorker() { const w = new Worker("../sim8-worker.js?v=a2e2e3cc4e"); w.onmessage = ev => onMsg(ev.data); w.onerror = () => { for (const J of jobs.values()) fail(J); }; return w; }
   function ensurePool(fresh) {
     if (fresh) { pool.forEach(w => w.terminate()); pool = []; jobs.clear(); for (const [k, F] of FLOWC) if (!F.done) FLOWC.delete(k); OPNRUN = ""; }
     while (pool.length < NW) pool.push(newWorker());

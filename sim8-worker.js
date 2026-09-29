@@ -3,7 +3,9 @@
            draw j % DRAWS and the same random numbers for the rest of the ban phase whatever the candidate, so candidates are
            compared on the same lobbies. Returns P(we win) per candidate and run, and who opened what in the typical runs
            (each team, and our team seat by seat: slots[i * H + h] counts our seat i opening h).
-   flow:   where the players who would open hero x go when x is banned too, on the same lobbies and draft random numbers. */
+   flow:   where the players who would open hero x go when x is banned too, on the same lobbies and draft random numbers.
+   ending: one stand-in draw on a given six-ban path (the Methods figure): the first n lineups of each team seat by seat and
+           their n x n matchup win chances. */
 importScripts("sim8.js" + self.location.search, "engine8.js" + self.location.search);   // the page stamps this worker's address; the scripts share the stamp
 const DRAWS = 32;
 let SIM = null, E8 = null, loading = null;
@@ -48,6 +50,11 @@ onmessage = async ev => {
         postMessage({ id: d.id, tick: 1 });
       }
       postMessage({ id: d.id, done: true, flow: { us: Array.from(us), them: Array.from(them), nu, nt, runs: n, mu: SIM.MU, k: SIM.K } });
+      return;
+    }
+    if (d.type === "ending") {
+      const n = d.n || 9, D = drawFor(L, s, d.draw || 0), r = SIM.terminal(L, D, d.bans, true, n);
+      postMessage({ id: d.id, done: true, ending: { n, win: r.win, us: r.ex.us, them: r.ex.them, pairs: r.ex.pairs, mu: SIM.MU, k: SIM.K } });
       return;
     }
     const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, roles: SIM.ROLE, splits: { us: {}, them: {} } };
