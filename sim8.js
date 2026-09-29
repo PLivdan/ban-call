@@ -55,12 +55,21 @@
        numbers, and the stand-in teams' hero shares for the ban model. Everything comes from the seed. */
     draw(L, s, seed) {
       const r = rng(seed), H = this.H, MU = this.MU, K = this.K, [lo, hi] = this.window(s.r0), PL = [], NALT = this.meta.nalt || 8;
-      // players who open a shown hero: weight x their pick-model chance of opening it, exact over the window
-      const cond = new Map();
-      for (const h of L.shown) if (h >= 0 && !cond.has(h)) {
-        const cw = new Float64Array(hi - lo + 1), PB = this.A["pool.PB"], W = this.A["pool.W"];
+      // players who open a shown hero: weight x their pick-model chance of opening it, exact over the window. Each player's
+      // softmax max and sum depend only on the window and the lobby's utilities (map, rank band, side), and a hero's cumulative
+      // weights only on those and the hero, so both are kept across draws and hovers: the same numbers, computed once (they
+      // were 80% of a draw's time)
+      const ck = `${lo},${hi},${L.m},${L.bd},${L.camp}`, PB = this.A["pool.PB"], W = this.A["pool.W"];
+      if (!this._cc || this._cc.key !== ck) {
+        const mxA = new Float64Array(hi - lo), seA = new Float64Array(hi - lo);
         for (let i = lo; i < hi; i++) { let mx = -Infinity; const o = i * H; for (let k = 0; k < H; k++) { const u = PB[o + k] + L.cbu[k]; if (u > mx) mx = u; }
-          let se = 0; for (let k = 0; k < H; k++) se += Math.exp(PB[o + k] + L.cbu[k] - mx); cw[i - lo + 1] = cw[i - lo] + W[i] * Math.exp(PB[o + h] + L.cbu[h] - mx) / se; }
+          let se = 0; for (let k = 0; k < H; k++) se += Math.exp(PB[o + k] + L.cbu[k] - mx); mxA[i - lo] = mx; seA[i - lo] = se; }
+        this._cc = { key: ck, mx: mxA, se: seA, byH: new Map() };
+      }
+      const CC = this._cc, cond = new Map();
+      for (const h of L.shown) if (h >= 0 && !cond.has(h)) {
+        let cw = CC.byH.get(h);
+        if (!cw) { cw = new Float64Array(hi - lo + 1); for (let i = lo; i < hi; i++) cw[i - lo + 1] = cw[i - lo] + W[i] * Math.exp(PB[i * H + h] + L.cbu[h] - CC.mx[i - lo]) / CC.se[i - lo]; CC.byH.set(h, cw); }
         cond.set(h, cw);
       }
       const pickC = cw => { const x = r() * cw[cw.length - 1]; let a = 0, b = cw.length - 1; while (b - a > 1) { const md = (a + b) >> 1; if (cw[md] <= x) a = md; else b = md; } return lo + a; };

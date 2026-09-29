@@ -535,7 +535,7 @@
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=739aabec47"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=1c65575449"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -671,7 +671,7 @@
     if (flowW) flowW.terminate();
     const id = ++flowId, fill = () => { const el = $("sfSlot"); if (el && adviceBan() === h) el.innerHTML = sfHtml(h, figW()); };
     FL = { key, h, done: false, failed: false };
-    flowW = new Worker("sim8-worker.js?v=739aabec47");
+    flowW = new Worker("sim8-worker.js?v=1c65575449");
     flowW.onmessage = ev => { const d = ev.data; if (d.id !== id || !FL || FL.key !== key) return;
       if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
     flowW.onerror = () => { if (FL && FL.key === key) { FL.failed = true; fill(); } };
@@ -757,7 +757,7 @@
   function endingStart(d) {
     if (!MethodFigs.ending) return;
     if (endW) endW.terminate(); const id = ++endId;
-    endW = new Worker("sim8-worker.js?v=739aabec47");
+    endW = new Worker("sim8-worker.js?v=1c65575449");
     endW.onmessage = ev => { const m = ev.data; if (m.id !== id || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
     endW.onerror = () => { if (id === endId) MethodFigs.ending({ failed: true }); };
     endW.postMessage({ id, v: LAY.run, type: "ending", st: lobby(), bans: d.path.slice().sort((a, b) => a.e - b.e).map(p => p.h), n: 9, draw: 0 });
