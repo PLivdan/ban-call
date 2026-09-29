@@ -39,6 +39,7 @@ onmessage = async ev => {
   const d = ev.data;
   try {
     if (!SIM) { loading = loading || load(d.base || "", d.v).catch(e => { loading = null; throw e; }); await loading; }   // a failed load is tried again on the next job
+    if (d.type === "warm") { postMessage({ id: d.id, done: true }); return; }       // the page loads the model before the first lobby
     const s = d.st, L = SIM.lobby(s), op = ourProbs(s), H = SIM.H;
     if (d.type === "flow") {
       const us = new Float64Array(H), them = new Float64Array(H); let nu = 0, nt = 0, n = 0;

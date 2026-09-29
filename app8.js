@@ -144,7 +144,7 @@
      until the drafts for this lobby are in. A seat showing a hero that is still allowed: the other heroes, as shares of the drafts
      where that player switches. */
   function seatP(i) {
-    const C = COMP; if (!C || !C.done || C.key !== compKey() || !C.nu) return null;
+    const C = COMP; if (!C || C.failed || C.key !== compKey() || !C.nu) return null;   // from the first batch on
     const p = new Float64Array(H); for (let h = 0; h < H; h++) p[h] = C.slots[i * H + h] / C.nu;
     const own = st.team[i]; if (own >= 0 && p[own] < 1) { const r = 1 - p[own]; for (let h = 0; h < H; h++) p[h] = h === own ? 0 : p[h] / r; }
     return p;
@@ -526,32 +526,51 @@
   // ---- likely comps: the v8 simulator plays this lobby out in background workers (stand-ins near your rank, the rest of the
   // bans as typical teams make them, both teams' drafts from the pick model) and counts what each team opens, and what each of
   // our seats opens (the teammate lists). It runs for every lobby state
-  const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CRUNS = 64, CDRAWS = 32;
+  // The workers stay up (their model files load once, at the start); a lobby's simulated ban phases go out in batches of CBATCH,
+  // one batch per free worker, so a lobby change waits for at most one stale batch, and the seat forecasts show after the first
+  // batch and sharpen as the rest come in. 16 stand-in draws, each played out twice (run j uses draw j % 32, so runs 32-47 reuse
+  // the draws of runs 0-15, which are the slow part): 32 runs, the second batch nearly free
+  const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CBATCH = 8;
+  const CRUNL = [0, 32, 8, 40].flatMap(a => Array.from({ length: 8 }, (_, k) => a + k)), CRUNS = CRUNL.length;
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
-  function compStart() {
-    const key = compKey(); if (COMP && COMP.key === key) return;
-    if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=a2e2e3cc4e"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
-    const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
-    for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
-    COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
-    parts.forEach((runs, k) => { if (!runs.length) return; COMP.pending++; compPool[k].postMessage({ id, v: LAY.run, type: "values", st: s, cands: ["typ"], opens: true, runs }); });
+  function compWorkers() {
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=739aabec47"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+      w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
-  function compMsg(d) {
-    const C = COMP; if (!C || d.id !== C.id) return;
-    if (d.error) { compFail(); return; }
-    if (!d.done) return;
-    const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
-    if (o.slots) for (let k = 0; k < o.slots.length; k++) C.slots[k] += o.slots[k];
-    for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
-    if (--C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens(); }
+  function compDispatch() {
+    const C = COMP; if (!C || C.failed) return;
+    for (const w of compPool) {
+      if (w.busy || C.next >= CRUNS) continue;
+      const runs = CRUNL.slice(C.next, C.next + CBATCH); C.next += runs.length;
+      w.busy = true; C.pending++; w.postMessage({ id: C.id, v: LAY.run, type: "values", st: C.st, cands: ["typ"], opens: true, runs });
+    }
+  }
+  function compStart() {
+    const key = compKey(); if (COMP && COMP.key === key && !COMP.failed) return;
+    compWorkers();
+    COMP = { key, id: ++compId, st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), next: 0, pending: 0, done: false, failed: false,
+             us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
+    compDispatch();
+  }
+  function compMsg(w, d) {
+    if (!d.done && !d.error) return;                                            // progress ticks
+    w.busy = false; const C = COMP;
+    if (C && d.id === C.id && !C.failed) {
+      if (d.error) { compFail(); return; }
+      const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
+      if (o.slots) for (let k = 0; k < o.slots.length; k++) C.slots[k] += o.slots[k];
+      for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
+      C.pending--; if (C.next >= CRUNS && C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
+      renderQuick(); fillOpens();                                               // the forecasts so far
+    }
+    compDispatch();                                                             // this worker is free: the current lobby's next batch
   }
   function compFail() {
     if (!COMP || COMP.failed) return; COMP.failed = true; compPool.forEach(w => w.terminate()); compPool = [];   // new workers on a retry
     const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens();
   }
-  const opnVal = (side, h) => { const C = COMP; if (!C || C.key !== compKey() || C.failed) return ""; if (!C.done) return "&hellip;"; const n = side === "us" ? C.nu : C.nt; return n ? pct(C[side][h] / n) : ""; };
+  const opnVal = (side, h) => { const C = COMP; if (!C || C.key !== compKey() || C.failed) return ""; if (!C.nu) return "&hellip;"; const n = side === "us" ? C.nu : C.nt; return n ? pct(C[side][h] / n) : ""; };
   const opnCell = (side, h) => `<span class="opn" data-s="${side}" data-h="${h}">${opnVal(side, h)}</span>`;
   function fillOpens() { document.querySelectorAll(".opn").forEach(el => el.innerHTML = opnVal(el.dataset.s, +el.dataset.h)); }
   document.addEventListener("click", ev => { if (ev.target && ev.target.id === "compRetry") { COMP = null; compStart(); const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); } });
@@ -652,7 +671,7 @@
     if (flowW) flowW.terminate();
     const id = ++flowId, fill = () => { const el = $("sfSlot"); if (el && adviceBan() === h) el.innerHTML = sfHtml(h, figW()); };
     FL = { key, h, done: false, failed: false };
-    flowW = new Worker("sim8-worker.js?v=a2e2e3cc4e");
+    flowW = new Worker("sim8-worker.js?v=739aabec47");
     flowW.onmessage = ev => { const d = ev.data; if (d.id !== id || !FL || FL.key !== key) return;
       if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
     flowW.onerror = () => { if (FL && FL.key === key) { FL.failed = true; fill(); } };
@@ -678,6 +697,7 @@
     $("tierSel").value = st.tier; $("mapSel").value = String(st.map);
     renderTeam(); renderTurnHint();
     if (!recompute && (RES || THEM || DONE)) { renderBans(); renderRoster(); return; }
+    compStart();                                                                // the drafts start at once, in the workers (the board's move is not disturbed)
     $("mainEl").classList.add("busy"); const my = ++pending;
     setTimeout(() => {
       if (my !== pending) return;
@@ -691,7 +711,7 @@
         if (RES && turnCount() === 1 && e + 1 < 6) REPLY = E.theirTurn(Object.assign({}, s, { bans: s.bans.concat([RES.best]) }));
         WIN = { opt: E.winNow(s), beh: E.ready("aux") ? E.winNow(s, "behaviour") : null }; if (!WIN.opt) WIN = null;
         PATH = e < 6 ? E.path(s) : null;
-        if (!(RES && turnCount() === 2)) compStart(); renderQuick(); };   // on a two-ban turn the drafts start once the pairs are scored (slow machines)
+        renderQuick(); };
       if (DONE) rest();
       renderBans(); renderRoster(); renderAdvice(); $("mainEl").classList.remove("busy");
       if (DONE) return;
@@ -701,7 +721,7 @@
         if (RES && turnCount() === 2) setTimeout(() => {
           if (my !== pending) return;
           const SQ = E.sequence(s, RES), P = E.pairs(s, RES, 6, true) || [];   // the advice first; the other pairs for comparison
-          PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice(); compStart(); renderQuick();
+          PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice();
         }, 30);
       }, still.matches ? 0 : 700);
     }, 15);
@@ -737,7 +757,7 @@
   function endingStart(d) {
     if (!MethodFigs.ending) return;
     if (endW) endW.terminate(); const id = ++endId;
-    endW = new Worker("sim8-worker.js?v=a2e2e3cc4e");
+    endW = new Worker("sim8-worker.js?v=739aabec47");
     endW.onmessage = ev => { const m = ev.data; if (m.id !== id || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
     endW.onerror = () => { if (id === endId) MethodFigs.ending({ failed: true }); };
     endW.postMessage({ id, v: LAY.run, type: "ending", st: lobby(), bans: d.path.slice().sort((a, b) => a.e - b.e).map(p => p.h), n: 9, draw: 0 });
@@ -791,6 +811,7 @@
   const fitDates = `${day(SPL.train.first_utc)} to ${day(SPL.validation.last_utc)} ${new Date(SPL.validation.last_utc.replace(" ", "T") + "Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}`;
   status(""); $("fitted").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}), model ${REP.version} (run ${REP.run}).`;
   renderMethod(); update();
+  compWorkers();                                                               // the drafting workers load the model while the page settles
   if (window.MethodFigs) MethodFigs.init({ vq: VQ, pool: (REP.world_model || {}).stand_in_pool }).then(figUpdate).catch(e => console.error(e));
   document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES || THEM || DONE) renderAdvice(); });
   if (auxP) auxP.then(b => { E.addBuffer("aux", b); update(); }).catch(() => {});
