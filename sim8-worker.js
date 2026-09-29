@@ -1,7 +1,8 @@
 /* Worker for the v8 re-draft simulator (sim8.js). Jobs:
    values: every candidate (a hero, a pair, or "typ": the ban a typical team makes now) for a list of runs. Run j uses stand-in
            draw j % DRAWS and the same random numbers for the rest of the ban phase whatever the candidate, so candidates are
-           compared on the same lobbies. Returns P(we win) per candidate and run, and who opened what in the typical runs.
+           compared on the same lobbies. Returns P(we win) per candidate and run, and who opened what in the typical runs
+           (each team, and our team seat by seat: slots[i * H + h] counts our seat i opening h).
    flow:   where the players who would open hero x go when x is banned too, on the same lobbies and draft random numbers. */
 importScripts("sim8.js" + self.location.search, "engine8.js" + self.location.search);   // the page stamps this worker's address; the scripts share the stamp
 const DRAWS = 32;
@@ -49,7 +50,7 @@ onmessage = async ev => {
       postMessage({ id: d.id, done: true, flow: { us: Array.from(us), them: Array.from(them), nu, nt, runs: n, mu: SIM.MU, k: SIM.K } });
       return;
     }
-    const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), nu: 0, nt: 0, runs: 0, roles: SIM.ROLE, splits: { us: {}, them: {} } };
+    const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, roles: SIM.ROLE, splits: { us: {}, them: {} } };
     for (const c of d.cands) vals[String(c)] = {};
     for (const j of d.runs) {
       const D = drawFor(L, s, j % DRAWS);
@@ -60,6 +61,6 @@ onmessage = async ev => {
         postMessage({ id: d.id, tick: 1 });
       }
     }
-    postMessage({ id: d.id, done: true, vals, opens: d.opens ? { us: Array.from(acc.us), them: Array.from(acc.them), av: Array.from(acc.av), nu: acc.nu, nt: acc.nt, runs: acc.runs, splits: acc.splits } : null });
+    postMessage({ id: d.id, done: true, vals, opens: d.opens ? { us: Array.from(acc.us), them: Array.from(acc.them), av: Array.from(acc.av), slots: Array.from(acc.slots), nu: acc.nu, nt: acc.nt, runs: acc.runs, splits: acc.splits } : null });
   } catch (e) { postMessage({ id: d.id, error: String(e && e.stack || e) }); }
 };

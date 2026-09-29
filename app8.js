@@ -37,10 +37,10 @@
     return buf;
   }
   const LAY = await fetch("model8/value_v8.json", { cache: "no-cache" }).then(r => r.json()), VQ = `?v=${LAY.run}`;   // the other model files carry the run, so a cached one never mixes runs
-  const [BAN, SUBS, REP, META, W7, PORT] = await Promise.all(["model8/ban_v8.json" + VQ, "model8/substitutes_v8.json" + VQ, "model8/report_v8.json" + VQ,
-    "model/meta.json"].map(u => fetch(u).then(r => r.json())).concat([fetch("model/weights.bin").then(r => r.arrayBuffer()), fetch("model/portraits.json").then(r => r.json())]));
+  const [BAN, REP, META, PORT] = await Promise.all(["model8/ban_v8.json" + VQ, "model8/report_v8.json" + VQ, "model/meta.json", "model/portraits.json"]
+    .map(u => fetch(u).then(r => r.json())));                                          // META: the rank tiers (names and scores) only
   if ((BAN.run && BAN.run !== LAY.run) || (REP.run && REP.run !== LAY.run)) throw new Error(`the model files come from different runs (${LAY.run}, ${BAN.run}, ${REP.run})`);
-  const E = new Engine8(LAY, BAN), E7 = new BanEngine(META, W7, META.engine ? { NS: 64, NOWN: META.engine.nown } : { NS: 64 });
+  const E = new Engine8(LAY, BAN);
   const H = E.H, ORDER = LAY.order, NAMES = LAY.heroes, ROLES = LAY.roles;
   status(`Loading the model (${(LAY.files.opt.bytes / 1e6).toFixed(0)} MB)…`);
   E.addBuffer("opt", await fetchBin(`model8/${LAY.files.opt.path}${VQ}`, LAY.files.opt.bytes, "Loading the model", LAY.files.opt.sha256));   // throws on a bad file
@@ -50,13 +50,10 @@
   const spreadTxt = sp => `range ${pp(sp.lo)} to ${pp(sp.hi)}`;
   const img = h => `img/heroes/${PORT[NAMES[h]]}.webp`, short = h => NAMES[h];
   const mapName = s => s.includes(" · ") ? s.replace(" · ", " (") + ")" : s;
-  const V7 = new Map(META.maps.map((m, i) => [m.name, i]));                          // the lineup network's map index, by name
   // the v8 model's maps, less those it has barely seen (fewer than MAPMIN Season 10 matches in the data: its advice there is a guess)
   const MAPMIN = 1000, MAPN = REP.map_matches || null, THIN = MAPN ? LAY.maps.filter(m => (MAPN[m.label] ?? 0) < MAPMIN).map(m => ({ name: mapName(m.label), n: MAPN[m.label] ?? 0 })) : [];
-  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label), v7: V7.get(m.label) })).filter((m, _, a) => !MAPN || (MAPN[LAY.maps[m.i].label] ?? 0) >= MAPMIN).sort((a, b) => a.name.localeCompare(b.name));
-  const v7map = i => (MAPS.find(m => m.i === i) || {}).v7;                           // the previous model's index, undefined where it lacks the map
+  const MAPS = LAY.maps.map((m, i) => ({ i, name: mapName(m.label) })).filter((m, _, a) => !MAPN || (MAPN[LAY.maps[m.i].label] ?? 0) >= MAPMIN).sort((a, b) => a.name.localeCompare(b.name));
   const TIERS = Object.keys(META.tiers);
-  const SUB = new Map(SUBS.table.map(r => [r.hero, r]));
 
   // ---------------------------------------------------------------- state (mirrored in the URL hash, so a lobby can be shared)
   const kly = MAPS.find(m => /Klyntar \(Dom/.test(m.name));
@@ -128,23 +125,41 @@
   const topBans = k => RES ? RES.cands.slice().sort((a, b) => score(b) - score(a)).slice(0, k) : [];
   function quickList() {
     if (st.active.kind === "team") {
-      const bans = bannedSet(), team = teamSet(), ok = h => !bans.has(h) && !team.has(h);
-      if (st.active.i === 0) {
-        const pop = popularity(), seen = new Set(), out = [];
-        for (const h of MINE.concat(Array.from(pop.keys()).sort((a, b) => pop[b] - pop[a]))) if (h < H && ok(h) && !seen.has(h) && out.length < 8) { seen.add(h); out.push({ h, lab: MINE.includes(h) ? "yours" : pct(pop[h]) }); }
-        return out;
-      }
-      return LU ? Array.from(LU.pu.keys()).filter(ok).sort((a, b) => LU.pu[b] - LU.pu[a]).slice(0, 8).map(h => ({ h, lab: pct(LU.pu[h]) })) : [];
+      const bans = bannedSet(), team = teamSet(), ok = h => h < H && !bans.has(h) && !team.has(h), i = st.active.i;
+      const P = i === 0 && st.team[0] >= 0 ? null : seatP(i);            // you keep your hero while it is allowed: your list is for choosing one
+      if (!P && i > 0 && shownOf(i) >= 0) return [];                  // a seat with a hero: its own forecast, once the drafts are in
+      const src = P || popularity(), ranked = Array.from(src.keys()).filter(ok).sort((a, b) => src[b] - src[a]);
+      if (i === 0) { const seen = new Set(), out = [];
+        for (const h of MINE.concat(ranked)) if (ok(h) && !seen.has(h) && out.length < 8) { seen.add(h); out.push({ h, lab: MINE.includes(h) ? "yours" : pct(src[h]) }); }
+        return out; }
+      return ranked.slice(0, 8).map(h => ({ h, lab: pct(src[h]) }));
     }
     if (nextBan() >= 6) return [];
     if (ourTurn()) { if (!RES) return []; let o = topBans(8); const sg = suggested(); if (sg.length) o = [sg[0].h].concat(o.filter(h => h !== sg[0].h)).slice(0, 8); return o.map(h => ({ h, lab: pp(RES.V[h]) })); }
     return THEM ? THEM.cands.slice().sort((a, b) => THEM.pe[b] - THEM.pe[a]).slice(0, 8).map(h => ({ h, lab: pct(THEM.pe[h]) })) : [];
   }
   const quickSide = () => st.active.kind === "team" || ourTurn() ? "us" : "them";
+  /* What the player in seat i opens: the simulator's drafts of this lobby (stand-ins who show what the seat shows, the bans so
+     far, the rest of the ban phase as typical teams make it, forced switches when a hero is banned), counted seat by seat; null
+     until the drafts for this lobby are in. A seat showing a hero that is still allowed: the other heroes, as shares of the drafts
+     where that player switches. */
+  function seatP(i) {
+    const C = COMP; if (!C || !C.done || C.key !== compKey() || !C.nu) return null;
+    const p = new Float64Array(H); for (let h = 0; h < H; h++) p[h] = C.slots[i * H + h] / C.nu;
+    const own = st.team[i]; if (own >= 0 && p[own] < 1) { const r = 1 - p[own]; for (let h = 0; h < H; h++) p[h] = h === own ? 0 : p[h] / r; }
+    return p;
+  }
+  function teamLab(i) {
+    if (i === 0) return "Your hero";
+    const g = st.gone.find(x => x.i === i), wait = !seatP(i) && COMP && !COMP.failed;
+    if (g) return wait ? `Mate ${i + 1}: drafting&hellip;` : `Mate ${i + 1} swaps from ${esc(short(g.h))}`;
+    if (st.team[i] >= 0) return wait ? `Mate ${i + 1}: drafting&hellip;` : `Mate ${i + 1} if they change from ${esc(short(st.team[i]))}`;
+    return `Mate ${i + 1}: likely`;
+  }
   function renderQuick() {
     const q = quickList(), teamMode = st.active.kind === "team";
-    const lab = teamMode ? (st.active.i === 0 ? "Your hero" : `Mate ${st.active.i + 1}: likely`) : ourTurn() ? "Best bans" : "Their likely ban";
-    const html = q.length ? `<span class="qlab">${lab}</span>` + q.map((x, k) =>
+    const lab = teamMode ? teamLab(st.active.i) : ourTurn() ? "Best bans" : "Their likely ban";
+    const html = q.length || teamMode ? `<span class="qlab">${lab}</span>` + q.map((x, k) =>
       `<button class="qt ${quickSide()}" data-h="${x.h}" title="${esc(NAMES[x.h])} (key ${k + 1})"><span class="qk">${k + 1}</span><img src="${img(x.h)}" alt=""><span class="qv">${x.lab}</span></button>`).join("") : "";
     $("quickTeam").innerHTML = teamMode ? html : ""; $("quick").innerHTML = teamMode ? "" : html;
     document.querySelectorAll("#quick .qt, #quickTeam .qt").forEach(el => el.onclick = () => place(+el.dataset.h));
@@ -157,7 +172,7 @@
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
 
   // ---------------------------------------------------------------- lobby rendering
-  let RES = null, PAIRS = null, THEM = null, PATH = null, LU = null, WIN = null, DONE = null;
+  let RES = null, PAIRS = null, THEM = null, PATH = null, WIN = null, DONE = null;
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i, g = h < 0 ? st.gone.find(x => x.i === i) : null;
@@ -203,16 +218,13 @@
   }
   function undoQuiet() { LS.unban(st); }
   function renderTurnHint() { const e = nextBan(); $("target").innerHTML = ""; $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." : ""; }
-  // roster order: how often each hero is opened at the selected rank (the lineup network, no bans, averaged over maps and sides)
+  // roster order and the lists before the drafts are in: how much each hero is played at the selected rank, from the v8 world
+  // model's stand-in teams at the rank band (the ban model's view of a lobby), as the studio does
   const POPC = new Map();
   function popularity() {
-    const key = st.tier; if (POPC.has(key)) return POPC.get(key);
-    const rf = E7.rankFeat(META.tiers[st.tier]), p = new Float64Array(H); let n = 0;
-    for (let m = 0; m < META.maps.length; m++) for (const side of [0, 1]) {
-      const x = E7.features([], [], [], m, rf, side, 0);
-      for (const net of E7.nets) { const P = E7.netProb(net, x); for (let h = 0; h < H; h++) p[h] += P[h]; n++; }
-    }
-    for (let h = 0; h < H; h++) p[h] /= n; POPC.set(key, p); return p;
+    const bd = E.band(META.tiers[st.tier]); if (POPC.has(bd)) return POPC.get(bd);
+    const T = BAN.stand_in_team_shares[bd], p = new Float64Array(H); for (const t of T) for (let h = 0; h < H; h++) p[h] += t[h] / (6 * T.length);
+    POPC.set(bd, p); return p;
   }
   let SORT = "pop"; try { if (localStorage.getItem("bancall-sort") === "az") SORT = "az"; } catch (e) {}
   const heroOrder = hs => { if (SORT === "az") return hs.sort((a, b) => NAMES[a].localeCompare(NAMES[b])); const p = popularity(); return hs.sort((a, b) => p[b] - p[a] || NAMES[a].localeCompare(NAMES[b])); };
@@ -351,7 +363,7 @@
       if (!items.some(i => i.h === best)) items.push({ h: best, v: R.V[best] });
       items.sort((a, b) => (b.h === best) - (a.h === best) || b.v - a.v);
       for (const it of items) { const h = it.h, rare = !R.supported.has(h); it.r = h === best ? rb : rs; it.hl = h === best; it.rare = rare;
-        it.tip = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">${spreadTxt(R.spread(h))}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${LU ? `<br>they open it: ${pct(LU.pt[h])} · you: ${pct(LU.pu[h])}` : ""}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`; }
+        it.tip = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">${spreadTxt(R.spread(h))}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`; }
       const sb = R.spread(best); vs = items.map(i => i.v).concat([sb.lo, sb.hi]); zeroLab = "a typical ban"; axLab = "points against a typical ban →";
     } else {
       const T = THEM, d = h => T.mu[h] - T.base, ok = !isNaN(d(T.cands[0])), top = T.cands.slice().sort((a, b) => T.pe[b] - T.pe[a]).slice(0, 22), pmax = T.pe[top[0]] || 1;
@@ -424,9 +436,10 @@
     const t0 = performance.now(), DUR = 650, step = now => { const u = Math.min(1, (now - t0) / DUR); if (u >= 1) { finish(); return; } frame(u); B.raf = requestAnimationFrame(step); };
     frame(0); B.raf = requestAnimationFrame(step); return B.svg;
   }
-  // ---- where the banned hero's mains go: a Sankey, each flow in the colour of the role it ends in
-  function subsFlow(h, W) {
-    const r = SUB.get(NAMES[h]); if (!r || !r.top.length || r.same_role === null) return null;
+  // ---- where the banned hero's players go: a Sankey, each flow in the colour of the role it ends in. r: top ([name, share]),
+  // same_role (the share staying in the hero's role) and n (the players behind it)
+  function subsFlow(h, W, r) {
+    if (!r || !r.top.length || r.same_role === null) return null;
     const role = ROLES[h], tops = r.top.slice(0, 6).map(([n, p]) => ({ h: IDX.get(n), p })), same = tops.filter(t => ROLES[t.h] === role), oth = tops.filter(t => ROLES[t.h] !== role);
     const remS = Math.max(0, r.same_role - sum(same.map(t => t.p))), remO = Math.max(0, 1 - r.same_role - sum(oth.map(t => t.p)));
     const nodes = same.sort((a, b) => b.p - a.p).concat(remS > .005 ? [{ other: `other ${RN[role]}s`, p: remS, role }] : [])
@@ -436,12 +449,12 @@
     nodes.forEach(n => { const hgt = Math.max(1.5, n.p * avail); n.y0 = y; n.y1 = y + hgt; n.l0 = yl; n.l1 = yl + n.p * avail; y += hgt + gap; yl += n.p * avail; ys.push((n.y0 + n.y1) / 2); });
     const col = n => (n.other ? n.role === role : ROLES[n.h] === role) ? "var(--faint)" : "var(--blue)";
     for (const n of nodes) {
-      g += `<path d="${band(x0 + nw, n.l0, n.l1, x1, n.y0, n.y1)}" fill="${col(n)}" opacity="${n.other ? .22 : .38}"${T_(`${esc(NAMES[h])} mains → <b>${esc(n.other || NAMES[n.h])}</b> ${pct(n.p)}`)}/>`
+      g += `<path d="${band(x0 + nw, n.l0, n.l1, x1, n.y0, n.y1)}" fill="${col(n)}" opacity="${n.other ? .22 : .38}"${T_(`${esc(NAMES[h])} players → <b>${esc(n.other || NAMES[n.h])}</b> ${pct(n.p)}`)}/>`
         + `<rect x="${x1}" y="${n.y0}" width="${nw}" height="${n.y1 - n.y0}" fill="${col(n)}"/>`;
     }
     const cyl = top + gap * (nodes.length - 1) / 2 + avail / 2;
     g += `<rect x="${x0}" y="${top + gap * (nodes.length - 1) / 2}" width="${nw}" height="${avail}" fill="var(--ink)"/>` + sqp(h, x0 - 66, cyl - 28, 56)
-      + `<text x="${x0 - 38}" y="${cyl + 45}" font-size="11" text-anchor="middle" class="faint">${fmt(r.mains)} mains</text>`;
+      + `<text x="${x0 - 38}" y="${cyl + 45}" font-size="11" text-anchor="middle" class="faint">${fmt(r.n)} players</text>`;
     const ly = spread(ys, 23, top + 8, Hh - top - 8);
     nodes.forEach((n, i) => { const yy = ly[i], x = x1 + nw + 8;
       if (Math.abs(yy - ys[i]) > 3) g += `<line x1="${x1 + nw + 1}" x2="${x - 2}" y1="${ys[i]}" y2="${yy}" stroke="var(--hair)"/>`;
@@ -511,17 +524,18 @@
   const quiet = html => html.replace(/<(figcaption|caption)>([\s\S]*?)<\/\1>/g, (m, t, x) => `<${t}><details class="more"><summary>How to read this</summary>${x}</details></${t}>`);
   const more = (label, body) => `<details class="more" style="margin:2px 0 10px 0"><summary>${label}</summary>${body}</details>`;
   // ---- likely comps: the v8 simulator plays this lobby out in background workers (stand-ins near your rank, the rest of the
-  // bans as typical teams make them, both teams' drafts from the pick model) and counts what each team opens
+  // bans as typical teams make them, both teams' drafts from the pick model) and counts what each team opens, and what each of
+  // our seats opens (the teammate lists). It runs for every lobby state
   const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CRUNS = 64, CDRAWS = 32;
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;
     if (COMP && !COMP.done && !COMP.failed) { compPool.forEach(w => w.terminate()); compPool = []; }   // a stale run: start over rather than queue behind it
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=052b6b4c33"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=659393b3bd"); w.onmessage = ev => compMsg(ev.data); w.onerror = () => compFail(); compPool.push(w); }
     const id = ++compId, s = Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), parts = compPool.map(() => []);
     for (let j = 0; j < CRUNS; j++) parts[(j % CDRAWS) % compPool.length].push(j);
-    COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
+    COMP = { key, id, done: false, failed: false, pending: 0, us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
     parts.forEach((runs, k) => { if (!runs.length) return; COMP.pending++; compPool[k].postMessage({ id, v: LAY.run, type: "values", st: s, cands: ["typ"], opens: true, runs }); });
   }
   function compMsg(d) {
@@ -529,13 +543,17 @@
     if (d.error) { compFail(); return; }
     if (!d.done) return;
     const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
+    if (o.slots) for (let k = 0; k < o.slots.length; k++) C.slots[k] += o.slots[k];
     for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
-    if (--C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
+    if (--C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens(); }
   }
   function compFail() {
     if (!COMP || COMP.failed) return; COMP.failed = true; compPool.forEach(w => w.terminate()); compPool = [];   // new workers on a retry
-    const el = $("comp"); if (el) el.innerHTML = quiet(compInner());
+    const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens();
   }
+  const opnVal = (side, h) => { const C = COMP; if (!C || C.key !== compKey() || C.failed) return ""; if (!C.done) return "&hellip;"; const n = side === "us" ? C.nu : C.nt; return n ? pct(C[side][h] / n) : ""; };
+  const opnCell = (side, h) => `<span class="opn" data-s="${side}" data-h="${h}">${opnVal(side, h)}</span>`;
+  function fillOpens() { document.querySelectorAll(".opn").forEach(el => el.innerHTML = opnVal(el.dataset.s, +el.dataset.h)); }
   document.addEventListener("click", ev => { if (ev.target && ev.target.id === "compRetry") { COMP = null; compStart(); const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); } });
   const splitName = k => k.split("-").map((n, r) => `${n} ${RN[r]}${n === "1" ? "" : "s"}`).join(", ");
   const RNC = ["Vanguard", "Duelist", "Strategist"];
@@ -600,14 +618,13 @@
       html += `<div class="fig8" id="boardSlot"></div><div class="det">`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
         then the best ban once it is made. The other squares score both bans together, for comparison.</p>` : `<p class="small">Scoring pairs&hellip;</p>`);
-      const h0 = pair ? pair.a : R.best, SF = subsFlow(h0, W);
-      if (SF) html += `<h2>What ${esc(nm(h0))} does to them</h2><p class="head"><span class="n u">${pct(SF.leave)}</span> of ${esc(NAMES[h0])} mains leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>`;
+      const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
       if (cnt === 1 && REPLY) { const F = forecastStrip(REPLY, W);
         html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span> ${worstTxt(F, REPLY)}</p><div class="fig8">${F.svg}</div>`; }
       html += more("All bans as a table", rankTable(topBans(12), [
-        { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => LU ? pct(LU.pt[h]) : "" }, { th: "You open", td: h => LU ? pct(LU.pu[h]) : "" }],
+        { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => opnCell("them", h) }, { th: "You open", td: h => opnCell("us", h) }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Band: the range, dot: the value, dashed line: a typical ban. Typical: how often a
-        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: the previous model's draft predictions.`));
+        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
       html += openers() + "</div>";
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
@@ -621,11 +638,36 @@
     if (BOARD.svg && BOARD.svg.parentNode) BOARD.svg.parentNode.removeChild(BOARD.svg);
     $("adviceBody").innerHTML = quiet(html); applyCharts();
     if ($("boardSlot")) $("boardSlot").appendChild(drawBoard(W));
-    if ($("chartsBtn")) $("chartsBtn").onclick = () => { CHARTS = !CHARTS; applyCharts(); };
+    if ($("chartsBtn")) $("chartsBtn").onclick = () => { CHARTS = !CHARTS; applyCharts(); const h0 = adviceBan(); if (CHARTS && h0 !== null) flowStart(h0); };
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
     $("adviceBody").querySelectorAll("[data-pair]").forEach(el => el.onclick = () => { if (ourTurn() && turnCount() === 2) { const [a, b] = el.dataset.pair.split(",").map(Number); banBoth(a, b); } });
   }
   let REPLY = null;
+  // the advised ban's swaps: the simulator drafts this lobby with and without it (the same stand-ins and random numbers) and follows
+  // their players who would have opened it. Run only while the charts are shown
+  let FL = null, flowW = null, flowId = 0;
+  const adviceBan = () => { if (!ourTurn() || !RES || nextBan() >= 6) return null; const pair = turnCount() === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null; return pair ? pair.a : RES.best; };
+  function flowStart(h) {
+    const key = compKey() + "|" + h; if (FL && FL.key === key) return;
+    if (flowW) flowW.terminate();
+    const id = ++flowId, fill = () => { const el = $("sfSlot"); if (el && adviceBan() === h) el.innerHTML = sfHtml(h, figW()); };
+    FL = { key, h, done: false, failed: false };
+    flowW = new Worker("sim8-worker.js?v=659393b3bd");
+    flowW.onmessage = ev => { const d = ev.data; if (d.id !== id || !FL || FL.key !== key) return;
+      if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
+    flowW.onerror = () => { if (FL && FL.key === key) { FL.failed = true; fill(); } };
+    flowW.postMessage({ id, v: LAY.run, type: "flow", st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), h, runs: Array.from({ length: 48 }, (_, j) => j) });
+  }
+  function sfHtml(h, W) {
+    const F = FL && FL.key === compKey() + "|" + h ? FL : null, head = `<h2>What ${esc(nm(h))} does to them</h2>`;
+    if (!F || (!F.done && !F.failed)) return head + `<p class="small">Drafting this lobby with and without ${esc(nm(h))}&hellip;</p>`;
+    if (F.failed) return head + `<p class="small">The drafts could not be run in this browser.</p>`;
+    if (F.nt < 20) return head + `<p class="small">They rarely open ${esc(nm(h))} in this lobby (${F.nt} of their simulated players in ${F.runs} ban phases).</p>`;
+    const Pt = F.them.map(x => x / F.nt), role = ROLES[h], same = Pt.reduce((a, p, x) => a + (ROLES[x] === role ? p : 0), 0);
+    const SF = subsFlow(h, W, { top: Pt.map((p, x) => [NAMES[x], p]).filter(t => t[1] > 0).sort((a, b) => b[1] - a[1]), same_role: same, n: F.nt });
+    return SF ? head + `<p class="head"><span class="n u">${pct(SF.leave)}</span> of their players who would open ${esc(NAMES[h])} leave ${RN[SF.role]}</p><div class="fig8">${SF.svg}</div>
+      <p class="small">From ${F.runs} simulated ban phases of this lobby, drafted with and without ${esc(nm(h))} on the same stand-ins and random numbers.</p>` : "";
+  }
   window.addEventListener("resize", () => { clearTimeout(window.__rz); window.__rz = setTimeout(() => { if (RES || THEM || DONE) renderAdvice(); }, 150); });
 
   // ---------------------------------------------------------------- update loop
@@ -649,8 +691,7 @@
         if (RES && turnCount() === 1 && e + 1 < 6) REPLY = E.theirTurn(Object.assign({}, s, { bans: s.bans.concat([RES.best]) }));
         WIN = { opt: E.winNow(s), beh: E.ready("aux") ? E.winNow(s, "behaviour") : null }; if (!WIN.opt) WIN = null;
         PATH = e < 6 ? E.path(s) : null;
-        const m7 = v7map(st.map), s7 = { firstUs: st.first, bans: st.bans.slice(), rev: st.team.filter(h => h >= 0), m: m7, r0: META.tiers[st.tier] };
-        LU = m7 === undefined ? null : E7.lineups(E7.ctx(s7)); };
+        if (!(RES && turnCount() === 2)) compStart(); renderQuick(); };   // on a two-ban turn the drafts start once the pairs are scored (slow machines)
       if (DONE) rest();
       renderBans(); renderRoster(); renderAdvice(); $("mainEl").classList.remove("busy");
       if (DONE) return;
@@ -660,7 +701,7 @@
         if (RES && turnCount() === 2) setTimeout(() => {
           if (my !== pending) return;
           const SQ = E.sequence(s, RES), P = E.pairs(s, RES, 6, true) || [];   // the advice first; the other pairs for comparison
-          PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice();
+          PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice(); compStart(); renderQuick();
         }, 30);
       }, still.matches ? 0 : 700);
     }, 15);
