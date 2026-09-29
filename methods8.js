@@ -5,7 +5,7 @@ window.MethodFigs = { init: async function (o) {
   "use strict"; o = o || {};
   const $ = id => document.getElementById(id), root = document.documentElement, SVGNS = "http://www.w3.org/2000/svg";
   if (!$("t2") || !$("t3")) return;
-  let D = null, N, IDX, img, nOurs, paths, VMAX;
+  let D = null, N, img, nOurs, paths, VMAX;
   const pts = v => (v >= 0 ? "+" : "−") + Math.abs(100 * v).toFixed(2);
   const ICON = { play: `<svg viewBox="0 0 14 14"><path d="M2 1 L13 7 L2 13 Z"/></svg>`, pause: `<svg viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>` };
 
@@ -30,7 +30,7 @@ window.MethodFigs = { init: async function (o) {
   // it and the same width, so the slash runs into the frame's corners
   const banTile = (parent, h, x, y, s, stroke, sw = 2) => { const t = tile(parent, h, x, y, s, stroke, sw); t.im.style.filter = "grayscale(1)";
     el("line", { x1: x, y1: y + s, x2: x + s, y2: y, stroke, "stroke-width": sw }, t.g); t.g.appendChild(t.bx); return t; };
-  function player(pp, chEl, chapters, dur, render, hold) {
+  function player(pp, chEl, chapters, dur, render) {
     let t = 0, playing = false, last = 0;
     chEl.innerHTML = chapters.map((c, i) => `<button data-i="${i}"><span class="track"><span class="fill"></span></span><b>${c[1]}</b>${c[2]}</button>`).join("");
     const btns = [...chEl.querySelectorAll("button")], fills = btns.map(b => b.querySelector(".fill"));
@@ -237,10 +237,9 @@ window.MethodFigs = { init: async function (o) {
         l.val.setAttribute("x", Math.max(hi, X0 + v * sc * a) + 7); l.val.textContent = a > 0 ? pts(v * a) : "";
         l.val.style.fill = on ? P.blue : P.faint; l.val.style.fontWeight = on ? 700 : 400; });
     }
-    const rgb2 = s => s.startsWith("rgb(") ? s.slice(4, -1).split(",").map(Number) : rgb(s);
     const api = player($("t2pp"), $("t2ch"), [[0, "Play forward", "Simulated games branch at every ban and are scored where they end."],
       [BACK[0], "Carry back", "At your bans the best option counts. At theirs, each option counts by how likely it is."],
-      [RANK, "Rank", `Each ban you could make ${D.FB ? "now" : "first"} gets a value against a typical ban, with its range. Hover a row to see its branch.`]], DUR, render, 2);
+      [RANK, "Rank", `Each ban you could make ${D.FB ? "now" : "first"} gets a value against a typical ban, with its range. Hover a row to see its branch.`]], DUR, render);
     return api;
   }
 
@@ -330,21 +329,21 @@ window.MethodFigs = { init: async function (o) {
     }
     return player($("t3pp"), $("t3ch"), [[0, "Bans", "The six bans on this branch."], [T0, "Players", "Unseen seats are filled with real players from your rank."],
       [T0 + 1.6, "Picks", "Everyone picks. A player whose main is banned switches the way real players do."], [T0 + 3.0, "Matchups", "Each lineup is scored against every opposing lineup."],
-      [T0 + CYC * 2, "Average", `More draws, and the win chance settles. This draw's ${EN.mu} x ${EN.k} matchups average ${(100 * EN.win).toFixed(1)}%.`]], DUR, render, 2.5);
+      [T0 + CYC * 2, "Average", `More draws, and the win chance settles. This draw's ${EN.mu} x ${EN.k} matchups average ${(100 * EN.win).toFixed(1)}%.`]], DUR, render);
   }
 
   let A, B; const played = { t2: false, t3: false };
   const build = () => { if (!D) return; pal(); A = buildT2(); B = buildT3(); if (played.t2) A.seek(1e3); if (played.t3) B.seek(1e3); };
   window.FIG = { get t2() { return A; }, get t3() { return B; } };
   // a new lobby: new numbers; once the figures have played, they show their last frame and play again from the button
-  window.MethodFigs.show = d => { D = d; N = D.heroes; IDX = new Map(N.map((n, i) => [n, i])); img = h => `img/heroes/${D.portraits[h]}.webp`;
+  window.MethodFigs.show = d => { D = d; N = D.heroes; img = h => `img/heroes/${D.portraits[h]}.webp`;
     nOurs = D.nOurs; paths = 1; for (let k = 0; k < 6 - D.FB; k++) paths *= (nOurs - k); VMAX = Math.max(...D.ours.map(q => Math.abs(q.v))) || .001;
     const lb = D.lobby, fx = D.fixed.map(f => f.given ? N[f.h] : `their likeliest, ${N[f.h]}`);
     if ($("figLobby")) $("figLobby").textContent = `${lb.map}, ${lb.rank}${lb.you ? `, playing ${lb.you}` : ""}, banning ${D.first ? "first" : "second"}`
       + (fx.length ? `, after ${fx.join(", then ")}` : "") + (D.replay ? " (your bans are all in, so this is your last one)" : "");
     build(); };
   // the page's theme or view changes the palette: redraw with the new colours
-  new MutationObserver(build).observe(root, { attributes: true, attributeFilter: ["data-theme", "data-view"] });
+  new MutationObserver(build).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", build);
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const io = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting || !A) return; const f = e.target.id === "t2" ? A : B; if (!f || f.stub) return; played[e.target.id] = true;

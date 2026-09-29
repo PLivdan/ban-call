@@ -1,4 +1,4 @@
-/* The lobby both pages send to the model, and its link. One schema for the main page and the studio.
+/* The lobby the page sends to the model, and its link.
    A lobby: rank tier, map, whether we ban first, the heroes our six slots hover now (team, -1 = none), the bans in order,
    and gone: hovers the bans removed ({i: slot, h: hero}). The model reads what each slot showed (shownOf), so a hover that
    gets banned still counts as shown; picking a new hover for that slot replaces it.
@@ -15,7 +15,7 @@
   function decode(hash, ctx) {
     const q = new URLSearchParams(String(hash || "").replace(/^#/, "")); if (!q.has("m")) return null;
     const int = x => (/^-?\d+$/.test(String(x).trim()) ? +x : NaN), okH = h => Number.isInteger(h) && h >= 0 && h < ctx.H, st = fresh();
-    st.tier = q.get("t") && ctx.tiers[q.get("t")] !== undefined ? q.get("t") : ctx.tier;
+    st.tier = q.get("t") && Object.prototype.hasOwnProperty.call(ctx.tiers, q.get("t")) ? q.get("t") : ctx.tier;   // own names only: "constructor" is not a tier
     let m = int(q.get("m")); if (!q.has("s") && m === 15 && ctx.maps.has(16)) m = 16;   // an old link: K'un-Lun was map 15 before God Quarry was added
     st.map = ctx.maps.has(m) ? m : ctx.map; st.first = q.get("f") !== "0";
     for (const x of (q.get("b") || "").split(",")) { const h = int(x); if (okH(h) && !st.bans.includes(h) && st.bans.length < 6) st.bans.push(h); }

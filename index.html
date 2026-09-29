@@ -240,68 +240,6 @@
   details.more[open] { max-width: 78ch; }
   details.how { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 8px; }
   details.how > summary { font-size: 15px; font-weight: 600; color: var(--ink); }
-  /* terminal view: black on white, one monospace face on a character grid, boxed panels with inset titles,
-     inverse video for selection, a status line with key hints */
-  .tonly { display: none; }
-  :root[data-view="term"] { --paper: #ffffff; --ink: #000000; --faint: #6b6b6b; --hair: #000000; --panel: #ffffff;
-    --blue: #000000; --red: #000000; --active: #ffffff; --hover: #e9e9e9; --wash: #e9e9e9; }
-  [data-view="term"] .tonly { display: block; } [data-view="term"] .conly { display: none !important; }
-  [data-view="term"] body, [data-view="term"] input, [data-view="term"] select, [data-view="term"] button,
-  [data-view="term"] .wide, [data-view="term"] h1, [data-view="term"] .vname, [data-view="term"] .vnum,
-  [data-view="term"] svg text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-stretch: normal; }
-  [data-view="term"] body { font-size: 13px; line-height: 20px; }
-  [data-view="term"] main { padding-bottom: 60px; }
-  [data-view="term"] h1 { font-size: 13px; font-weight: 600; letter-spacing: 0; }
-  [data-view="term"] h1::before { content: "$ "; font-weight: 400; }
-  [data-view="term"] .lede, [data-view="term"] #status { font-size: 13px; color: var(--faint); }
-  [data-view="term"] .top { padding-bottom: 8px; }
-  [data-view="term"] .ctrl { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); gap: 4px 3ch; padding: 6px 0; }
-  [data-view="term"] .ctrl .lab { font-size: 13px; color: var(--faint); }
-  [data-view="term"] .ctrl .lab::after { content: ":"; }
-  [data-view="term"] button { border: 0; height: 20px; padding: 0 2px; font-size: 13px; background: none; }
-  [data-view="term"] button::before { content: "["; } [data-view="term"] button::after { content: "]"; }
-  [data-view="term"] button.on { background: var(--ink); color: var(--paper); }
-  [data-view="term"] button:hover:not(.on) { background: var(--hover); }
-  [data-view="term"] .seg button + button { margin-left: 1ch; }
-  [data-view="term"] #themeBtn { display: none; }
-  [data-view="term"] select, [data-view="term"] input[type=text] { font-size: 13px; height: 22px; border: 1px solid var(--ink); }
-  [data-view="term"] :focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
-  /* panels: a 1px frame with the title set into the top edge */
-  [data-view="term"] #lobby, [data-view="term"] #advice { position: relative; border: 1px solid var(--ink); background: none; padding: 16px 2ch 14px 2ch; margin-top: 10px; }
-  [data-view="term"] #lobby::before, [data-view="term"] #advice::before { content: attr(data-title); position: absolute; top: -11px; left: 1.5ch;
-    background: var(--paper); padding: 0 1ch; font-weight: 600; }
-  [data-view="term"] h2 { font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--ink); }
-  [data-view="term"] #adviceBody > h2:first-child { margin-top: 0; }
-  .tsec { font-weight: 600; margin: 12px 0 2px 0; border-bottom: 1px solid var(--ink); }
-  .tsec:first-child { margin-top: 0; }
-  .tdim { color: var(--faint); font-weight: 400; }
-  .trow, .thero { white-space: pre; cursor: pointer; overflow: hidden; text-overflow: clip; }
-  .trow:hover, .thero:hover { background: var(--hover); }
-  .trow.sel { background: var(--ink); color: var(--paper); } .trow.sel .tdim { color: var(--paper); }
-  .tx { color: var(--faint); } .trow.sel .tx { color: var(--paper); }
-  .tcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 2ch; }
-  .thero.banned { color: var(--faint); text-decoration: line-through; cursor: default; }
-  .thero.ours { font-weight: 600; }
-  .thero.dim { opacity: .25; }
-  [data-view="term"] .howto { margin: 12px 0 4px 0; font-size: 13px; }
-  [data-view="term"] .howto input { width: 26ch; }
-  [data-view="term"] #matches a { color: var(--ink); text-decoration: underline; }
-  [data-view="term"] details.how { border-top: 1px solid var(--ink); }
-  [data-view="term"] details.more summary, [data-view="term"] details.how > summary { font-size: 13px; }
-  [data-view="term"] footer { font-size: 12px; }
-  #statusbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ink); color: var(--paper);
-               font-size: 12.5px; line-height: 24px; padding: 0 24px; white-space: nowrap; overflow: hidden; }
-  [data-view="term"] #statusbar { display: flex; justify-content: space-between; gap: 3ch; }
-  #statusbar .tdim { color: #bdbdbd; } #statusbar b { font-weight: 600; }
-  pre.term { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; margin: 0;
-             white-space: pre; overflow-x: auto; color: var(--ink); }
-  pre.term .tl[data-h], pre.term .tl.tp2 { cursor: pointer; }
-  pre.term .tl[data-h]:hover, pre.term .tl.tp2:hover { background: var(--hover); }
-  pre.term .tl.best { background: var(--ink); color: var(--paper); }
-  pre.term .tv { font-weight: 600; }
-  pre.term .tp { color: var(--faint); }
-  pre.term .tsh { font-weight: 600; }
-  @media (max-width: 720px) { [data-view="term"] .tkeys { display: none; } .tcols { grid-template-columns: repeat(2, minmax(0, 1fr)); } #statusbar { padding: 0 12px; } }
   /* methods: two animated figures, then the text */
   .methods { margin-top: 30px; border-top: 1px solid var(--ink); padding-top: 6px; }
   .methods > h2.msec { border: 0; font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; font-size: 22px; font-weight: 800; margin: 6px 0 4px 0; padding: 0; }
@@ -365,8 +303,8 @@
 </div>
 
 <div class="mainRow">
-<section id="lobby" data-title="lobby">
-  <div class="conly">
+<section id="lobby">
+  <div>
   <h2>Your team</h2>
   <div class="slots" id="teamSlots"></div>
   <div class="quick" id="quickTeam"></div>
@@ -375,16 +313,14 @@
   <div class="quick" id="quick"></div>
   <p class="small" id="turnHint"></p>
   </div>
-  <div class="tonly" id="lobbyTerm"></div>
-  <h2 class="conly hh">Heroes <span class="seg sort" title="Order within each role"><button id="sortPop" title="Most opened at your rank first">Popular</button><button id="sortAz">A–Z</button></span></h2>
+  <h2 class="hh">Heroes <span class="seg sort" title="Order within each role"><button id="sortPop" title="Most opened at your rank first">Popular</button><button id="sortAz">A–Z</button></span></h2>
   <p class="howto"><input type="text" id="search" placeholder="Type heroes, then Enter (commas for several)" autocomplete="off" aria-label="Type a hero"
       title="Enter picks the first match. Backspace on an empty box undoes the last ban.">
     <span class="small" id="matches"></span> <span id="target"></span></p>
-  <div id="roster" class="conly"></div>
-  <div id="rosterTerm" class="tonly"></div>
+  <div id="roster"></div>
 </section>
 
-<section id="advice" aria-live="polite" data-title="result">
+<section id="advice" aria-live="polite">
   <div id="adviceBody"></div>
 </section>
 </div>
@@ -393,15 +329,15 @@
   <h2 class="msec hh"><span>Methods</span><span class="hbtn"><button id="methodsBtn" title="Show or hide the methods">Show</button></span></h2>
   <div id="methodsBody">
   <p class="mlede">Choosing a ban is harder than it looks. A ban removes a hero from both teams, it changes what both teams draft, and you usually can't see who is on the
-    other side. Ban Call plays your lobby out many times before you choose. The two figures show how, with the model's own numbers for the lobby set above<span class="conly">: <span id="figLobby">loading</span></span>.</p>
-  <div class="mfig conly">
+    other side. Ban Call plays your lobby out many times before you choose. The two figures show how, with the model's own numbers for the lobby set above<span>: <span id="figLobby">loading</span></span>.</p>
+  <div class="mfig">
     <h3 class="mft">Forward, then back</h3>
     <p class="mfs" id="mT2s"></p>
     <div class="fig" id="t2"></div>
     <div class="note"><span class="key"><span class="sq"></span>One simulated game, marked with the first ban it tried</span><span id="t2n"></span></div>
     <div class="player"><button class="pp" id="t2pp" aria-label="Play"></button><div class="chap" id="t2ch" style="--n:3"></div></div>
   </div>
-  <div class="mfig conly">
+  <div class="mfig">
     <h3 class="mft">Inside one ending</h3>
     <p class="mfs">Where a branch ends, all six bans are in. The seats you can't see are filled with real players from your rank, everyone picks, and every lineup is scored
       against every opposing one. This repeats at every ending.</p>
@@ -412,15 +348,14 @@
   </div>
 </section>
 
-<div id="statusbar" class="tonly" aria-hidden="true"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs></svg>
 <footer class="small">
   <span id="fitted"></span> The models run in your browser. <a href="v7/">The previous model (v7.2)</a> is kept as a backup. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
 
-<script src="engine8.js?v=6677fa11ca"></script>
-<script src="lobby-state.js?v=9fcc84b43b"></script>
-<script src="methods8.js?v=62fc781d4c"></script>
-<script src="app8.js?v=d68e281c0b"></script>
+<script src="engine8.js?v=09e25547b0"></script>
+<script src="lobby-state.js?v=12191ff495"></script>
+<script src="methods8.js?v=4de0ba8947"></script>
+<script src="app8.js?v=d799f889cb"></script>
 </html>

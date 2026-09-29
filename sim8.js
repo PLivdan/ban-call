@@ -129,10 +129,11 @@
     }
     /* P(we win | all six bans) for one draw: the mean over MU x K pairs of drafted lineups. Returns the picks too. nex > 0 (the
        Methods figure): also the first nex lineups of each team, seat by seat (the seat's hero: the one it shows, else the
-       stand-in's main; the pick; whether that hero is banned), and their nex x nex matchup win chances. */
-    terminal(L, D, bans, keep = false, nex = 0) {
+       stand-in's main; the pick; whether that hero is banned), and their nex x nex matchup win chances. extraOurs: which team
+       made a ban beyond the six (the flow job adds our advised ban as a seventh; the fixed order covers positions 0 to 5 only). */
+    terminal(L, D, bans, keep = false, nex = 0, extraOurs = true) {
       const H = this.H, A = this.A, MU = this.MU, K = this.K, S = this.SW, legal = new Uint8Array(H).fill(1), ourB = new Float64Array(H), thB = new Float64Array(H);
-      bans.forEach((h, e) => { legal[h] = 0; (L.ourpos[e] ? ourB : thB)[h] = 1; });
+      bans.forEach((h, e) => { legal[h] = 0; ((e < L.ourpos.length ? L.ourpos[e] : extraOurs) ? ourB : thB)[h] = 1; });
       const tilt = (vecs) => { const o = new Float64Array(H); for (const [v, M] of vecs) for (let i = 0; i < H; i++) if (v[i]) { const r = i * H; for (let k = 0; k < H; k++) o[k] += M[r + k]; } return o; };
       const tu = tilt([[thB, A["G.Wp"]]]), to = tilt([[thB, A["G.Wo"]], [ourB, A["G.Wp"]]]);
       const PB = A["pool.PB"], PT = A["pool.PT"], MAIN = A["pool.MAIN"], MSP = A["pool.MSP"], phi0 = this.S.phi, phit = this.S.phi_t, commit = this.meta.commit;

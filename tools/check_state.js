@@ -1,5 +1,5 @@
-/* The lobby's state and link (lobby-state.js), shared by the main page and the studio: a hover that gets banned stays shown
-   for the model through a copied link and a reload, undo and a replacement hover behave the same in both, and a link cannot
+/* The lobby's state and link (lobby-state.js): a hover that gets banned stays shown for the model through a copied link and
+   a reload, undo and a replacement hover behave the same in both, and a link cannot
    carry an impossible lobby (non-integers, duplicate bans or heroes, more than six bans, a gone hover that was not banned).
      node tools/check_state.js */
 const LS = require("../lobby-state.js");
@@ -16,8 +16,8 @@ ok(JSON.stringify(back.bans) === "[12,5]", "bans keep their order");
 // undo brings the hover back; a replacement hover replaces it
 LS.unban(back); ok(back.team[0] === 5 && !back.gone.length, "undoing the ban brings the hover back");
 const r = LS.decode(LS.encode(st), ctx); LS.hover(r, 0, 7); ok(LS.shownOf(r, 0) === 7 && !r.gone.some(g => g.i === 0), "a new hover replaces the banned one");
-// the studio's extra keys ride along
-const withX = LS.decode(LS.encode(st, { x: 1, n: 128 }), ctx); ok(model(withX) === before && new URLSearchParams(LS.encode(st, { x: 1, n: 128 }).slice(1)).get("n") === "128", "the studio's own keys do not disturb the lobby");
+// extra keys in a link ride along
+const withX = LS.decode(LS.encode(st, { x: 1, n: 128 }), ctx); ok(model(withX) === before && new URLSearchParams(LS.encode(st, { x: 1, n: 128 }).slice(1)).get("n") === "128", "extra keys do not disturb the lobby");
 // impossible links are cleaned
 const d = LS.decode("#t=Grandmaster+3&m=11&f=1&u=5,5,x,1.5,60,-&b=3,3,2.5,9,10,11,12,13,14&g=4:40,1:9", ctx);
 ok(JSON.stringify(d.bans) === "[3,9,10,11,12,13]", "bans: integers only, no repeats, at most six, in order");
@@ -26,5 +26,6 @@ ok(d.gone.length === 1 && d.gone[0].i === 1 && d.gone[0].h === 9, "gone hovers: 
 const hb = LS.decode("#m=11&u=9,-,-,-,-,-&b=9", ctx); ok(hb.team[0] === -1 && LS.shownOf(hb, 0) === 9, "a hover that is also banned (an old link) becomes that slot's banned hover");
 // map numbers: old links (no schema) meant K'un-Lun by 15, new ones mean God Quarry
 ok(LS.decode("#m=15&u=-,-,-,-,-,-&b=", ctx).map === 16 && LS.decode("#m=15&s=8&u=-,-,-,-,-,-&b=", ctx).map === 15, "map 15: remapped only in links from before the schema");
+ok(["constructor", "toString", "__proto__", "hasOwnProperty"].every(n => LS.decode(`#t=${n}&m=11`, ctx).tier === "Grandmaster 3"), "a tier must be one of the tiers (not an inherited name like constructor)");
 ok(LS.decode("#m=99", ctx).map === 11 && LS.decode("#m=abc", ctx).map === 11, "an unknown map falls back to the default");
 console.log(bad ? `${bad} state check(s) FAILED` : "all state checks passed"); process.exit(bad ? 1 : 0);

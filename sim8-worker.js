@@ -9,7 +9,7 @@
 importScripts("sim8.js" + self.location.search, "engine8.js" + self.location.search);   // the page stamps this worker's address; the scripts share the stamp
 const DRAWS = 32;
 let SIM = null, E8 = null, loading = null;
-const draws = new Map(), probs = new Map();
+const draws = new Map(), probs = new Map(); let lobbyNow = null;
 async function load(base, v) {
   const q = v ? `?v=${v}` : "";
   const [meta, bin, lay, ban] = await Promise.all([fetch(`${base}model8/sim_v8.json${q}`).then(r => r.json()), fetch(`${base}model8/sim_v8.bin${q}`).then(r => r.arrayBuffer()),
@@ -24,9 +24,9 @@ async function load(base, v) {
 }
 const lobbyKey = s => [s.m, s.r0, s.firstUs, s.you, (s.mates6 || []).join(".")].join("|");
 function drawFor(L, s, d) {
-  const k = lobbyKey(s) + "#" + d; if (draws.has(k)) return draws.get(k);
-  if (draws.size > 64) draws.clear();                               // one lobby at a time, at most
-  const D = SIM.draw(L, s, Sim8.hash(20260927, d)); draws.set(k, D); return D;
+  const lk = lobbyKey(s); if (lk !== lobbyNow) { draws.clear(); probs.clear(); lobbyNow = lk; }   // keep the current lobby's draws only (about 750 KB each)
+  if (draws.has(d)) return draws.get(d);
+  const D = SIM.draw(L, s, Sim8.hash(20260927, d)); draws.set(d, D); return D;
 }
 function ourProbs(s) {                                            // a typical team's ban as the page sees the lobby, cached per ban sequence
   return (bans, e, allowed) => {
@@ -45,10 +45,9 @@ onmessage = async ev => {
       const us = new Float64Array(H), them = new Float64Array(H); let nu = 0, nt = 0, n = 0;
       for (const j of d.runs) {
         const D = drawFor(L, s, j % DRAWS), B = SIM.complete(L, D, s.bans, j, op); if (B.includes(d.h)) continue;
-        const A = SIM.terminal(L, D, B, true), X = SIM.terminal(L, D, B.concat([d.h]), true); n++;
+        const A = SIM.terminal(L, D, B, true), X = SIM.terminal(L, D, B.concat([d.h]), true, 0, true); n++;   // x is our advised ban
         A.pu.forEach((pk, u) => pk.forEach((h, i) => { if (h === d.h) { us[X.pu[u][i]]++; nu++; } }));
         A.po.forEach((pk, u) => pk.forEach((h, i) => { if (h === d.h) { them[X.po[u][i]]++; nt++; } }));
-        postMessage({ id: d.id, tick: 1 });
       }
       postMessage({ id: d.id, done: true, flow: { us: Array.from(us), them: Array.from(them), nu, nt, runs: n, mu: SIM.MU, k: SIM.K } });
       return;
@@ -66,7 +65,6 @@ onmessage = async ev => {
         const pre = c === "typ" ? s.bans : s.bans.concat(Array.isArray(c) ? c : [c]), B = SIM.complete(L, D, pre, j, op);
         if (c === "typ" && d.opens) { const r = SIM.terminal(L, D, B, true); vals.typ[j] = r.win; Sim8.opens(H, r, acc, B); }
         else vals[String(c)][j] = SIM.terminal(L, D, B);
-        postMessage({ id: d.id, tick: 1 });
       }
     }
     postMessage({ id: d.id, done: true, vals, opens: d.opens ? { us: Array.from(acc.us), them: Array.from(acc.them), av: Array.from(acc.av), slots: Array.from(acc.slots), nu: acc.nu, nt: acc.nt, runs: acc.runs, splits: acc.splits } : null });
