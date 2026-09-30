@@ -327,7 +327,7 @@
   /* the seats: slanted like the game's lobby row */
   #teamSlots .slot .pic, #enemySlots .slot .pic { clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); border: 0; padding: 3px; }
   #teamSlots .slot .pic { background: var(--blue); } #teamSlots .slot.empty .pic { background: color-mix(in srgb, var(--blue) 25%, var(--paper)); color: var(--blue); }
-  #teamSlots .slot.gone .pic { color: inherit; } #teamSlots .slot.gone.us .pic { background: var(--blue); } #teamSlots .slot.gone.them .pic { background: var(--red); }   /* a banned hover: the frame in the banning team's colour */
+  #teamSlots .slot.gone .pic { background: var(--blue); color: inherit; }   /* a banned hover: our seat keeps its blue frame; the slash carries the banning team's colour */
   #teamSlots .slot .pic img, #enemySlots .slot .pic img { width: 54px; height: 54px; clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); }
   #enemySlots .slot .pic { background: color-mix(in srgb, var(--red) 55%, var(--paper)); } #enemySlots .slot .pic img { opacity: .78; }
   #enemySlots .slot.empty .pic { background: color-mix(in srgb, var(--red) 25%, var(--paper)); color: var(--red); font-size: 22px; font-weight: 700; }
