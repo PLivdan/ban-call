@@ -189,7 +189,7 @@
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i, g = h < 0 ? st.gone.find(x => x.i === i) : null;
       return `<div class="slot${h < 0 ? " empty" : ""}${g ? ` gone ${banSide(g.h)}` : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? (g ? `${esc(NAMES[g.h])} was banned: click, then pick a hero` : "click, then pick a hero") : esc(NAMES[h]) + ": click to change"}">
-        <div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="filter:grayscale(1)">${LB ? slash(54, 3) : slash(60, 0)}` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
+        <div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="filter:grayscale(1)">${LB ? slash(54, 3) : slash(60, -2)}` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
         ${LB ? `${IDEAL_ON ? `<div class="iw" data-i="${i}"></div>` : ""}<div class="lab">${i === 0 ? "You" : "&nbsp;"}</div></div>`
              : `<div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : g ? `<s>${esc(short(g.h))}</s>` : "&nbsp;"}</div></div>`}`;
     }).join("");
