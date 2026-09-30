@@ -802,7 +802,7 @@
       <p>Every part was chosen on earlier matches and then scored once on ${fmt(R.splits.test.n)} later ones. Simulated drafts look like real teams: 2-2-2 in ${pct(d.two_two_two.model)}
       of teams (real ${pct(d.two_two_two.real)}), and a player whose main is banned stays in role ${pct(d.role_stay_when_forced.model)} of the time (real ${pct(d.role_stay_when_forced.real)}).
       ${same !== null ? `The page gives the same advice as the full model on ${pct(same)} of the turns tested. ` : ""}Inside the simulation, following the advice beats banning the way
-      players do by about ${simGain.toFixed(1)} points of win chance. ${allZero ? "In real games that edge is too small to confirm yet: with the matches we have, every interval includes zero." : "In real games the intervals are still wide."}</p>
+      players do by about ${simGain.toFixed(1)} points of win chance. ${R.ope_note ? esc(R.ope_note) : allZero ? "In real games that edge is too small to confirm yet: with the matches we have, every interval includes zero." : "In real games the intervals are still wide."}</p>
       <h2>Limits</h2>
       <ul class="small">
         <li>Fitted on PC ranked Season 10 matches from ${fitDates}, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>
