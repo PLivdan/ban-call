@@ -96,6 +96,12 @@
   $("firstBtn").onclick = () => { st.first = true; update(); };
   $("secondBtn").onclick = () => { st.first = false; update(); };
   const undo = () => { if (LS.unban(st) < 0) return; st.active = { kind: "ban" }; update(); };
+  // Delete or Backspace with a seat selected clears that seat's hero (yours, or theirs as you entered it) and never undoes a ban;
+  // with the ban row active it undoes the last ban. Returns whether a seat was selected.
+  const clearActive = () => { const a = st.active;
+    if (a.kind === "team") { if (st.team[a.i] >= 0 || st.gone.some(g => g.i === a.i)) { LS.clearSlot(st, a.i); update(); } return true; }
+    if (a.kind === "them") { if (st.them[a.i] >= 0) { st.them[a.i] = -1; update(); } return true; }
+    return false; };
   $("undoBtn").onclick = undo;
   $("newBtn").onclick = () => newLobby();
   $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.them = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.gone = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
@@ -182,8 +188,8 @@
   function renderTeam() {
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i, g = h < 0 ? st.gone.find(x => x.i === i) : null;
-      return `<div class="slot${h < 0 ? " empty" : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? (g ? `${esc(NAMES[g.h])} was banned: click, then pick a hero` : "click, then pick a hero") : esc(NAMES[h]) + ": click to change"}">
-        <div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="opacity:.25;filter:grayscale(1)">` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
+      return `<div class="slot${h < 0 ? " empty" : ""}${g ? ` gone ${banSide(g.h)}` : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? (g ? `${esc(NAMES[g.h])} was banned: click, then pick a hero` : "click, then pick a hero") : esc(NAMES[h]) + ": click to change"}">
+        <div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="filter:grayscale(1)">${LB ? slash(54, 3) : slash(60, 0)}` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
         ${LB ? `${IDEAL_ON ? `<div class="iw" data-i="${i}"></div>` : ""}<div class="lab">${i === 0 ? "You" : "&nbsp;"}</div></div>`
              : `<div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : g ? `<s>${esc(short(g.h))}</s>` : "&nbsp;"}</div></div>`}`;
     }).join("");
@@ -278,7 +284,7 @@
       else { const m = searchMatches(); if (m.length) place(m[0]); }
       ev.preventDefault(); }
     else if (/^[1-8]$/.test(ev.key) && !$("search").value) { quickPick(+ev.key); ev.preventDefault(); }
-    else if (ev.key === "Backspace" && !$("search").value && st.bans.length) { undo(); ev.preventDefault(); }
+    else if ((ev.key === "Backspace" || ev.key === "Delete") && !$("search").value) { if (!clearActive() && st.bans.length) undo(); ev.preventDefault(); }
     else if (ev.key === "Escape") { $("search").value = ""; renderRoster(); }
   };
   document.addEventListener("keydown", ev => {
@@ -286,7 +292,7 @@
     if (ev.key === "/") { $("search").focus(); ev.preventDefault(); }
     else if (/^[1-8]$/.test(ev.key)) { quickPick(+ev.key); ev.preventDefault(); }
     else if (ev.key.length === 1 && /[a-z&]/i.test(ev.key)) { $("search").focus(); }
-    else if (ev.key === "Backspace" && st.bans.length) { undo(); ev.preventDefault(); }
+    else if (ev.key === "Backspace" || ev.key === "Delete") { if (!clearActive() && st.bans.length) undo(); ev.preventDefault(); }
   });
 
   // ---------------------------------------------------------------- figures (inline SVG, drawn from the model output)
