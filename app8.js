@@ -3,6 +3,7 @@
 (async function () {
   "use strict";
   const $ = id => document.getElementById(id);
+  const LB = document.documentElement.dataset.layout === "b";   // the test layout (beta.html): one column, their likely team as seats, the charts below the heroes
   const ROLE_NAMES = ["Vanguard", "Duelist", "Strategist"];
   const SHORT = { "Deadpool (Vanguard)": "Deadpool V", "Deadpool (Duelist)": "Deadpool D", "Deadpool (Strategist)": "Deadpool S",
     "Gorr The God Butcher": "Gorr", "Jeff The Land Shark": "Jeff", "Mister Fantastic": "Mr. Fantastic", "Captain America": "Cap",
@@ -97,7 +98,7 @@
   const undo = () => { if (LS.unban(st) < 0) return; st.active = { kind: "ban" }; update(); };
   $("undoBtn").onclick = undo;
   $("newBtn").onclick = () => newLobby();
-  $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.gone = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
+  $("resetBtn").onclick = () => { st.team = [-1, -1, -1, -1, -1, -1]; st.them = [-1, -1, -1, -1, -1, -1]; st.bans = []; st.gone = []; st.active = { kind: "team", i: 0 }; $("search").value = ""; update(); };
   $("linkBtn").onclick = () => { writeHash(); navigator.clipboard && navigator.clipboard.writeText(location.href); $("linkBtn").textContent = "Link copied"; setTimeout(() => $("linkBtn").textContent = "Copy link", 1400); };
   const themeNow = () => document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const setThemeLabel = () => $("themeBtn").textContent = themeNow() === "dark" ? "Light" : "Dark";
@@ -109,7 +110,11 @@
   function place(h) {
     if (h < 0) return;
     const a = st.active;
-    if (a.kind === "team") {
+    if (a.kind === "them") {                                // the test layout: a hero you see on their team, in place of the prediction
+      if (st.bans.includes(h)) return flash(`${NAMES[h]} is banned`);
+      for (let k = 0; k < 6; k++) if (st.them[k] === h) st.them[k] = -1; st.them[a.i] = h;
+      const nxt = st.them.findIndex((x, i) => x < 0 && i > a.i); st.active = nxt >= 0 ? { kind: "them", i: nxt } : { kind: "ban" };
+    } else if (a.kind === "team") {
       if (st.bans.includes(h)) return flash(`${NAMES[h]} is banned`);
       LS.hover(st, a.i, h); if (a.i === 0) rememberMine(h);
       const nxt = a.i === 0 ? -1 : st.team.findIndex((x, i) => x < 0 && i > a.i);
@@ -124,6 +129,7 @@
   const score = h => RES.score(h);                                  // the page's rule (engine8.js), anchor included
   const topBans = k => RES ? RES.cands.slice().sort((a, b) => score(b) - score(a)).slice(0, k) : [];
   function quickList() {
+    if (st.active.kind === "them") return enemyList(st.active.i);
     if (st.active.kind === "team") {
       const bans = bannedSet(), team = teamSet(), ok = h => h < H && !bans.has(h) && !team.has(h), i = st.active.i;
       const P = i === 0 && st.team[0] >= 0 ? null : seatP(i);            // you keep your hero while it is allowed: your list is for choosing one
@@ -138,7 +144,7 @@
     if (ourTurn()) { if (!RES) return []; let o = topBans(8); const sg = suggested(); if (sg.length) o = [sg[0].h].concat(o.filter(h => h !== sg[0].h)).slice(0, 8); return o.map(h => ({ h, lab: pp(RES.V[h]) })); }
     return THEM ? THEM.cands.slice().sort((a, b) => THEM.pe[b] - THEM.pe[a]).slice(0, 8).map(h => ({ h, lab: pct(THEM.pe[h]) })) : [];
   }
-  const quickSide = () => st.active.kind === "team" || ourTurn() ? "us" : "them";
+  const quickSide = () => st.active.kind === "them" ? "them" : st.active.kind === "team" || ourTurn() ? "us" : "them";
   /* What the player in seat i opens: the simulator's drafts of this lobby (stand-ins who show what the seat shows, the bans so
      far, the rest of the ban phase as typical teams make it, forced switches when a hero is banned), counted seat by seat; null
      until the drafts for this lobby are in. A seat showing a hero that is still allowed: the other heroes, as shares of the drafts
@@ -157,16 +163,16 @@
     return `Mate ${i + 1}: likely`;
   }
   function renderQuick() {
-    const q = quickList(), teamMode = st.active.kind === "team";
-    const lab = teamMode ? teamLab(st.active.i) : ourTurn() ? "Best bans" : "Their likely ban";
+    const q = quickList(), themMode = st.active.kind === "them", teamMode = st.active.kind === "team" || themMode;
+    const lab = themMode ? enemyLab(st.active.i) : teamMode ? teamLab(st.active.i) : ourTurn() ? "Best bans" : "Their likely ban";
     const html = q.length || teamMode ? `<span class="qlab">${lab}</span>` + q.map((x, k) =>
       `<button class="qt ${quickSide()}" data-h="${x.h}" title="${esc(NAMES[x.h])} (key ${k + 1})"><span class="qk">${k + 1}</span><img src="${img(x.h)}" alt=""><span class="qv">${x.lab}</span></button>`).join("") : "";
-    $("quickTeam").innerHTML = teamMode ? html : ""; $("quick").innerHTML = teamMode ? "" : html;
-    document.querySelectorAll("#quick .qt, #quickTeam .qt").forEach(el => el.onclick = () => place(+el.dataset.h));
+    $("quickTeam").innerHTML = teamMode && !themMode ? html : ""; $("quick").innerHTML = teamMode ? "" : html; if ($("quickThem")) $("quickThem").innerHTML = themMode ? html : "";
+    document.querySelectorAll("#quick .qt, #quickTeam .qt, #quickThem .qt").forEach(el => el.onclick = () => place(+el.dataset.h));
   }
   const quickPick = k => { const q = quickList()[k - 1]; if (q) { place(q.h); return true; } return false; };
   function newLobby() {
-    st.bans = []; st.gone = []; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
+    st.bans = []; st.gone = []; st.them = [-1, -1, -1, -1, -1, -1]; for (let i = 1; i < 6; i++) st.team[i] = -1; st.active = st.team[0] < 0 ? { kind: "team", i: 0 } : { kind: "ban" };
     $("search").value = ""; renderMatches(); update();
   }
   let flashT; function flash(msg) { $("turnHint").textContent = msg; clearTimeout(flashT); flashT = setTimeout(renderTurnHint, 1600); }
@@ -178,7 +184,8 @@
       const act = st.active.kind === "team" && st.active.i === i, g = h < 0 ? st.gone.find(x => x.i === i) : null;
       return `<div class="slot${h < 0 ? " empty" : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? (g ? `${esc(NAMES[g.h])} was banned: click, then pick a hero` : "click, then pick a hero") : esc(NAMES[h]) + ": click to change"}">
         <div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="opacity:.25;filter:grayscale(1)">` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div>
-        <div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : g ? `<s>${esc(short(g.h))}</s>` : "&nbsp;"}</div></div>`;
+        ${LB ? `${IDEAL_ON ? `<div class="iw" data-i="${i}"></div>` : ""}<div class="lab">${i === 0 ? "You" : "&nbsp;"}</div></div>`
+             : `<div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : g ? `<s>${esc(short(g.h))}</s>` : "&nbsp;"}</div></div>`}`;
     }).join("");
     $("teamSlots").querySelectorAll(".slot").forEach(el => el.onclick = ev => {
       const i = +el.dataset.i;
@@ -207,6 +214,9 @@
         <div class="who">${i + 1} ${side}</div><div class="pic">${pic}</div><div class="lab">${lab || "&nbsp;"}</div></div>`;
     }).join("");
     $("banSlots").querySelectorAll(".slot").forEach(el => el.onclick = () => banClick(+el.dataset.i, el.classList));
+    if (LB) for (const [side, id] of [["us", "banUs"], ["them", "banThem"]]) {   // the test layout: each team's three bans sit above its seats
+      const box = $(id); box.innerHTML = "";   // theirs mirrored, so both teams' last bans face each other across the middle
+      $("banSlots").querySelectorAll(`.slot.${side}`).forEach(el => { el.querySelector(".pic").dataset.n = +el.dataset.i + 1; side === "us" ? box.appendChild(el) : box.prepend(el); }); }   // data-n: the ban's number, as a corner badge
     renderQuick(); $("undoBtn").disabled = !st.bans.length;
   }
   function banClick(i, cls) {
@@ -217,7 +227,7 @@
     update();
   }
   function undoQuiet() { LS.unban(st); }
-  function renderTurnHint() { const e = nextBan(); $("target").innerHTML = ""; $("turnHint").innerHTML = e >= 6 ? "Ban phase complete." : ""; }
+  function renderTurnHint() { const e = nextBan(); $("target").innerHTML = ""; $("turnHint").innerHTML = e >= 6 && !LB ? "Ban phase complete." : ""; }   // the test layout: no completion line
   // roster order and the lists before the drafts are in: how much each hero is played at the selected rank, from the v8 world
   // model's stand-in teams at the rank band (the ban model's view of a lobby)
   const POPC = new Map();
@@ -382,11 +392,12 @@
       for (let k = 0; k < 400; k++) { const dy = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 2; if (!placed.some(p => Math.hypot(p.x - it.x, p.y - dy) < p.r + it.r + 2)) { it.y = dy; break; } }
       placed.push(it);
     }
-    const ext = Math.max(...items.map(i => Math.abs(i.y) + i.r)) + 4, cy = ext + 28, base = cy + ext + 18, Hh = base + 36;
+    const ext0 = Math.max(...items.map(i => Math.abs(i.y) + i.r)) + 4, ext = LB ? Math.max(ext0, W < 560 ? 96 : 128) : ext0;   // the test layout keeps the board one height
+    const cy = ext + 28, base = cy + ext + 18, Hh = base + 36;
     items.forEach(it => it.y += cy);
     let ax = ticks(lo, hi, W < 560 ? 3 : 5).map(t => `<line x1="${X(t)}" x2="${X(t)}" y1="14" y2="${base}" stroke="var(--hair)"/><text x="${X(t)}" y="${base + 15}" font-size="11" text-anchor="middle" class="faint">${them && !zeroLab ? pct(t) : pp(t, t && Math.abs(t) < .01 ? 2 : 1)}</text>`).join("");
-    if (zeroLab) ax += `<line class="rng0" x1="${X(0)}" x2="${X(0)}" y1="14" y2="${base}"/><text x="${X(0)}" y="${base + 29}" font-size="11" text-anchor="middle" class="faint">${zeroLab}</text>`;
-    ax += `<text x="${W - PAD}" y="${base + 29}" font-size="11" text-anchor="end" class="faint">${axLab}</text>`;
+    if (zeroLab) ax += `<line class="rng0" x1="${X(0)}" x2="${X(0)}" y1="14" y2="${base}"/>` + (LB ? "" : `<text x="${X(0)}" y="${base + 29}" font-size="11" text-anchor="middle" class="faint">${zeroLab}</text>`);
+    if (!LB) ax += `<text x="${W - PAD}" y="${base + 29}" font-size="11" text-anchor="end" class="faint">${axLab}</text>`;   // the test layout: a legend under the board instead
     if (!them) { const R = RES, m = R.spread(R.best), my = base - 8;          // the advice's range, on a line of its own under the board
       ov += `<g${T_(`<b>${esc(NAMES[R.best])}</b> ${pp(R.V[R.best])}<br><span class="d">${spreadTxt(m)}</span>`)}>${rangeMark(X, m, R.V[R.best], my)}`
         + `<rect x="${X(m.lo) - 4}" y="${my - 6}" width="${X(m.hi) - X(m.lo) + 8}" height="12" fill="transparent"/></g>`; }
@@ -516,13 +527,13 @@
     const left = [0, 1, 2, 3, 4, 5].slice(nextBan()).some(ours), o = mean(WIN.opt), b = WIN.beh && left ? WIN.beh[0] : null, done = nextBan() >= 6, gain = b === null ? null : o - b;
     const vs = [o].concat(b === null || done ? [] : [b]), lo = Math.min(.45, Math.floor(100 * Math.min(...vs) - 2) / 100), hi = Math.max(.60, Math.ceil(100 * Math.max(...vs) + 2) / 100);
     const Wd = 440, X = v => 12 + (v - lo) / (hi - lo) * (Wd - 24), half = .5 >= lo && .5 <= hi;
-    const scale = `<svg viewBox="0 0 ${Wd} 42" aria-hidden="true"><line x1="12" x2="${Wd - 12}" y1="14" y2="14" stroke="var(--hair)" stroke-width="6" stroke-linecap="round"/>
+    const scale = `<svg viewBox="0 0 ${Wd} 42" aria-hidden="true" data-lo="${lo}" data-hi="${hi}" data-wd="${Wd}"><line x1="12" x2="${Wd - 12}" y1="14" y2="14" stroke="var(--hair)" stroke-width="6" stroke-linecap="round"/>
       ${half ? `<line x1="${X(.5)}" x2="${X(.5)}" y1="4" y2="24" stroke="var(--faint)" stroke-dasharray="2 2"/><text x="${X(.5)}" y="38" font-size="12" text-anchor="middle" class="faint">50%, a coin flip</text>` : ""}
       ${b !== null && !done ? `<line x1="${X(Math.min(o, b))}" x2="${X(Math.max(o, b))}" y1="14" y2="14" stroke="var(--blue)" stroke-width="6"/><circle cx="${X(b)}" cy="14" r="5" fill="var(--paper)" stroke="var(--faint)" stroke-width="2"><title>both teams ban as usual: ${pct1(b)}</title></circle>` : ""}
-      <circle cx="${X(o)}" cy="14" r="7" fill="var(--blue)"><title>${pct1(o)}</title></circle>
+      <circle class="wdot" cx="${X(o)}" cy="14" r="7" fill="var(--blue)"><title>${pct1(o)}</title></circle>
       <text x="12" y="38" font-size="12" class="faint">${Math.round(100 * lo)}%</text><text x="${Wd - 12}" y="38" font-size="12" text-anchor="end" class="faint">${Math.round(100 * hi)}%</text></svg>`;
     const gainTxt = !done && gain !== null ? `<div class="wgain"><span class="wchip">${pp(gain, 1)}</span>points over both teams banning as usual (${pct1(b)})</div>` : "";
-    return `<div class="wscore"><div class="wtop"><div class="wbig">${pct1(o)}</div><div class="wlab">${done ? "your win chance after these bans" : left ? "the model's win chance, with its best later bans" : "your win chance, whatever they ban last"}</div></div>${gainTxt}${scale}</div>`;
+    return `<div class="wscore"><div class="wtop"><div class="wbig" data-v="${o}">${pct1(o)}</div><div class="wlab">${done ? "your win chance after these bans" : left ? "the model's win chance, with its best later bans" : "your win chance, whatever they ban last"}</div></div>${gainTxt}${scale}</div>`;
   }
   const quiet = html => html.replace(/<(figcaption|caption)>([\s\S]*?)<\/\1>/g, (m, t, x) => `<${t}><details class="more"><summary>How to read this</summary>${x}</details></${t}>`);
   const more = (label, body) => `<details class="more" style="margin:2px 0 10px 0"><summary>${label}</summary>${body}</details>`;
@@ -535,10 +546,10 @@
   // (at least two), so the seat forecasts show after the first batch and sharpen as the rest come in
   const CW = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)), CNB = Math.max(CW, 2);
   const CBATCHES = Array.from({ length: CNB }, (_, i) => { const a = Math.round(i * 16 / CNB), b = Math.round((i + 1) * 16 / CNB), d = Array.from({ length: b - a }, (_, k) => a + k); return d.concat(d.map(x => x + 32)); });
-  let compPool = [], COMP = null, compId = 0;
-  const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
+  let compPool = [], COMP = null, compId = 0, COMP_LAST = null;   // COMP_LAST: the last lobby's drafts, shown on their seats while a new lobby's first batch runs
+  const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans, st.them]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=e7cbdd6943"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=4618a0374c"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -546,14 +557,18 @@
     for (const w of compPool) {
       if (w.busy || C.next >= CBATCHES.length) continue;
       const runs = CBATCHES[C.next++];
-      w.busy = true; C.pending++; w.postMessage({ id: C.id, v: LAY.run, type: "values", st: C.st, cands: ["typ"], opens: true, runs });
+      w.busy = true; C.pending++; w.postMessage({ id: C.id, v: LAY.run, type: "values", st: C.st, cands: ["typ"], opens: true, runs, plan: C.plan });
     }
   }
   function compStart() {
     const key = compKey(); if (COMP && COMP.key === key) return;                   // a failed lobby stays failed until Try again (compRetry clears COMP)
+    if (COMP && !COMP.failed && COMP.nt) COMP_LAST = COMP;
     compWorkers();
+    // the test layout: our later bans in the drafts follow the page's advice (its likeliest path), not a typical team's, so showing a
+    // hero moves their predicted team only through the bans you would make and theirs (a typical team protects its own players' heroes)
+    let plan = null; if (LB && st.bans.length < 6) { const pth = E.path(lobby()) || []; plan = {}; for (const x of pth) if (x.us) plan[x.e] = x.h; }
     COMP = { key, id: ++compId, st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), next: 0, pending: 0, done: false, failed: false,
-             us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} } };
+             us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} }, swap: {}, plan };
     compDispatch();
   }
   function compMsg(w, d) {
@@ -563,26 +578,27 @@
       if (d.error) { compFail(); return; }
       const o = d.opens; for (let h = 0; h < H; h++) { C.us[h] += o.us[h]; C.them[h] += o.them[h]; } C.nu += o.nu; C.nt += o.nt; C.runs += o.runs;
       if (o.slots) for (let k = 0; k < o.slots.length; k++) C.slots[k] += o.slots[k];
+      if (o.swap) for (const j in o.swap) { const v = C.swap[j] || (C.swap[j] = new Float64Array(H)); o.swap[j].forEach((x, k) => v[k] += x); }
       for (const t of ["us", "them"]) for (const k in o.splits[t]) C.splits[t][k] = (C.splits[t][k] || 0) + o.splits[t][k];
       C.pending--; if (C.next >= CBATCHES.length && C.pending === 0) { C.done = true; const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); }
-      renderQuick(); fillOpens();                                               // the forecasts so far
+      renderEnemy(); renderQuick(); fillOpens();                                // the forecasts so far (their seats first: their list reads them)
     }
     compDispatch();                                                             // this worker is free: the current lobby's next batch
   }
   function compFail() {
     if (!COMP || COMP.failed) return; COMP.failed = true; compPool.forEach(w => w.terminate()); compPool = [];   // new workers on a retry
-    const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens();
+    const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderQuick(); fillOpens(); renderEnemy();
   }
   const opnVal = (side, h) => { const C = COMP; if (!C || C.key !== compKey() || C.failed) return ""; if (!C.nu) return "&hellip;"; const n = side === "us" ? C.nu : C.nt; return n ? pct(C[side][h] / n) : ""; };
   const opnCell = (side, h) => `<span class="opn" data-s="${side}" data-h="${h}">${opnVal(side, h)}</span>`;
   function fillOpens() { document.querySelectorAll(".opn").forEach(el => el.innerHTML = opnVal(el.dataset.s, +el.dataset.h)); }
-  document.addEventListener("click", ev => { if (ev.target && ev.target.id === "compRetry") { COMP = null; compStart(); const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); } });
+  document.addEventListener("click", ev => { if (ev.target && ev.target.id === "compRetry") { COMP = null; compStart(); const el = $("comp"); if (el) el.innerHTML = quiet(compInner()); renderEnemy(); } });
   const splitName = k => k.split("-").map((n, r) => `${n} ${RN[r]}${n === "1" ? "" : "s"}`).join(", ");
   const RNC = ["Vanguard", "Duelist", "Strategist"];
   /* One team's numbers: open chances per hero, role splits by frequency, and per role a ranked list: the heroes that fill the
      most common split (picks), then the next two (alternatives, at least 3% of drafts). */
-  function compSide(side) {
-    const C = COMP, n = side === "us" ? C.nu : C.nt, P = Array.from(C[side], x => x / Math.max(n, 1));   // a plain array: a typed array's map can only return numbers
+  function compSide(side, C = COMP) {
+    const n = side === "us" ? C.nu : C.nt, P = Array.from(C[side], x => x / Math.max(n, 1));   // a plain array: a typed array's map can only return numbers
     const sp = Object.entries(C.splits[side]).map(([k, c]) => ({ k, p: c / Math.max(n, 1) })).sort((a, b) => b.p - a.p);
     const best = sp.length ? sp[0].k.split("-").map(Number) : [2, 2, 2];
     const roles = [0, 1, 2].map(r => { const cand = P.map((p, h) => ({ h, p })).filter(x => ROLES[x.h] === r && x.p > 0).sort((a, b) => b.p - a.p);
@@ -618,26 +634,157 @@
     }
     return `<h2>Likely comps</h2>${head}${grid}`;
   }
+  /* Their likely team (test layout): the most common role split in the simulated drafts of this lobby, filled role by role with
+     the heroes their stand-ins open most, each with how often it is opened and the next hero of that role. A click bans it. */
+  /* Their seat i's list (test layout), as your seats have one: a seat you entered, what that player would switch to (the simulator's
+     stand-ins who play that hero, choosing again without it); a predicted seat, the other heroes of its role their team opens. */
+  let ENEMY = [];
+  const themComp = () => { const C = COMP, live = C && C.key === compKey();
+    if (live && (C.failed || C.nt)) return C;                         // this lobby's drafts, once in
+    if (!LB) return null;
+    if (C && !C.failed && C.nt) return C;                             // the lobby just left (its drafts, until the new ones start)
+    return COMP_LAST && !(live && C.failed) ? COMP_LAST : null; };      // the lobby before, while the new one's first batch runs
+  function enemyList(i) {
+    const E_ = ENEMY[i], C = themComp(); if (!E_ || !C || C.failed || !C.nt) return [];
+    const bans = bannedSet(), onThem = new Set(ENEMY.filter(Boolean).map(x => x.h)), ok = h => !bans.has(h) && !onThem.has(h);
+    let P;
+    if (E_.seen) { const v = C.swap[i]; if (!v) return []; const s = v.reduce((a, b) => a + b, 0) || 1; P = Array.from(v, x => x / s); }
+    else { const r = ROLES[E_.h]; P = Array.from(C.them, (x, h) => ROLES[h] === r ? x / C.nt : 0); }
+    return P.map((p, h) => ({ h, p })).filter(x => x.p > 0 && ok(x.h)).sort((a, b) => b.p - a.p).slice(0, 8).map(x => ({ h: x.h, lab: pct(x.p) }));
+  }
+  function enemyLab(i) {
+    const E_ = ENEMY[i]; if (!E_) return "Their seat: drafting&hellip;";
+    return E_.seen ? `If they switch from ${esc(short(E_.h))}` : `Their ${ROLE_NAMES[ROLES[E_.h]].toLowerCase()}: likely`;
+  }
+  function renderEnemy() {
+    const box = $("enemySlots"); if (!LB || !box) return;
+    const C = themComp(), live = !!C, seen = st.them, act = i => st.active.kind === "them" && st.active.i === i;
+    // the prediction for the seats you have not entered: the commonest role split, filled role by role with their commonest heroes
+    // (the drafts already hold the entered heroes fixed), skipping the heroes you entered
+    let pred = [];
+    if (live && !C.failed && C.nt) {
+      const S = compSide("them", C), P = S.P, best = S.sp.length ? S.sp[0].k.split("-").map(Number) : [2, 2, 2], taken = new Set(seen.filter(h => h >= 0));
+      const need = best.slice(); for (const h of taken) need[ROLES[h]] = Math.max(0, need[ROLES[h]] - 1);
+      pred = [0, 1, 2].flatMap(r => P.map((p, h) => ({ h, p })).filter(x => ROLES[x.h] === r && x.p > 0 && !taken.has(x.h)).sort((a, b) => b.p - a.p).slice(0, need[r]));
+    }
+    let k = 0; ENEMY = seen.map(h => h >= 0 ? { h, seen: true } : null);
+    box.innerHTML = seen.map((h, i) => {
+      if (h >= 0) return `<div class="slot them seen${act(i) ? " active" : ""}" data-i="${i}" title="${esc(NAMES[h])}, seen in the game: click to change"><div class="pic"><img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span></div><div class="lab">&nbsp;</div></div>`;
+      const x = pred[k++]; if (x) ENEMY[i] = { h: x.h, seen: false };
+      if (!x) return `<div class="slot them empty${act(i) ? " active" : ""}" data-i="${i}" title="click, then pick the hero you see"><div class="pic">?</div><div class="lab">&nbsp;</div></div>`;
+      return `<div class="slot them${act(i) ? " active" : ""}" data-i="${i}" title="Predicted: ${esc(NAMES[x.h])} (${pct(x.p)} of simulated drafts). Click, then pick the hero you see"><div class="pic"><img src="${img(x.h)}" alt="${esc(NAMES[x.h])}"></div><div class="lab"><span class="pct">${pct(x.p)}</span></div></div>`;
+    }).join("");
+    $("enemyHead").innerHTML = live && C.failed ? `The drafts could not be run. <button class="retry" id="compRetry">Try again</button>` : "";
+    box.querySelectorAll(".slot").forEach(el => el.onclick = ev => { const i = +el.dataset.i;
+      if (ev.target.dataset.clear !== undefined) { st.them[i] = -1; st.active = { kind: "them", i }; update(); return; }
+      st.active = act(i) ? { kind: "ban" } : { kind: "them", i }; update(false); });
+  }
+  /* Our ideal lineup (test layout): the six heroes that win most against their likely drafts for the players behind our seats,
+     after the ban phase the page expects (the advice for our bans, their likeliest for theirs), from a worker (Sim8.idealComp over 8 stand-in draws). Swaps stay within a seat's role unless changing roles gains at least
+     half a point, and a seat that shows a hero keeps it unless switching gains that much on its own. Shown as icons under the seats.
+     No gain in points is shown: an optimised lineup's modelled edge is far larger than any real one (the outcome model adds
+     hero effects up and the search picks its maximum). */
+  let IDEAL = null, idealW = null, idealId = 0;
+  const IDEAL_ON = document.documentElement.dataset.ideal === "on";   // hidden for now: <html data-ideal="on"> shows it again
+  function idealStart() {
+    if (!LB || !IDEAL_ON) return; const key = compKey(); if (IDEAL && IDEAL.key === key) return;
+    IDEAL = { key, id: ++idealId, done: false, failed: false }; renderIdeal();
+    if (!idealW) {
+      idealW = new Worker("sim8-worker.js?v=4618a0374c");
+      idealW.onmessage = ev => { const d = ev.data; if (!IDEAL || d.id !== IDEAL.id) return;
+        if (d.error) IDEAL.failed = true; else if (d.done) Object.assign(IDEAL, d.ideal, { done: true }); else return; renderIdeal(); };
+      idealW.onerror = () => { idealW.terminate(); idealW = null; if (IDEAL) { IDEAL.failed = true; renderIdeal(); } };
+    }
+    // the ban phase as the page expects it to go (your advised bans, their likeliest), so the lineup never uses a hero about to be banned
+    const s = lobby(), rest = s.bans.length < 6 ? (E.path(s) || []).map(x => x.h) : [];
+    idealW.postMessage({ id: IDEAL.id, v: LAY.run, type: "ideal", st: Object.assign(s, { bans: s.bans.concat(rest), mates6: [1, 2, 3, 4, 5].map(shownOf) }), runs: [0, 1, 2, 3, 4, 5, 6, 7], thr: .005 });
+  }
+  function renderIdeal() {
+    if (!LB || !IDEAL_ON) return; const I = IDEAL && IDEAL.key === compKey() && IDEAL.done ? IDEAL : null;
+    document.querySelectorAll("#teamSlots .iw").forEach(el => {
+      const i = +el.dataset.i; if (!I) { el.innerHTML = `<span class="ipic empty"></span>`; el.title = ""; return; }
+      const h = I.A[i], s = shownOf(i), same = h === s, roleSwap = s >= 0 && !same && ROLES[s] !== ROLES[h];
+      el.className = "iw" + (same ? " same" : "") + (roleSwap ? " role" : "");
+      el.title = same ? `Ideal after the bans: keep ${NAMES[h]}` : s < 0 ? `Ideal after the bans: ${NAMES[h]}` : `Ideal after the bans: swap ${NAMES[s]} for ${NAMES[h]}${roleSwap ? " (a role change: it gains at least half a point over staying in role)" : ""}`;
+      el.innerHTML = `<span class="ipic"><img src="${img(h)}" alt="${esc(NAMES[h])}"></span>`;
+    });
+  }
   function openers() { compStart(); return `<section class="comp" id="comp">${compInner()}</section>`; }
   // the charts under the advice can be hidden, leaving the call itself, so the panel stays still while you enter bans.
   // The charts and the methods start hidden on every load; their buttons show them for the visit
   let CHARTS = false;
-  const chartsBtn = () => `<span class="hbtn"><button id="chartsBtn" title="Show or hide the charts under the advice">${CHARTS ? "Hide charts" : "Show charts"}</button></span>`;
+  const chartsBtnHtml = () => `<span class="hbtn"><button id="chartsBtn" title="Show or hide the charts under the advice">${CHARTS ? "Hide charts" : "Show charts"}</button></span>`;
+  const chartsBtn = () => LB ? "" : chartsBtnHtml();          // the test layout has no charts, so no button
   let METHODS = false;
   const applyMethods = () => { $("methods").classList.toggle("lean", !METHODS); $("methodsBtn").textContent = METHODS ? "Hide" : "Show"; };
   $("methodsBtn").onclick = () => { METHODS = !METHODS; applyMethods(); if (METHODS) figUpdate(); else if (window.MethodFigs && MethodFigs.reset) MethodFigs.reset(); };
   applyMethods();
-  const applyCharts = () => { $("advice").classList.toggle("lean", !CHARTS); const b = $("chartsBtn"); if (b) b.textContent = CHARTS ? "Hide charts" : "Show charts"; };
+  const comps = () => LB ? (compStart(), "") : openers();       // the test layout shows the drafts as their likely team instead
+  const applyCharts = () => { $("advice").classList.toggle("lean", !CHARTS); if ($("adviceMore")) $("adviceMore").classList.toggle("lean", !CHARTS); const b = $("chartsBtn"); if (b) b.textContent = CHARTS ? "Hide charts" : "Show charts"; };
+  /* The board's legend (test layout): a key of its marks, and what left to right means, in place of the labels inside the board. */
+  function boardLegend(them) {
+    // the keys use portraits from this lobby's board, drawn as the board draws them
+    const sw = inner => `<svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true">${inner}</svg>`;
+    const face = (h, r, stroke, w, rare) => h === undefined ? "" : sw(`<image href="${img(h)}" x="${15 - r}" y="${11 - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#cc)" preserveAspectRatio="xMidYMid slice"${rare ? ' class="rare"' : ""}/>`
+      + `<circle cx="15" cy="11" r="${r}" fill="none" stroke="${stroke}" stroke-width="${w}"/>`);
+    const typ = sw(`<line class="rng0" x1="15" x2="15" y1="2" y2="20"/>`);
+    let items, axis;
+    if (them) {
+      const T = THEM, o = T.cands.slice().sort((a, b) => T.pe[b] - T.pe[a]), rare = o.find(h => T.pe[h] < .04);
+      items = [[face(o[0], 9, "var(--red)", 2.5), "Their likeliest ban"],
+               [sw(`<image href="${img(o[2])}" x="1" y="7" width="9" height="9" clip-path="url(#cc)"/><image href="${img(o[1])}" x="12" y="2" width="17" height="17" clip-path="url(#cc)"/>`), "Bigger: more likely"],
+               [face(rare, 6, "var(--paper)", 1.5, true), "Unlikely (under 4%)"], [typ, "Their typical ban"]];
+      axis = "Across: your win chance, in points, if they ban it, against their typical ban. Click a portrait if they banned it.";
+    } else {
+      const R = RES, other = R.cands.filter(h => h !== R.best && R.supported.has(h)).sort((a, b) => R.V[b] - R.V[a])[0], rare = R.cands.find(h => !R.supported.has(h));
+      items = [[face(R.best, 9, "var(--blue)", 2.5), "The advice"], [face(other, 6, "var(--paper)", 1.5), "Other bans"], [face(rare, 6, "var(--paper)", 1.5, true), "Too rare to advise"],
+               [typ, "A typical ban"], [sw(`<rect class="rng us" x="2" y="8" width="26" height="6" rx="3"/><circle cx="18" cy="11" r="3.6" class="us"/>`), "The advice's range"]];
+      axis = "Across: your win chance, in points, after the ban, against a typical ban. Click a portrait to ban it.";
+    }
+    return `<div class="blegend">${items.filter(([s]) => s).map(([s, l]) => `<span class="bkey">${s}${l}</span>`).join("")}<span class="baxis">${axis}</span></div>`;
+  }
+  /* The test layout: the win chance glides from the value on screen to the new one (the number and its dot), whenever the lobby
+     changes it; a change mid-glide carries on from where it is. */
+  let WSHOW = null, WRAF = 0;
+  function animWin() {
+    const el = document.querySelector("#adviceBody .wbig"); if (!el) { WSHOW = null; cancelAnimationFrame(WRAF); return; }
+    const v1 = +el.dataset.v, v0 = WSHOW; cancelAnimationFrame(WRAF);
+    if (v0 === null || Math.abs(v1 - v0) < 1e-6 || still.matches || document.hidden) { WSHOW = v1; return; }   // hidden: frames are paused, so no glide
+    const svg = el.closest(".wscore").querySelector("svg[data-lo]"), dot = svg && svg.querySelector(".wdot");
+    const lo = svg ? +svg.dataset.lo : 0, hi = svg ? +svg.dataset.hi : 1, Wd = svg ? +svg.dataset.wd : 0, X = v => 12 + (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * (Wd - 24);
+    const t0 = performance.now(), D = 600;
+    const step = now => { const u = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - u, 3), v = v0 + (v1 - v0) * e; WSHOW = v;
+      el.textContent = pct1(v); if (dot) dot.setAttribute("cx", X(v)); if (u < 1) WRAF = requestAnimationFrame(step); };
+    step(t0);
+  }
   function renderAdvice() {
     const e = nextBan(), W = figW(); let html = "";
-    if (e >= 6) html += `<h2 class="hh">Ban phase complete ${chartsBtn()}</h2>${winLine()}<div class="det">${openers()}</div>`;
+    // the test layout: when the board gives way to the result (or comes back on an undo), fade out, ease the height, fade in
+    if (LB && ADV_ANIM) { ADV_PENDING = true; return; }             // mid-animation: draw the latest state once it ends
+    if (LB) { const mode = e >= 6 ? "done" : "board";
+      if (ADV_MODE && mode !== ADV_MODE && !still.matches && !ADV_ANIM) {
+        ADV_ANIM = true; const A = $("advice"), B = $("adviceBody"), h0 = A.offsetHeight;
+        B.style.transition = "opacity .22s ease"; B.style.opacity = "0";
+        setTimeout(() => {
+          ADV_MODE = mode; A.style.minHeight = ""; A.style.height = h0 + "px"; A.style.overflow = "hidden";
+          ADV_ANIM = false; ADVH = 0; renderAdvice(); ADV_ANIM = true; A.style.minHeight = "";   // no minimum while it eases
+          A.style.height = "auto"; const h1 = A.offsetHeight; A.style.height = h0 + "px";   // the block's own height, margins included (the inner body's is short of it)
+          A.style.transition = "height .45s ease"; void A.offsetHeight;
+          requestAnimationFrame(() => { A.style.height = h1 + "px"; B.style.opacity = "1"; });
+          setTimeout(() => { A.style.transition = ""; A.style.height = ""; A.style.overflow = ""; B.style.transition = "";
+            ADV_ANIM = false; ADVH = A.offsetHeight; A.style.minHeight = ADVH + "px"; if (ADV_PENDING) { ADV_PENDING = false; renderAdvice(); } }, 480);
+        }, 230);
+        return;
+      }
+      ADV_MODE = mode; }
+    if (e >= 6) html += `<h2 class="hh">Ban phase complete ${chartsBtn()}</h2>${winLine()}<div class="det">${comps()}</div>`;
     else if (ourTurn() && RES) {
       const cnt = turnCount(), R = RES, pair = cnt === 2 && PAIRS && PAIRS.length ? PAIRS[0] : null;
       const runner = R.cands.filter(h => h !== R.best).sort((a, b) => R.V[b] - R.V[a])[0], clr = runner !== undefined && R.clear(R.best, runner);
-      html += `<h2 class="hh"><span>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</span>${chartsBtn()}</h2>`;
-      html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
+      if (!LB) html += `<h2 class="hh"><span>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</span>${chartsBtn()}</h2>`;
+      if (!LB) html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
-      html += `<div class="fig8" id="boardSlot"></div><div class="det">`;
+      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}<div class="det">`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
         then the best ban once it is made. The other squares score both bans together, for comparison.</p>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
@@ -647,14 +794,14 @@
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => opnCell("them", h) }, { th: "You open", td: h => opnCell("us", h) }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Band: the range, dot: the value, dashed line: a typical ban. Typical: how often a
         typical team in your seat makes this ban now (the advice only picks bans typical teams make at least ${+(100 * E.SUPP).toFixed(2)}% of the time${E.CNT ? " and that real teams at your rank have made at this point" : ""})${E.LAM ? ". The advice also leans toward bans real teams make often, so it is not always the ban with the highest value here" : ""}. They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
-      html += openers() + "</div>";
+      html += comps() + "</div>";
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
-      html += `<h2 class="hh"><span>Their ban #${e + 1}</span>${chartsBtn()}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span> ${worstTxt(F, T)}</p>`;
-      html += `<div class="fig8" id="boardSlot"></div><div class="det">`;
+      if (!LB) html += `<h2 class="hh"><span>Their ban #${e + 1}</span>${chartsBtn()}</h2><p class="head">Likeliest <span class="t">${esc(NAMES[F.top])}</span> <span class="n t">${pct(T.pe[F.top])}</span> ${worstTxt(F, T)}</p>`;
+      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(true) : ""}<div class="det">`;
       html += more("Why they would ban these", `<figure>${whySplit(T)}<figcaption>The ban model's reasons against an average hero (log-odds). "Your team plays it": teams go after the heroes the
         other team's players play, and the heroes your team shows say who your players are.</figcaption></figure>`);
-      html += openers() + "</div>";
+      html += comps() + "</div>";
     }
     // a timing race can leave the old board in the page: take it out before the new html, so it moves rather than rebuilds
     if (BOARD.svg && BOARD.svg.parentNode) BOARD.svg.parentNode.removeChild(BOARD.svg);
@@ -663,8 +810,13 @@
     if ($("chartsBtn")) $("chartsBtn").onclick = () => { CHARTS = !CHARTS; applyCharts(); const h0 = adviceBan(); if (CHARTS && h0 !== null) flowStart(h0); };
     $("adviceBody").querySelectorAll("tr.pick").forEach(el => el.onclick = () => { st.active = { kind: "ban" }; place(+el.dataset.h); });
     $("adviceBody").querySelectorAll("[data-pair]").forEach(el => el.onclick = () => { if (ourTurn() && turnCount() === 2) { const [a, b] = el.dataset.pair.split(",").map(Number); banBoth(a, b); } });
+    if (LB) { const d = $("adviceBody").querySelector(".det"); if (d) d.remove(); }   // the test layout has no charts (their drafts still run: comps() started them)
+    if (LB) animWin();
+    if (LB && !ADV_ANIM) { const A = $("advice"); ADVH = Math.max(ADVH, A.offsetHeight); A.style.minHeight = ADVH + "px"; }   // no jump of the lobby below when a turn is shorter
   }
   let REPLY = null;
+  let ADV_MODE = null, ADV_ANIM = false, ADV_PENDING = false;                            // the test layout's board / result switch, and whether it is animating
+  let ADVH = 0; if (LB) window.addEventListener("resize", () => { ADVH = 0; $("advice").style.minHeight = ""; });
   // the advised ban's swaps: the simulator drafts this lobby with and without it (the same stand-ins and random numbers) and follows
   // their players who would have opened it. Run only while the charts are shown
   let FL = null, flowW = null, flowId = 0;
@@ -673,7 +825,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=e7cbdd6943");
+      flowW = new Worker("sim8-worker.js?v=4618a0374c");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -699,9 +851,10 @@
     writeHash(); figUpdate();
     $("firstBtn").classList.toggle("on", st.first); $("secondBtn").classList.toggle("on", !st.first);
     $("tierSel").value = st.tier; $("mapSel").value = String(st.map);
-    renderTeam(); renderTurnHint();
+    renderTeam(); renderTurnHint(); renderEnemy(); renderIdeal();
     if (!recompute && (RES || THEM || DONE)) { renderBans(); renderRoster(); return; }
     compStart();                                                                // the drafts start at once, in the workers (the board's move is not disturbed)
+    idealStart();
     $("mainEl").classList.add("busy"); const my = ++pending;
     setTimeout(() => {
       if (my !== pending) return;
@@ -762,7 +915,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=e7cbdd6943");
+      endW = new Worker("sim8-worker.js?v=4618a0374c");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }

@@ -16,6 +16,11 @@ app.write_text(re.sub(r'new Worker\("sim8-worker\.js(\?v=[^"]*)?"\)', f'new Work
 page = root / "index.html"
 for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): t = sub_script(page, name)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
+# the test layout (beta.html): the same scripts as the page
+beta = root / "beta.html"
+if beta.exists():
+    for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): tb = sub_script(beta, name)
+    print("stamped beta:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tb)))
 # the previous model's page: its worker version sits inside v7/app.js, so v7/app.js is hashed after it
 v7 = root / "v7" / "app.js"
 if v7.exists():

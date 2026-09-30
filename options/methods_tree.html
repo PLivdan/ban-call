@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods figures</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root { --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6; --blue: #2a4bad; --red: #b0382d; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; } }
+  :root[data-theme="dark"] { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 "Archivo Narrow", system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font: 800 30px/1.1 Archivo, sans-serif; font-stretch: 112%; margin: 0 0 6px; }
+  .lede { color: var(--faint); max-width: 80ch; margin: 0 0 6px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  button { font: 600 13px "Archivo Narrow", sans-serif; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 5px 10px; cursor: pointer; }
+  .opt { border-top: 1px solid var(--ink); margin-top: 38px; padding-top: 12px; display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(240px, 1fr); gap: 26px; align-items: start; }
+  @media (max-width: 860px) { .opt { grid-template-columns: 1fr; } }
+  .opt .tag { font: 600 12px "IBM Plex Mono", monospace; color: var(--faint); letter-spacing: .04em; }
+  .opt h2 { font: 700 21px/1.2 Archivo, sans-serif; margin: 2px 0 10px; }
+  .opt .side p { margin: 0 0 10px; font-size: 14.5px; }
+  .opt .side .f { color: var(--faint); font-size: 14px; }
+  .opt .side b { font-weight: 600; }
+  .fig svg { display: block; width: 100%; height: auto; }
+  .ctrl { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 13px; color: var(--faint); }
+  svg text { fill: var(--ink); font-family: "Archivo Narrow", sans-serif; }
+  svg .f { fill: var(--faint); } svg .bl { fill: var(--blue); } svg .rd { fill: var(--red); }
+  svg .hd { font: 700 11px Archivo, sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+  svg .num { font: 800 15px Archivo, sans-serif; }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12.5px; padding: 4px 8px; display: none; z-index: 9; }
+</style>
+<main>
+  <div class="top"><h1>Methods: the machinery, three figures</h1><button id="theme">Dark</button></div>
+  <p class="lede" id="lede"></p>
+
+  <section class="opt"><div><span class="tag">T1</span><h2>The whole ban phase, to scale</h2><div class="fig" id="t1"></div></div>
+    <div class="side" id="t1s"></div></section>
+
+  <section class="opt"><div><span class="tag">T2</span><h2>Forward, then back</h2><div class="fig" id="t2"></div>
+    <div class="ctrl"><button id="t2play">Replay</button><span id="t2stage"></span></div></div>
+    <div class="side" id="t2s"></div></section>
+
+  <section class="opt"><div><span class="tag">T3</span><h2>One branch end, opened up</h2><div class="fig" id="t3"></div></div>
+    <div class="side" id="t3s"></div></section>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+(async function () {
+  "use strict";
+  const $ = id => document.getElementById(id), root = document.documentElement, tb = $("theme");
+  const dark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const D = await fetch("methods_tree_data.json", { cache: "no-cache" }).then(r => r.json());
+  const N = D.heroes, img = h => `../img/heroes/${D.portraits[h]}.webp`, pts = v => (v >= 0 ? "+" : "−") + Math.abs(100 * v).toFixed(2);
+  const fmt = x => Math.round(x).toLocaleString("en-US");
+  const nOurs = D.ours.length, nReplies = D.ours.reduce((a, o) => a + o.reply.length, 0);
+  let paths = 1; for (let k = 0; k < 6; k++) paths *= (nOurs - k);
+  $("lede").innerHTML = `Three ways to show the machinery for the Methods section, drawn from the live model's numbers for one lobby: ${D.lobby.map}, ${D.lobby.rank}, you on ${D.lobby.you}, banning first.
+    They show what the model does and at what scale, not how it does it.`;
+
+  // ---------------------------------------------------------------- colour helpers (from the page's tokens, redrawn on theme change)
+  const css = n => getComputedStyle(root).getPropertyValue(n).trim();
+  const rgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+  const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return `rgb(${A.map((x, i) => Math.round(x + (B[i] - x) * t)).join(",")})`; };
+  let P = {}; const pal = () => { P = { paper: css("--paper"), ink: css("--ink"), faint: css("--faint"), hair: css("--hair"), panel: css("--panel"), blue: css("--blue"), red: css("--red") }; };
+  const VMAX = Math.max(...D.ours.map(o => Math.abs(o.v)));
+  const valCol = v => { const t = Math.max(-1, Math.min(1, v / VMAX)); return t >= 0 ? mix(P.hair, P.blue, Math.pow(t, .75)) : mix(P.hair, P.red, Math.pow(-t, .75)); };
+  let seed = 11; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const tip = $("tip"), tipOn = (el, html) => { el.addEventListener("mousemove", ev => { tip.innerHTML = html; tip.style.display = "block"; tip.style.left = ev.clientX + 12 + "px"; tip.style.top = ev.clientY + 12 + "px"; }); el.addEventListener("mouseleave", () => tip.style.display = "none"); };
+  const T = (x, y, s, cls = "", a = "start", sz = 12, extra = "") => `<text x="${x}" y="${y}" class="${cls}" text-anchor="${a}" font-size="${sz}" ${extra}>${s}</text>`;
+  const clip = (id, x, y, r) => `<clipPath id="${id}"><circle cx="${x}" cy="${y}" r="${r}"/></clipPath>`;
+  const portrait = (h, x, y, r, ring, id) => `<defs>${clip(id, x, y, r)}</defs><image href="${img(h)}" x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`
+    + (ring ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${ring}" stroke-width="2"/>` : "");
+
+  // ================================================================ T1: the sunburst
+  function drawT1() {
+    const C = 330, cx = 330, cy = 330, R0 = 52, R = [[56, 118], [120, 176], [178, 214], [216, 240], [242, 260], [262, 274]];
+    const arc = (r0, r1, a0, a1) => { const la = a1 - a0 > Math.PI ? 1 : 0, p = (r, a) => `${cx + r * Math.sin(a)},${cy - r * Math.cos(a)}`;
+      return `M${p(r0, a0)} A${r0},${r0} 0 ${la} 1 ${p(r0, a1)} L${p(r1, a1)} A${r1},${r1} 0 ${la} 0 ${p(r1, a0)} Z`; };
+    let g = `<svg viewBox="0 0 ${2 * C} ${2 * C + 20}" role="img">`, ev = [];
+    const step = 2 * Math.PI / nOurs; seed = 11;
+    D.ours.forEach((o, i) => {
+      const a0 = i * step, a1 = a0 + step;
+      g += `<path class="s1" data-i="${i}" d="${arc(R[0][0], R[0][1], a0, a1)}" fill="${valCol(o.v)}" stroke="${P.paper}" stroke-width=".8"/>`;
+      const tot = o.reply.reduce((a, r) => a + r[1], 0), pmax = o.reply.length ? o.reply[0][1] : 1; let a = a0;
+      o.reply.forEach((r, k) => {
+        const w = step * r[1] / Math.max(tot, 1e-9), b = a + w;
+        g += `<path class="s2" data-i="${i}" data-k="${k}" d="${arc(R[1][0], R[1][1], a, b)}" fill="${mix(P.hair, P.red, .15 + .85 * Math.sqrt(r[1] / pmax))}" stroke="${P.paper}" stroke-width="${w > .01 ? .5 : .15}"/>`;
+        const sub = r[2] || null, subs = sub ? sub.map(x => x[1]) : Array.from({ length: 10 }, () => Math.pow(rnd(), 2.5)), st = subs.reduce((x, y) => x + y, 0), sm = Math.max(...subs); let c = a;
+        subs.forEach(q => { const d = w * q / st; if (d > .0006) g += `<path d="${arc(R[2][0], R[2][1], c, c + d)}" fill="${mix(P.hair, P.red, (sub ? .1 : .05) + (sub ? .8 : .45) * Math.sqrt(q / sm))}" opacity="${sub ? 1 : .8}"/>`; c += d; });
+        a = b;
+      });
+    });
+    // the outer rings: far too fine to draw segment by segment, so drawn as texture at their real density's limit
+    const tex = (r0, r1, n, col, op) => { let s = ""; for (let k = 0; k < n; k++) { const a = rnd() * 2 * Math.PI, rr = r0 + (r1 - r0) * rnd() * .2; s += `<line x1="${cx + rr * Math.sin(a)}" y1="${cy - rr * Math.cos(a)}" x2="${cx + r1 * Math.sin(a)}" y2="${cy - r1 * Math.cos(a)}" stroke="${col}" stroke-width=".35" opacity="${op * (.4 + .6 * rnd())}"/>`; } return s; };
+    g += `<circle cx="${cx}" cy="${cy}" r="${(R[3][0] + R[3][1]) / 2}" fill="none" stroke="${mix(P.paper, P.blue, .13)}" stroke-width="${R[3][1] - R[3][0]}"/>` + tex(R[3][0], R[3][1], 900, P.blue, .55);
+    g += `<circle cx="${cx}" cy="${cy}" r="${(R[4][0] + R[4][1]) / 2}" fill="none" stroke="${mix(P.paper, P.blue, .09)}" stroke-width="${R[4][1] - R[4][0]}"/>` + tex(R[4][0], R[4][1], 1500, P.blue, .4);
+    g += `<circle cx="${cx}" cy="${cy}" r="${(R[5][0] + R[5][1]) / 2}" fill="none" stroke="${mix(P.paper, P.red, .08)}" stroke-width="${R[5][1] - R[5][0]}"/>` + tex(R[5][0], R[5][1], 2200, P.red, .35);
+    g += `<circle cx="${cx}" cy="${cy}" r="286" fill="none" stroke="${P.faint}" stroke-width="1" stroke-dasharray="1 3"/>`;
+    g += `<circle cx="${cx}" cy="${cy}" r="${R0}" fill="${P.ink}"/>` + T(cx, cy - 6, "now", "", "middle", 13, `style="fill:${P.paper};font-weight:600"`)
+      + T(cx, cy + 10, D.lobby.you, "", "middle", 11, `style="fill:${P.paper}"`) + T(cx, cy + 23, D.lobby.rank, "", "middle", 11, `style="fill:${P.paper}"`);
+    // callouts: the best and the worst of our bans
+    const call = (i, side) => { const o = D.ours[i], a = (i + .5) * step, x0 = cx + (R[0][1] - 4) * Math.sin(a), y0 = cy - (R[0][1] - 4) * Math.cos(a), x1 = cx + 300 * Math.sin(a) + side * 40, y1 = cy - 300 * Math.cos(a) - 6;
+      return `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${P.ink}" stroke-width="1"/>` + portrait(o.h, x1 + side * 16, y1, 14, o.v >= 0 ? P.blue : P.red, `t1c${i}`)
+        + T(x1 + side * 36, y1 - 1, N[o.h], "", side > 0 ? "start" : "end", 12.5, 'style="font-weight:600"') + T(x1 + side * 36, y1 + 13, `${pts(o.v)} pts`, o.v >= 0 ? "bl" : "rd", side > 0 ? "start" : "end", 12); };
+    g += call(0, 1) + call(nOurs - 1, -1);
+    g += `<path d="${arc(R[0][0] - 1, R[0][1] + 1, 0, step)}" fill="none" stroke="${P.ink}" stroke-width="1.6"/>`;
+    g += `</svg>`; $("t1").innerHTML = g;
+    const svgEl = $("t1").querySelector("svg");
+    svgEl.querySelectorAll("path.s1").forEach(el => { const o = D.ours[+el.dataset.i]; tipOn(el, `Ban <b>${N[o.h]}</b>: ${pts(o.v)} pts against a typical ban`); });
+    svgEl.querySelectorAll("path.s2").forEach(el => { const o = D.ours[+el.dataset.i], r = o.reply[+el.dataset.k]; tipOn(el, `after ${N[o.h]}, they ban <b>${N[r[0]]}</b>: ${(100 * r[1]).toFixed(1)}%`); });
+    $("t1s").innerHTML = `
+      <p><b>Centre:</b> your lobby, before any ban.</p>
+      <p><b>First ring:</b> the ${nOurs} bans you could make, sorted clockwise from the best. Blue is better for you than a typical ban, red is worse.</p>
+      <p><b>Second ring:</b> their reply to each, sized by how likely it is. About ${fmt(nReplies)} replies are plausible (2 in 1,000 or more). Darker is likelier.</p>
+      <p><b>Outer rings:</b> their second ban, then your second and third, then their last. From here the segments are too thin to draw one by one, so the rings show their density.</p>
+      <p><b>Dotted edge:</b> every one of about ${Math.round(paths / 1e9)} billion ways the phase can go ends with both teams drafting and the match scored.</p>
+      <p class="f">Hover a segment for its numbers. The first two rings and the start of the third are the model's numbers for this lobby.</p>`;
+  }
+
+  // ================================================================ T2: forward, then back
+  let t2timer = null;
+  function drawT2(play) {
+    const Wd = 700, Hh = 390, X = [40, 150, 260, 370, 470, 560, 640], us = [1, 0, 0, 1, 1, 0], BR = [6, 2, 2, 2, 2, 1], top = 34, bot = 360;
+    seed = 5; const nodes = [], edges = []; let leaves = 0;
+    const NL = BR.reduce((a, b) => a * b);
+    function grow(e, parent, meta) {
+      const id = nodes.length, n = { id, e, parent, meta, kids: [] }; nodes.push(n);
+      if (e === 6) { n.y = top + (leaves++ + .5) * (bot - top) / NL; return n; }
+      for (let k = 0; k < BR[e]; k++) {
+        let m = {};
+        if (e === 0) m = { h: D.ours[k].h, v: D.ours[k].v, rep: D.ours[k].reply };
+        if (e === 1) { const r = meta.rep[k]; m = { h: r[0], p: r[1] }; }
+        if (e > 1) m = { p: us[e] ? null : [.55, .3][k] || .15 };
+        const c = grow(e + 1, n, m); n.kids.push(c); edges.push([n, c, k]);
+      }
+      n.y = n.kids.reduce((a, c) => a + c.y, 0) / n.kids.length; return n;
+    }
+    const rootN = grow(0, null, {});
+    // leaf values: noise around the root child's real value, then shifted so the carried-back value of each first ban is exactly the model's
+    nodes.filter(n => n.e === 6).forEach(n => { let a = n; while (a.e > 1) a = a.parent; n.val = (a.meta.v || 0) + (rnd() - .5) * VMAX * 1.6; });
+    const back = n => { if (n.e === 6) return n.val; const vs = n.kids.map(back);
+      if (us[n.e]) { n.pick = vs.indexOf(Math.max(...vs)); n.val = Math.max(...vs); } else { const ps = n.kids.map(c => c.meta.p || 1 / n.kids.length), s = ps.reduce((a, b) => a + b); n.val = vs.reduce((a, v, i) => a + v * ps[i] / s, 0); } return n.val; };
+    rootN.kids.forEach(c => { back(c); const sh = c.meta.v - c.val; const add = n => { if (n.e === 6) n.val += sh; n.kids.forEach(add); }; add(c); back(c); });
+    back(rootN);
+    const curve = (a, b) => `M${X[a.e]},${a.y} C${X[a.e] + 46},${a.y} ${X[b.e] - 46},${b.y} ${X[b.e]},${b.y}`;
+    let g = `<svg viewBox="0 0 ${Wd} ${Hh}" role="img">`;
+    for (let e = 0; e < 6; e++) g += T((X[e] + X[e + 1]) / 2, 16, us[e] ? "you" : "them", us[e] ? "bl" : "rd", "middle", 11.5);
+    g += T(X[6] + 8, 16, "draft, score", "f", "start", 11.5);
+    // the rest, not expanded: faint stubs
+    for (let k = 0; k < 14; k++) { const y = top + (bot - top) * (k + .5) / 14; g += `<path d="M${X[0]},${rootN.y} C${X[0] + 40},${rootN.y} ${X[0] + 50},${y} ${X[0] + 78},${y}" fill="none" stroke="${P.faint}" stroke-width=".5" opacity=".25" class="stub"/>`; }
+    g += T(X[0] + 80, bot + 16, `+${nOurs - BR[0]} more first bans, and every branch is this wide`, "f", "start", 11);
+    edges.forEach(([a, b], i) => { const w = a.e === 1 ? 1 + 5 * (b.meta.p || 0) : us[a.e] ? 1.2 : 1 + 2 * (b.meta.p || .3);
+      g += `<path class="ed" data-i="${i}" d="${curve(a, b)}" fill="none" stroke="${us[a.e] ? P.blue : P.red}" stroke-width="${w.toFixed(2)}" opacity=".7" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>`; });
+    nodes.filter(n => n.e === 6).forEach(n => g += `<rect class="lf" data-id="${n.id}" x="${X[6] - 3}" y="${n.y - 1.6}" width="0" height="3.2" fill="${valCol(n.val)}"/>`);
+    g += `<circle cx="${X[0]}" cy="${rootN.y}" r="6" fill="${P.ink}"/>` + T(X[0], rootN.y + 22, "now", "f", "middle", 11);
+    rootN.kids.forEach((c, k) => { const w = 44 + 6.2 * N[c.meta.h].length;
+      g += `<g class="lab" data-k="${k}" opacity="0"><rect x="${X[1] + 4}" y="${c.y - 13}" width="${w}" height="26" fill="${P.paper}" opacity=".92"/>${portrait(c.meta.h, X[1] + 18, c.y, 11, P.blue, `t2p${k}`)}<text x="${X[1] + 34}" y="${c.y - 1}" font-size="12" style="font-weight:600">${N[c.meta.h]}</text><text x="${X[1] + 34}" y="${c.y + 11}" font-size="11" class="bl">${pts(c.meta.v)}</text></g>`; });
+    g += `<g id="t2res" opacity="0"><rect x="${X[0] - 30}" y="${Hh - 26}" width="0" height="0"/></g></svg>`;
+    $("t2").innerHTML = g;
+    const S = $("t2").querySelector("svg"), E = S.querySelectorAll("path.ed"), LF = S.querySelectorAll("rect.lf"), stage = $("t2stage");
+    const setStage = s => stage.textContent = s;
+    const wait = ms => new Promise(r => t2timer = setTimeout(r, ms));
+    async function run() {
+      clearTimeout(t2timer); E.forEach(p => { p.style.transition = "none"; p.setAttribute("stroke-dashoffset", 1); p.setAttribute("opacity", .7); });
+      LF.forEach(r => r.setAttribute("width", 0)); S.querySelectorAll("g.lab").forEach(l => l.setAttribute("opacity", 0));
+      setStage("1 · play forward: every ban opens new branches");
+      for (let e = 0; e < 6; e++) { edges.forEach(([a], i) => { if (a.e === e) { E[i].style.transition = "stroke-dashoffset .55s ease-out"; E[i].setAttribute("stroke-dashoffset", 0); } }); await wait(420); }
+      await wait(250); setStage("2 · every branch end: both teams draft, the match is scored");
+      LF.forEach((r, k) => setTimeout(() => { r.style.transition = "width .25s"; r.setAttribute("width", 34); }, k * 6)); await wait(LF.length * 6 + 500);
+      setStage("3 · carry the values back: your turns take the best, theirs weigh by likelihood");
+      for (let e = 5; e >= 0; e--) {
+        edges.forEach(([a, b], i) => { if (a.e !== e) return; E[i].style.transition = "stroke .5s, opacity .5s";
+          E[i].setAttribute("stroke", valCol(b.val));
+          if (us[e] && a.pick !== undefined && e > 0) E[i].setAttribute("opacity", a.kids[a.pick] === b ? 1 : .18); else E[i].setAttribute("opacity", .9); });
+        await wait(520);
+      }
+      setStage(`4 · choose: ban ${N[D.ours[0].h]}, ${pts(D.ours[0].v)} pts against a typical ban`);
+      S.querySelectorAll("g.lab").forEach((l, k) => setTimeout(() => { l.style.transition = "opacity .4s"; l.setAttribute("opacity", 1); }, k * 90));
+      edges.forEach(([a, b], i) => { if (a.e === 0) { E[i].setAttribute("stroke-width", b === rootN.kids[0] ? 4 : 1.4); E[i].setAttribute("opacity", b === rootN.kids[0] ? 1 : .45); } });
+    }
+    $("t2play").onclick = run;
+    if (play) run();
+    $("t2s").innerHTML = `
+      <p><b>1 · Forward.</b> From now, every ban opens branches: yours are choices (blue), theirs are forecasts (red), thicker when likelier.</p>
+      <p><b>2 · Draft and score.</b> At each branch end both teams draft and the match is scored, many times over.</p>
+      <p><b>3 · Back.</b> The scores flow back towards now. On your turns the best branch counts, on theirs each branch counts by how likely it is.</p>
+      <p><b>4 · Choose.</b> What reaches now is the value of each first ban. Here: ${D.ours.slice(0, 3).map(o => `${N[o.h]} ${pts(o.v)}`).join(", ")}.</p>
+      <p class="f">Drawn with ${BR[0]} of the ${nOurs} first bans and 2 branches per later ban. The first two levels are the model's numbers for this lobby. The real tree is about ${Math.round(paths / 1e9)} billion branches wide.</p>`;
+  }
+
+  // ================================================================ T3: one branch end, opened up
+  let t3timer = null;
+  function drawT3() {
+    const Wd = 780, Hh = 330, path = D.path, banned = new Set(path.map(p => p.h)), roles = D.roles;
+    const pool = r => N.map((_, h) => h).filter(h => roles[h] === r && !banned.has(h));
+    let g = `<svg viewBox="0 0 ${Wd} ${Hh}" role="img">`;
+    const cols = [[10, "One branch end"], [178, "Fill the unseen seats"], [360, "Both teams draft"], [528, "Lineup meets lineup"], [690, ""]];
+    cols.slice(0, 4).forEach(([x, s]) => g += T(x, 16, s, "hd f", "start", 10.5));
+    // the six bans of this branch
+    path.forEach((p, k) => { const y = 44 + k * 44; g += portrait(p.h, 36, y, 16, p.us ? P.blue : P.red, `t3b${k}`) + T(60, y - 2, p.us ? "you ban" : "they ban", p.us ? "bl" : "rd", "start", 10.5) + T(60, y + 11, N[p.h], "", "start", 11.5, 'style="font-weight:600"'); });
+    const arrow = x => `<path d="M${x},165 l10,0 m-4,-4 l4,4 l-4,4" fill="none" stroke="${P.faint}" stroke-width="1.4"/>`;
+    g += arrow(152) + arrow(330) + arrow(500) + arrow(662);
+    // seats: two teams of six; you are fixed, the rest are drawn from real players at the rank (shown as history strips that change)
+    for (let t = 0; t < 2; t++) for (let k = 0; k < 6; k++) {
+      const x = 182 + (k % 3) * 44, y = 44 + t * 150 + Math.floor(k / 3) * 52, col = t === 0 ? P.blue : P.red;
+      if (t === 0 && k === 0) { g += portrait(D.heroes.indexOf(D.lobby.you), x + 16, y + 18, 16, P.blue, "t3you") + T(x + 16, y + 48, "you", "bl", "middle", 10.5); continue; }
+      g += `<g class="seat" data-t="${t}"><rect x="${x}" y="${y}" width="32" height="36" fill="${P.panel}" stroke="${col}" stroke-width="1.2"/>`;
+      for (let j = 0; j < 5; j++) g += `<rect class="bar" x="${x + 4}" y="${y + 5 + j * 6}" width="10" height="3.2" fill="${P.faint}" opacity=".7"/>`;
+      g += `</g>`;
+    }
+    g += T(182, 146, "your team", "bl", "start", 10.5) + T(182, 296, "their team", "rd", "start", 10.5);
+    // drafts: 2 x 6 hero slots
+    for (let t = 0; t < 2; t++) for (let k = 0; k < 6; k++) { const x = 364 + (k % 3) * 40, y = 46 + t * 150 + Math.floor(k / 3) * 44; g += `<g class="slot" data-t="${t}" data-k="${k}" transform="translate(${x},${y})"></g>`; }
+    // matchup grid
+    const G = 12, cs = 9;
+    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) g += `<rect class="cell" x="${528 + j * cs}" y="${110 + i * cs}" width="${cs - 1}" height="${cs - 1}" fill="${P.panel}"/>`;
+    g += T(528, 104, "theirs →", "f", "start", 10.5) + T(522, 116, "yours", "f", "end", 10.5) + T(522, 128, "↓", "f", "end", 10.5) + T(528, 110 + G * cs + 16, "each cell: a scored matchup", "f", "start", 10.5);
+    g += `<g id="t3num" opacity="0">` + T(725, 160, `${(100 * D.win).toFixed(1)}%`, "num", "middle", 26, `style="font-size:26px;fill:${P.blue}"`) + T(725, 180, "win chance after", "f", "middle", 10.5) + T(725, 193, "these six bans", "f", "middle", 10.5)
+      + `<path d="M725,206 v26 m-5,-6 l5,6 l5,-6" fill="none" stroke="${P.faint}" stroke-width="1.2"/>` + T(725, 248, "back into", "f", "middle", 10.5) + T(725, 261, "the tree", "f", "middle", 10.5) + `</g>`;
+    g += `</svg>`; $("t3").innerHTML = g;
+    const S = $("t3").querySelector("svg"), cells = S.querySelectorAll("rect.cell"), slots = S.querySelectorAll("g.slot"), seats = S.querySelectorAll("g.seat");
+    const draftTeam = () => { const need = [2, 2, 2], out = []; need.forEach((n, r) => { const pl = pool(r); for (let i = 0; i < n; i++) out.push(pl[Math.floor(Math.random() * pl.length)]); }); return out; };
+    let tick = 0;
+    const frame = () => {
+      tick++;
+      seats.forEach(s => s.querySelectorAll("rect.bar").forEach(b => b.setAttribute("width", 3 + Math.random() * 22)));
+      slots.forEach(s => { if (Math.random() < .5) { const t = +s.dataset.t, k = +s.dataset.k, r = Math.floor(k / 2), pl = pool([0, 0, 1, 1, 2, 2][k]); const h = pl[Math.floor(Math.random() * pl.length)];
+        s.innerHTML = `<defs><clipPath id="cs${t}${k}"><rect width="34" height="34"/></clipPath></defs><image href="${img(h)}" width="34" height="34" clip-path="url(#cs${t}${k})" preserveAspectRatio="xMidYMid slice"/><rect width="34" height="34" fill="none" stroke="${t ? P.red : P.blue}" stroke-width="1.5"/>`; } });
+      const fill = Math.min(G * G, (tick % 40) * 5);
+      cells.forEach((c, i) => { if (i < fill) { if (!c.dataset.v) c.dataset.v = (Math.random() - .42) * 1.6; c.setAttribute("fill", valCol(+c.dataset.v * VMAX)); } else { c.removeAttribute("data-v"); c.setAttribute("fill", P.panel); } });
+      S.querySelector("#t3num").setAttribute("opacity", fill >= G * G ? 1 : .15);
+      t3timer = setTimeout(frame, 170);
+    };
+    clearTimeout(t3timer); frame();
+    $("t3s").innerHTML = `
+      <p><b>One branch end:</b> all six bans are in. This is the branch the advice expects for this lobby.</p>
+      <p><b>Fill the unseen seats.</b> You know your own hero. Everyone else is a real player's habits from your rank, drawn many times over.</p>
+      <p><b>Both teams draft.</b> Each player picks what their history says they pick, around the bans and their teammates.</p>
+      <p><b>Every lineup meets every lineup.</b> Each pairing of a drafted team of yours with one of theirs is scored.</p>
+      <p><b>One number.</b> The average is the win chance at this branch end: ${(100 * D.win).toFixed(1)}%. It is what the tree carries back.</p>
+      <p class="f">This happens at every branch end the model learns from: ${fmt(400000)} lobbies and about 51 million ban phases.</p>`;
+  }
+
+  const drawAll = play => { pal(); drawT1(); drawT2(play); drawT3(); };
+  tb.textContent = dark() ? "Light" : "Dark";
+  tb.onclick = () => { root.dataset.theme = dark() ? "light" : "dark"; tb.textContent = dark() ? "Light" : "Dark"; drawAll(false); };
+  drawAll(false);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { $("t2play").click(); io.disconnect(); } }), { threshold: .5 }); io.observe($("t2"));
+})();
+</script>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ban Call lab</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&display=swap">
+<style>
+  :root { --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6; --blue: #2a4bad; --red: #b0382d; --active: #eceef2;
+          --r0: #7a5ba8; --r1: #d27a1e; --r2: #1f9481; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --active: #252932;
+          --r0: #b7a0e6; --r1: #f0a45a; --r2: #5cc8b4; } }
+  :root[data-theme="dark"] { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --active: #252932; --r0: #b7a0e6; --r1: #f0a45a; --r2: #5cc8b4; }
+  * { box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); margin: 0; font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; font-size: 13.5px; line-height: 1.42;
+         font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1240px; margin: 0 auto; padding: 22px 24px 60px 24px; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding-bottom: 10px; }
+  h1 { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-stretch: 112%; font-size: 30px; font-weight: 800; line-height: 1; margin: 0; letter-spacing: -.02em; }
+  h1 span { font-size: 15px; color: var(--faint); font-weight: 600; margin-left: 6px; }
+  .lede { font-size: 15px; margin: 0; } #status { flex-basis: 100%; font-size: 12px; color: var(--faint); margin: 2px 0 0 0; } #status:empty { display: none; }
+  .ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 9px 0; margin-bottom: 10px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--hair); }
+  .ctrl > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; } .lab { font-size: 12px; color: var(--faint); }
+  select, input[type=text] { font-family: inherit; font-size: 13px; height: 26px; padding: 0 4px; background: var(--paper); color: var(--ink); border: 1px solid var(--hair); border-radius: 0; }
+  button { font-family: inherit; font-size: 12.5px; height: 26px; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 0 10px; cursor: pointer; border-radius: 0; }
+  button:hover { background: var(--active); } button.on { background: var(--ink); color: var(--paper); } .seg { display: inline-flex; } .seg button + button { margin-left: -1px; }
+  #bansIn { width: 330px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 4px 0; }
+  .lobbyline { font-size: 13px; color: var(--faint); margin: 4px 0 18px 0; } .lobbyline a { color: var(--blue); }
+  section.v { border-top: 1px solid var(--ink); padding: 10px 0 30px 0; min-width: 0; }
+  section.v > h2 { font-size: 12px; font-weight: 600; margin: 0 0 10px 0; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; }
+  section.v > h2 b { color: var(--ink); margin-right: 8px; }
+  .head { font-family: "Archivo", sans-serif; font-stretch: 108%; font-size: 19px; font-weight: 700; margin: 0 0 10px 0; line-height: 1.25; }
+  .head .n { font-size: 32px; font-weight: 800; letter-spacing: -.02em; margin-right: 4px; }
+  .head .u { color: var(--blue); } .head .t { color: var(--red); }
+  .note { font-size: 12px; color: var(--faint); margin: 8px 0 0 0; max-width: 90ch; }
+  .na { font-size: 13px; color: var(--faint); padding: 8px 0; }
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 44px; }
+  svg { max-width: 100%; height: auto; display: block; overflow: visible; } svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; fill: var(--ink); }
+  svg .faint { fill: var(--faint); } svg .us { fill: var(--blue); } svg .them { fill: var(--red); }
+  svg [data-ban] { cursor: pointer; } svg [data-ban]:hover .ring { stroke-width: 2.5; }
+  svg image.rare { filter: grayscale(1); opacity: .42; }
+  .sk .flow { transition: opacity .15s; } .sk.hl .flow { opacity: .07 !important; } .sk.hl .flow.on { opacity: .9 !important; }
+  .sk .rowlab { transition: opacity .15s; } .sk.hl .rowlab { opacity: .35; } .sk.hl .rowlab.on { opacity: 1; font-weight: 600; }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12.5px; line-height: 1.45; padding: 7px 9px; max-width: 300px; opacity: 0;
+         transition: opacity .1s; z-index: 50; } .tip.on { opacity: 1; } .tip b { font-weight: 600; } .tip .d { opacity: .72; }
+  footer { margin-top: 20px; border-top: 1px solid var(--hair); padding-top: 6px; font-size: 12px; color: var(--faint); } footer a { color: inherit; }
+  @media (max-width: 1000px) { .row2 { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 720px) { main { padding: 16px; } h1 { font-size: 22px; } #bansIn { width: 100%; } }
+</style>
+<main>
+<header class="top"><h1>Ban Call <span>lab</span></h1><p class="lede">What a ban phase looks like, drawn live from the model</p><p id="status">Loading the model&hellip;</p></header>
+<div class="ctrl">
+  <span><span class="lab">Rank</span><select id="tierSel"></select></span>
+  <span><span class="lab">Map</span><select id="mapSel"></select></span>
+  <span><span class="lab">We ban</span><span class="seg"><button id="firstBtn">first</button><button id="secondBtn">second</button></span></span>
+  <span><span class="lab">You</span><select id="youSel"></select></span>
+  <span><span class="lab">Bans so far</span><input type="text" id="bansIn" placeholder="names in order, commas between"></span>
+  <span><button id="applyBtn">Show</button><button id="undoBtn">Undo ban</button><button id="themeBtn">Dark</button></span>
+</div>
+<div class="presets"><span class="lab">Try:</span><button data-h="#t=Grandmaster+3&m=11&f=1&u=-,-,-,-,-,-&b=">your first ban</button>
+  <button data-h="#t=Grandmaster+3&m=11&f=1&u=37,-,-,-,-,-&b=45,38,52">your two-ban turn</button>
+  <button data-h="#t=Diamond+1&m=3&f=0&u=41,45,-,-,-,-&b=">their ban, you show Gorr and a mate Rocket</button>
+  <button data-h="#t=Celestial+3&m=16&f=0&u=26,-,-,-,-,-&b=38,52,11,41,33">your last ban</button></div>
+<p class="lobbyline" id="lobbyLine"></p>
+<div id="views"></div>
+<footer>Figures for discussion, not yet on the main page. Click a portrait on the ban board to make that ban. Hover anything for the numbers.</footer>
+</main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs></svg>
+<script src="../engine.js?v=e939ae1125"></script>
+<script src="../engine8.js?v=c5b0fda130"></script>
+<script src="lab.js?v=ae62fd527a"></script>
+</html>

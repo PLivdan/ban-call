@@ -43,8 +43,10 @@
       const P = ban.params, H = this.H; this.B = P; this.pre = ban.premade_share; this.C = ban.counter;
       this.T = ban.stand_in_team_shares; this.SS = ban.shown_shares; this.PS = ban.player_shares; this.J = this.T[0].length;
       this.TP = ban.stand_in_players || null; this.SP = ban.shown_profiles || null;          // v8.4: six profiles per stand-in team
+      this.SP2 = ban.shown_profiles_sq || null;       // v8.7: a shown hero's player, squared shares (the ban model's concentration term)
       if (this.TP) {                                 // TAIL[b][j][k]: the summed profiles of team j's players k..5
-        this.TAIL = this.TP.map(tb => tb.map(pl => { const t = [new Float64Array(H)]; for (let k = 5; k >= 0; k--) { const u = Float64Array.from(t[0]); for (let h = 0; h < H; h++) u[h] += pl[k][h]; t.unshift(u); } return t; }));
+        const tails = sq => this.TP.map(tb => tb.map(pl => { const t = [new Float64Array(H)]; for (let k = 5; k >= 0; k--) { const u = Float64Array.from(t[0]); for (let h = 0; h < H; h++) u[h] += sq ? pl[k][h] * pl[k][h] : pl[k][h]; t.unshift(u); } return t; }));
+        this.TAIL = tails(false); this.TAIL2 = tails(true);
       }
       this.hasTau = P.tau !== undefined; this.hasB = !!P.Lo; this.hasV8 = !!P.acm;
     }
@@ -175,12 +177,14 @@
     relTables(s) {                                   // stand-in teams' summed hero shares: ours (following the shown heroes) and theirs
       const bd = this.band(s.r0), H = this.H, T = this.T[bd], J = this.J, shown = [...new Set([s.you].concat(s.mates).filter(h => h >= 0))];
       const key = bd + "|" + shown.join(","); if (this.rel.has(key)) return this.rel.get(key);   // they depend on the band and the shown heroes only
-      const us = [], them = [];
+      const us = [], them = [], us2 = [], them2 = [];
       for (let j = 0; j < J; j++) {
         let u;
         if (this.TP) {                               // v8.4: the shown heroes' profiles in the first slots, team j's own players after
           u = Float64Array.from(this.TAIL[bd][j][Math.min(shown.length, 6)]);
           for (const h of shown) { const S = this.SP[bd][h]; for (let k = 0; k < H; k++) u[k] += S[k]; }
+          if (this.SP2) { const u2 = Float64Array.from(this.TAIL2[bd][j][Math.min(shown.length, 6)]); for (const h of shown) { const S = this.SP2[bd][h]; for (let k = 0; k < H; k++) u2[k] += S[k]; }
+            us2.push(u2); them2.push(Float64Array.from(this.TAIL2[bd][(j + (J >> 1)) % J][0])); }
         } else {
           u = Float64Array.from(T[j]);
           if (this.SS) for (const h of shown) { const S = this.SS[bd][h], A = this.PS[bd]; for (let k = 0; k < H; k++) u[k] += S[k] - A[k]; }
@@ -189,7 +193,7 @@
       }
       // fear of each hero for each team: sum over k of REL[k] x counter[h][k], the same sum in the same order as before, now once per table
       const C = this.C, fear = REL => { const f = new Float64Array(H); for (let h = 0; h < H; h++) { let x = 0; const Ch = C[h]; for (let k = 0; k < H; k++) x += REL[k] * Ch[k]; f[h] = x; } return f; };
-      const R = { us, them, fearUs: us.map(fear), fearThem: them.map(fear) };
+      const R = { us, them, us2: us2.length ? us2 : null, them2: them2.length ? them2 : null, fearUs: us.map(fear), fearThem: them.map(fear) };
       if (this.rel.size > 64) this.rel.clear(); this.rel.set(key, R); return R;
     }
     /* P(ban = h) at position e for the team banning there, averaged over the stand-in teams. allowed: Uint8Array. Also
@@ -207,15 +211,17 @@
         if (last >= 0 && this.hasB) r += (same ? P.Lo : P.Lt)[last][h];
         base[h] = v; react[h] = r;
       }
-      const lam = P.lam + (this.hasB ? P.lam_e[e] : 0) + (this.hasV8 ? this.pre * P.lam_p : 0), gam = P.gam + (this.hasB ? P.gam_e[e] : 0) + (this.hasV8 ? this.pre * P.gam_p : 0);
-      const tau = this.hasTau ? P.tau + P.tau_e[e] : 0, R = this.relTables(s), p = new Float64Array(H), J = this.J;
+      const lam = P.lam + (this.hasB ? P.lam_e[e] : 0) + (this.hasV8 ? this.pre * P.lam_p : 0) + (P.lam_b ? P.lam_b[bd] : 0), gam = P.gam + (this.hasB ? P.gam_e[e] : 0) + (this.hasV8 ? this.pre * P.gam_p : 0);
+      const lm = P.lam_m || 0, tau = this.hasTau ? P.tau + P.tau_e[e] + (P.tau_b ? P.tau_b[bd] : 0) : 0, R = this.relTables(s), p = new Float64Array(H), J = this.J;
       const avg = parts ? { prot: new Float64Array(H), fear: new Float64Array(H), targ: new Float64Array(H) } : null;
       for (let j = 0; j < J; j++) {
         const REL = usBan ? R.us[j] : R.them[j], RX = usBan ? R.them[j] : R.us[j], F = usBan ? R.fearUs[j] : R.fearThem[j], u = new Float64Array(H); let mx = -Infinity;
+        const R2 = lm && R.us2 ? (usBan ? R.us2[j] : R.them2[j]) : null;   // v8.7: concentration (squared shares)
         for (let h = 0; h < H; h++) {
           if (!allowed[h]) continue; const fear = F[h];
-          u[h] = base[h] + react[h] - lam * REL[h] + gam * fear + tau * RX[h]; if (u[h] > mx) mx = u[h];
-          if (avg) { avg.prot[h] += -lam * REL[h] / J; avg.fear[h] += gam * fear / J; avg.targ[h] += tau * RX[h] / J; }
+          const con = R2 ? lm * R2[h] : 0;
+          u[h] = base[h] + react[h] - lam * REL[h] - con + gam * fear + tau * RX[h]; if (u[h] > mx) mx = u[h];
+          if (avg) { avg.prot[h] += (-lam * REL[h] - con) / J; avg.fear[h] += gam * fear / J; avg.targ[h] += tau * RX[h] / J; }
         }
         let se = 0; for (let h = 0; h < H; h++) if (allowed[h]) se += Math.exp(u[h] - mx);
         for (let h = 0; h < H; h++) if (allowed[h]) p[h] += Math.exp(u[h] - mx) / se / J;

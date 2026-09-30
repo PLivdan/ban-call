@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods options</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root { --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6; --blue: #2a4bad; --red: #b0382d; --wash: #dfe6f7; --redwash: #f6e1de; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --wash: #27304a; --redwash: #3a2522; } }
+  :root[data-theme="dark"] { --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23; --blue: #8aa3ec; --red: #e0877d; --wash: #27304a; --redwash: #3a2522; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 "Archivo Narrow", system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font: 800 30px/1.1 Archivo, sans-serif; font-stretch: 112%; margin: 0 0 6px; }
+  h2 { font: 700 20px/1.2 Archivo, sans-serif; margin: 44px 0 4px; border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+  h3 { font: 700 16px/1.25 Archivo, sans-serif; margin: 22px 0 6px; }
+  .lede { color: var(--faint); max-width: 76ch; margin: 0 0 6px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  button { font: 600 13px "Archivo Narrow", sans-serif; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 5px 10px; cursor: pointer; }
+  .text { max-width: 74ch; }
+  .text p { margin: 0 0 12px; }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0 0 12px; }
+  .steps li { counter-increment: s; position: relative; padding-left: 34px; margin: 0 0 10px; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border: 1.5px solid var(--ink); font: 700 13px/19px Archivo, sans-serif; text-align: center; }
+  .steps b { font-weight: 600; }
+  .formula { font: 400 15px "IBM Plex Mono", monospace; background: var(--panel); padding: 8px 12px; margin: 4px 0 14px; display: inline-block; }
+  .small { font-size: 14px; color: var(--faint); }
+  .leave { columns: 2 260px; font-size: 14px; color: var(--faint); padding-left: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 18px; margin-top: 18px; }
+  .opt { border: 1px solid var(--hair); background: var(--panel); padding: 16px 18px 14px; min-width: 0; }
+  .opt .tag { font: 600 12px "IBM Plex Mono", monospace; color: var(--faint); letter-spacing: .04em; }
+  .opt h3 { margin: 2px 0 10px; }
+  .opt .fig { background: var(--paper); border: 1px solid var(--hair); padding: 12px; }
+  .opt .fig svg { display: block; width: 100%; height: auto; }
+  .opt .cap { font-size: 13.5px; color: var(--faint); margin: 8px 0 0; }
+  .opt .why { color: var(--faint); font-size: 14px; margin: 10px 0 0; }
+  .opt .why b { color: var(--ink); font-weight: 600; }
+  svg text { fill: var(--ink); font-family: "Archivo Narrow", sans-serif; }
+  svg .f { fill: var(--faint); } svg .bl { fill: var(--blue); } svg .rd { fill: var(--red); }
+  svg .hd { font: 700 12px Archivo, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+</style>
+<main>
+  <div class="top"><h1>Methods: text and four figures</h1><button id="theme">Dark</button></div>
+  <p class="lede">A rewrite of the main page's "How it works" section. The text is the same for every option. Pick one figure (or none). Nothing here is on the main page yet.</p>
+
+  <h2>The text</h2>
+  <div class="text" id="text"></div>
+
+  <h3>What the text no longer says</h3>
+  <ul class="leave">
+    <li>which kinds of models are fitted, their terms and features</li>
+    <li>how a ban's value is computed, and in what order</li>
+    <li>the network sizes, how many are trained, and how the page's copy is made</li>
+    <li>the support threshold, the caution rule and the stand-in sampling</li>
+    <li>the targeting term and the placebo test behind it</li>
+    <li>the draft calibration and how drafts are simulated</li>
+    <li>which tests are run on the model, and their rules</li>
+    <li>run names and model versions (they stay in the page's footer line)</li>
+  </ul>
+
+  <h2>Four figures</h2>
+  <p class="lede">All four show that the model has many parts and plays lobbies out at scale. None shows how a part works. Numbers come from the live model.</p>
+  <div class="grid">
+    <section class="opt"><span class="tag">M1</span><h3>The pipeline: from real matches to your page</h3><div class="fig" id="m1"></div>
+      <p class="cap">Sealed boxes: what each stage learns is visible, how it learns it is not.</p>
+      <p class="why"><b>For:</b> the clearest picture of how much sits behind one ban, left to right. <b>Against:</b> the most familiar kind of diagram, so it impresses least.</p></section>
+    <section class="opt"><span class="tag">M2</span><h3>The ban phase as a tree</h3><div class="fig" id="m2"></div>
+      <p class="cap">Every ban opens new branches. Yours are decisions (blue), theirs are forecasts (red). Each branch end is drafted and scored many times.</p>
+      <p class="why"><b>For:</b> shows the real problem, what makes it hard, and why the page can't just look it up. <b>Against:</b> abstract, and the tree is drawn at a tiny fraction of its real size.</p></section>
+    <section class="opt"><span class="tag">M3</span><h3>Orders of magnitude</h3><div class="fig" id="m3"></div>
+      <p class="cap">Log scale: each grid line is ten times the one before. Everything collapses to one number per ban on your screen.</p>
+      <p class="why"><b>For:</b> scale is the most impressive and the least revealing thing we can show. <b>Against:</b> says nothing about structure, only size.</p></section>
+    <section class="opt"><span class="tag">M4</span><h3>What depends on what</h3><div class="fig" id="m4"></div>
+      <p class="cap">What you enter (blue) feeds what the model works out (grey), which feeds what you see. Hover a box to follow its links.</p>
+      <p class="why"><b>For:</b> conveys the interactions, which are the hard part, without a single formula. <b>Against:</b> the busiest to read, and it needs the hover to untangle.</p></section>
+  </div>
+</main>
+<script>
+(async function () {
+  "use strict";
+  const $ = id => document.getElementById(id), fmt = x => Math.round(x).toLocaleString("en-US"), pct = x => Math.round(100 * x) + "%";
+  const root = document.documentElement, tb = $("theme");
+  const dark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  tb.textContent = dark() ? "Light" : "Dark"; tb.onclick = () => { root.dataset.theme = dark() ? "light" : "dark"; tb.textContent = dark() ? "Light" : "Dark"; };
+  let R = null; try { R = await fetch("../model8/report_v8.json", { cache: "no-cache" }).then(r => r.json()); } catch (e) {}
+  const S = R ? R.splits : null, W = R ? R.world_model : {}, C = R ? R.checks : {};
+  const nFit = S ? S.train.n + S.validation.n : 247346, nTest = S ? S.test.n : 27483, lob = W.lobbies || 400000, ph = W.phases_per_lobby || 128, pool = W.stand_in_pool || 218924;
+  const phases = lob * ph, drafts = phases * 56, pairs = phases * 784;
+  const d = C.drafts || { two_two_two: { model: .762, real: .772 }, role_stay_when_forced: { model: .585, real: .59 } };
+  const gain = C.policy ? (C.policy.students_vs_players || C.policy.optimal_vs_players).gain_pts : 1.5;
+  const opes = R ? R.ope.decisions.map(q => q.doubly_robust_capped || q.doubly_robust) : [], allZero = opes.every(q => q.lo_pts <= 0 && q.hi_pts >= 0);
+  const big = x => x >= 1e9 ? `about ${Math.round(x / 1e9)} billion` : x >= 1e6 ? `about ${Math.round(x / 1e6)} million` : fmt(x);
+
+  // ------------------------------------------------------------------ the text
+  $("text").innerHTML = `
+    <p>Choosing a ban is harder than it looks. A ban removes a hero from both teams, it changes what both teams will draft, and you usually can't see
+    who is on the other side. Ban Call handles this by playing your lobby out many times before you choose.</p>
+    <ol class="steps">
+      <li><b>It learns from real matches.</b> Every PC ranked Season 10 match in our data (${fmt(nFit)} of them) shows how players draft, how teams ban,
+        what people do when their main is banned, and which lineups win. Each of these is learned from the players' own histories, as they stood on the day of each match.</li>
+      <li><b>It rebuilds lobbies like yours.</b> The seats you can't see are filled with the habits of real players at your rank, drawn from over ${fmt(Math.floor(pool / 1000) * 1000)}
+        of them, and the heroes your team has shown stay in.</li>
+      <li><b>It plays the ban phase forward.</b> Both teams finish banning, both draft, and the match is scored. That is ${fmt(lob)} lobbies, ${big(phases)} ban phases,
+        and ${big(pairs)} lineup matchups.</li>
+      <li><b>It learns what each ban is worth, at every step.</b> A ban's value is your win chance after it, against the ban a typical team makes in your seat.
+        A compact version of what it learned runs in your browser, so the advice is instant and nothing you enter is sent anywhere.</li>
+    </ol>
+    <p class="formula">value(x) = win chance after you ban x − win chance after a typical ban</p>
+    <p><b>How we check it.</b> Every part was chosen on earlier matches and then scored once on ${fmt(nTest)} later ones. Simulated drafts look like real teams:
+    2-2-2 in ${pct(d.two_two_two.model)} of teams (real ${pct(d.two_two_two.real)}), and a player whose main is banned stays in role ${pct(d.role_stay_when_forced.model)}
+    of the time (real ${pct(d.role_stay_when_forced.real)}). The page gives the same advice as the full model on every turn we tested. Inside the simulation, following
+    the advice beats banning the way players do by about ${gain.toFixed(1)} points of win chance. ${allZero ? "In real games that edge is too small to confirm yet: with the matches we have, every interval includes zero." : "In real games the intervals are still wide."}</p>
+    <p class="small"><b>Limits.</b> The values average over real players at your rank, not the people in your lobby. Hovers are not in the data, so a shown hero
+    counts as a likely pick. The model drafts opening lineups (mid-match swaps are left out), and it covers PC ranked Season 10, mostly Diamond to Celestial.
+    A range shows where the model's fits disagree, not a guarantee.</p>`;
+
+  // ------------------------------------------------------------------ shared SVG helpers
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = (w, h) => `<svg viewBox="0 0 ${w} ${h}" role="img">`;
+  const T = (x, y, s, cls = "", a = "start", sz = 12) => `<text x="${x}" y="${y}" class="${cls}" text-anchor="${a}" font-size="${sz}">${s}</text>`;
+  const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2 - 6}" y2="${y2}" stroke="var(--faint)" stroke-width="1.2"/><path d="M${x2},${y2} l-7,-4 v8 z" fill="var(--faint)"/>`;
+  let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+
+  // ------------------------------------------------------------------ M1: the pipeline
+  (function () {
+    let g = svg(640, 300);
+    const cols = [[8, "Real matches"], [150, "What people do"], [330, "Lobbies like yours"], [500, "The ban phase"]];
+    cols.forEach(([x, s]) => g += T(x, 18, s, "hd f", "start", 11));
+    for (let i = 5; i >= 0; i--) g += `<rect x="${8 + i * 4}" y="${40 + i * 5}" width="98" height="130" fill="var(--paper)" stroke="var(--faint)" stroke-width="1"/>`;
+    for (let r = 0; r < 9; r++) g += `<line x1="16" x2="${16 + 50 + (r * 37) % 32}" y1="${58 + r * 12}" y2="${58 + r * 12}" stroke="var(--hair)" stroke-width="4"/>`;
+    g += T(8, 210, fmt(nFit), "", "start", 15) + T(8, 226, "matches, each player's", "f", "start", 11.5) + T(8, 240, "history as of the day", "f", "start", 11.5);
+    g += arrow(122, 110, 148, 110);
+    [["How players draft", 40], ["How teams ban", 100], ["What wins", 160]].forEach(([s, y]) => {
+      g += `<rect x="150" y="${y}" width="150" height="46" fill="var(--ink)"/>` + T(225, y + 20, s, "", "middle", 13).replace('<text', '<text style="fill:var(--paper);font-weight:600"');
+      g += `<g fill="var(--paper)" opacity=".55">` + [0, 1, 2, 3, 4].map(k => `<rect x="${160 + k * 27}" y="${y + 31}" width="20" height="4"/>`).join("") + `</g>`;
+    });
+    g += T(150, 226, "three models, fitted and", "f", "start", 11.5) + T(150, 240, "tested on later matches", "f", "start", 11.5);
+    g += arrow(304, 110, 328, 110);
+    for (let r = 0; r < 10; r++) for (let k = 0; k < 13; k++) {
+      const hot = rnd() < .18; g += `<rect x="${330 + k * 11.5}" y="${40 + r * 16.5}" width="9" height="13" fill="${hot ? "var(--blue)" : "var(--hair)"}" opacity="${hot ? .9 : 1}"/>`;
+    }
+    g += T(330, 226, `${fmt(lob)} lobbies,`, "f", "start", 11.5) + T(330, 240, `${big(phases)} ban phases`, "f", "start", 11.5);
+    g += arrow(484, 110, 498, 110);
+    const us = [1, 0, 0, 1, 1, 0];
+    for (let e = 0; e < 6; e++) {
+      const y = 44 + e * 27; if (e) g += `<line x1="524" x2="524" y1="${y - 17}" y2="${y - 9}" stroke="var(--faint)" stroke-width="1.2"/>`;
+      g += `<rect x="506" y="${y - 9}" width="36" height="18" fill="none" stroke="${us[e] ? "var(--blue)" : "var(--red)"}" stroke-width="1.6"/>` + T(524, y + 4, e + 1, us[e] ? "bl" : "rd", "middle", 12);
+      g += T(550, y + 4, us[e] ? "you choose" : "they ban", "f", "start", 11);
+    }
+    g += `<rect x="506" y="${44 + 6 * 27 - 6}" width="126" height="26" fill="var(--blue)"/>` + T(569, 44 + 6 * 27 + 11, "your page", "", "middle", 13).replace('<text', '<text style="fill:var(--paper);font-weight:600"');
+    g += T(506, 240, "a value per ban, per step", "f", "start", 11.5);
+    $("m1").innerHTML = g + "</svg>";
+  })();
+
+  // ------------------------------------------------------------------ M2: the ban phase as a tree
+  (function () {
+    const Wd = 640, Hh = 320, us = [1, 0, 0, 1, 1, 0], BR = [3, 2, 2, 2, 2, 2], NL = BR.reduce((a, b) => a * b), X = e => 30 + e * 88, top = 30, bot = 290;
+    let leaves = 0; const nodes = [];
+    function grow(e, path) {
+      if (e === 6) { const y = top + (leaves++ + .5) * (bot - top) / NL; return y; }
+      const ys = []; for (let k = 0; k < BR[e]; k++) ys.push(grow(e + 1, path.concat(k)));
+      const y = ys.reduce((a, b) => a + b) / ys.length; nodes.push({ e, y, ys, path }); return y;
+    }
+    const ry = grow(0, []); let g = svg(Wd, Hh), hi = "";
+    nodes.forEach(n => n.ys.forEach((cy, k) => {
+      const onAdvice = n.path.every(v => v === 0) && k === 0, col = us[n.e] ? "var(--blue)" : "var(--red)";
+      const w = us[n.e] ? .7 : [1.4, .8, .45][k] || .45;
+      const d = `M${X(n.e)},${n.y} C${X(n.e) + 44},${n.y} ${X(n.e) + 44},${cy} ${X(n.e + 1)},${cy}`;
+      if (onAdvice) hi += `<path d="${d}" fill="none" stroke="${col}" stroke-width="2.6"/>`;
+      else g += `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" opacity="${(us[n.e] ? .5 : .6) * Math.pow(.82, n.e)}"/>`;
+    }));
+    g += hi + `<circle cx="${X(0)}" cy="${ry}" r="5" fill="var(--ink)"/>`;
+    for (let e = 0; e < 6; e++) g += T(X(e) + 44, 16, `${us[e] ? "you" : "them"}`, us[e] ? "bl" : "rd", "middle", 11.5);
+    g += `<defs><linearGradient id="m2g" x1="0" x2="1"><stop offset="0" stop-color="var(--faint)" stop-opacity=".5"/><stop offset="1" stop-color="var(--faint)" stop-opacity="0"/></linearGradient></defs>`;
+    g += `<rect x="${X(6) + 2}" y="${top}" width="84" height="${bot - top}" fill="url(#m2g)"/>` + T(X(6) + 8, top + 14, "drafts", "", "start", 11.5) + T(X(6) + 8, top + 28, "and scores", "", "start", 11.5);
+    g += T(X(0) - 4, ry + 22, "now", "f", "middle", 11);
+    g += T(X(3), Hh - 4, `drawn: 2 or 3 branches per ban. Real: about 50, over 10 billion ways six bans can go`, "f", "middle", 11.5);
+    $("m2").innerHTML = g + "</svg>";
+  })();
+
+  // ------------------------------------------------------------------ M3: orders of magnitude
+  (function () {
+    const rows = [["Real matches learned from", nFit], ["Real players whose habits fill the seats", pool], ["Simulated lobbies", lob], ["Ban phases played out", phases],
+                  ["Lineups drafted", drafts], ["Lineup matchups scored", pairs]];
+    const L0 = 205, L1 = 600, lx = v => L0 + (Math.log10(v) - 5) / 6 * (L1 - L0);
+    let g = svg(640, 300);
+    for (let p = 5; p <= 11; p++) g += `<line x1="${lx(10 ** p)}" x2="${lx(10 ** p)}" y1="22" y2="238" stroke="var(--hair)"/>` + T(lx(10 ** p), 252, p === 5 ? "100 thousand" : p === 6 ? "1 million" : p === 9 ? "1 billion" : `10<tspan dy="-5" font-size="8">${p}</tspan>`, "f", "middle", 10.5);
+    rows.forEach(([s, v], i) => {
+      const y = 36 + i * 34; g += T(0, y + 5, s, "", "start", 12.5) + `<rect x="${L0}" y="${y - 8}" width="${lx(v) - L0}" height="16" fill="var(--ink)" opacity="${.35 + .13 * i}"/>`;
+      g += T(lx(v) + 6, y + 5, v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}K`, "f", "start", 11);
+    });
+    const y = 36 + 6 * 34 + 22; g += `<circle cx="${L0 + 6}" cy="${y}" r="6" fill="var(--blue)"/>` + T(0, y + 5, "What reaches your screen", "bl", "start", 12.5) + T(L0 + 18, y + 5, "one value per ban, in a fraction of a second", "bl", "start", 12);
+    $("m3").innerHTML = g.replace('viewBox="0 0 640 300"', 'viewBox="0 0 640 300"') + "</svg>";
+  })();
+
+  // ------------------------------------------------------------------ M4: what depends on what
+  (function () {
+    const N = [
+      ["rank", "Your rank", 0, 0], ["map", "Map and side", 0, 1], ["order", "Who bans first", 0, 2], ["you", "Your hero", 0, 3], ["mates", "Teammates' heroes", 0, 4], ["bans", "Bans so far", 0, 5],
+      ["seats", "Who fills the other seats", 1, 0], ["their", "Their next bans", 1, 1], ["swap", "Who changes role", 1, 2], ["draft", "Both teams' drafts", 1, 3], ["match", "Hero matchups", 1, 4], ["later", "Your later bans", 1, 5],
+      ["value", "Value of every ban", 2, 1.2], ["advice", "The advice", 2, 2.4], ["reply", "Their likely reply", 2, 3.6]];
+    const E = [["rank", "seats"], ["map", "seats"], ["mates", "seats"], ["you", "seats"], ["rank", "their"], ["map", "their"], ["order", "their"], ["bans", "their"], ["seats", "their"],
+      ["bans", "swap"], ["seats", "swap"], ["you", "draft"], ["mates", "draft"], ["seats", "draft"], ["swap", "draft"], ["map", "draft"], ["bans", "draft"], ["draft", "match"], ["map", "match"],
+      ["their", "later"], ["order", "later"], ["bans", "later"], ["later", "value"], ["match", "value"], ["draft", "value"], ["their", "value"], ["swap", "value"], ["value", "advice"],
+      ["their", "reply"], ["advice", "reply"], ["you", "match"], ["seats", "match"]];
+    const bw = [150, 150, 136], cx = [8, 244, 496], P = {}; N.forEach(([id, s, c, r]) => P[id] = { s, c, x: cx[c], y: 34 + r * 44, w: bw[c] });
+    let g = svg(640, 300);
+    [["You enter", 8], ["It works out", 244], ["You see", 496]].forEach(([s, x]) => g += T(x, 16, s, "hd f", "start", 11));
+    E.forEach(([a, b]) => { const A = P[a], Bn = P[b], x1 = A.x + A.w, y1 = A.y + 13, x2 = Bn.x, y2 = Bn.y + 13, same = A.c === Bn.c;
+      const d = same ? `M${A.x + A.w - 10},${y1 + 13} C${A.x + A.w + 26},${y1 + 20} ${A.x + A.w + 26},${y2 - 20} ${A.x + A.w - 10},${y2 - 13}` : `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+      g += `<path class="e" data-a="${a}" data-b="${b}" d="${d}" fill="none" stroke="var(--faint)" stroke-width="1" opacity=".45"/>`; });
+    N.forEach(([id]) => { const n = P[id], fill = n.c === 0 ? "var(--blue)" : n.c === 1 ? "var(--panel)" : "var(--ink)", tc = n.c === 1 ? "var(--ink)" : "var(--paper)";
+      g += `<g class="n" data-id="${id}" style="cursor:default"><rect x="${n.x}" y="${n.y}" width="${n.w}" height="26" fill="${fill}" stroke="${n.c === 1 ? "var(--faint)" : "none"}"/>`
+        + `<text x="${n.x + 8}" y="${n.y + 17}" font-size="12.5" style="fill:${tc};font-weight:600">${n.s}</text></g>`; });
+    $("m4").innerHTML = g + "</svg>";
+    const box = $("m4");
+    box.querySelectorAll("g.n").forEach(el => {
+      el.onmouseenter = () => { const id = el.dataset.id; box.querySelectorAll("path.e").forEach(p => { const on = p.dataset.a === id || p.dataset.b === id; p.setAttribute("opacity", on ? 1 : .1); p.setAttribute("stroke", on ? "var(--blue)" : "var(--faint)"); p.setAttribute("stroke-width", on ? 1.8 : 1); }); };
+      el.onmouseleave = () => box.querySelectorAll("path.e").forEach(p => { p.setAttribute("opacity", .45); p.setAttribute("stroke", "var(--faint)"); p.setAttribute("stroke-width", 1); });
+    });
+  })();
+})();
+</script>

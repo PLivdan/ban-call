@@ -40,7 +40,8 @@
       const cb = sgn => { const o = new Float64Array(H), d = A["G.d"], dm = this.row("G.dm", m), da = A["G.da"], dma = this.row("G.dma", m), db = this.row("G.db", bd); for (let h = 0; h < H; h++) o[h] = d[h] + dm[h] + sgn * (da[h] + dma[h]) + db[h]; return o; };
       const w = sgn => { const o = new Float64Array(H), b = A["G.b"], bm = this.row("G.bm", m), ba = A["G.ba"], bam = this.row("G.bam", m), br = A["G.br"], bt = A["G.bt"]; for (let h = 0; h < H; h++) o[h] = b[h] + bm[h] + sgn * (ba[h] + bam[h]) + rs * br[h] + S.T * bt[h]; return o; };
       const shown = [s.you].concat(s.mates6 || s.mates.concat([-1, -1, -1, -1, -1]).slice(0, 5));
-      return { m, bd, camp, a, rs, cbu: cb(a), cbo: cb(-a), wu: w(a), wo: w(-a), c0: a * (S.b0 + A["G.mm"][m]), ourpos: this.ORDER.map(o => o === camp), shown };
+      const theirs = (s.them6 || [-1, -1, -1, -1, -1, -1]).slice(0, 6);   // the other team's heroes where seen (entered on the page), else -1
+      return { m, bd, camp, a, rs, cbu: cb(a), cbo: cb(-a), wu: w(a), wo: w(-a), c0: a * (S.b0 + A["G.mm"][m]), ourpos: this.ORDER.map(o => o === camp), shown, theirs };
     }
     // ---- stand-ins: the pool window around the rank (the notebook's pool_window, scaled to the sample)
     window(r0) {
@@ -72,14 +73,26 @@
         if (!cw) { cw = new Float64Array(hi - lo + 1); for (let i = lo; i < hi; i++) cw[i - lo + 1] = cw[i - lo] + W[i] * Math.exp(PB[i * H + h] + L.cbu[h] - CC.mx[i - lo]) / CC.se[i - lo]; CC.byH.set(h, cw); }
         cond.set(h, cw);
       }
+      // their seen heroes (entered on the page): the same conditioning with their side's utilities (their own cache: they differ by side)
+      const condO = new Map(), theirs = L.theirs || [];
+      if (theirs.some(h => h >= 0)) {
+        const ko = `${lo},${hi},${L.m},${L.bd},${1 - L.camp}`;
+        if (!this._co || this._co.key !== ko) { const mxA = new Float64Array(hi - lo), seA = new Float64Array(hi - lo);
+          for (let i = lo; i < hi; i++) { let mx = -Infinity; const o = i * H; for (let k = 0; k < H; k++) { const u = PB[o + k] + L.cbo[k]; if (u > mx) mx = u; }
+            let se = 0; for (let k = 0; k < H; k++) se += Math.exp(PB[o + k] + L.cbo[k] - mx); mxA[i - lo] = mx; seA[i - lo] = se; }
+          this._co = { key: ko, mx: mxA, se: seA, byH: new Map() }; }
+        for (const h of theirs) if (h >= 0 && !condO.has(h)) { let cw = this._co.byH.get(h);
+          if (!cw) { cw = new Float64Array(hi - lo + 1); for (let i = lo; i < hi; i++) cw[i - lo + 1] = cw[i - lo] + W[i] * Math.exp(PB[i * H + h] + L.cbo[h] - this._co.mx[i - lo]) / this._co.se[i - lo]; this._co.byH.set(h, cw); }
+          condO.set(h, cw); }
+      }
       const pickC = cw => { const x = r() * cw[cw.length - 1]; let a = 0, b = cw.length - 1; while (b - a > 1) { const md = (a + b) >> 1; if (cw[md] <= x) a = md; else b = md; } return lo + a; };
       for (let u = 0; u < MU + K; u++) {
         const team = new Int32Array(6), keep = new Uint8Array(6);
         for (let j = 0; j < 6; j++) {
-          const h = u < MU ? L.shown[j] : -1;
+          const h = u < MU ? L.shown[j] : theirs[j] >= 0 ? theirs[j] : -1, cm = u < MU ? cond : condO;
           if (h < 0) { team[j] = this.drawAny(r, lo, hi); continue; }
           // v8.4 (the notebook's _sir): up to NALT draws, the first one no earlier shown slot holds; none free: a window draw
-          for (let t = 0; t < NALT && !keep[j]; t++) { const p = pickC(cond.get(h)); let held = false; for (let k = 0; k < j; k++) if (keep[k] && team[k] === p) held = true; if (!held) { team[j] = p; keep[j] = 1; } }
+          for (let t = 0; t < NALT && !keep[j]; t++) { const p = pickC(cm.get(h)); let held = false; for (let k = 0; k < j; k++) if (keep[k] && team[k] === p) held = true; if (!held) { team[j] = p; keep[j] = 1; } }
           if (!keep[j]) team[j] = this.drawAny(r, lo, hi);
         }
         for (let tries = 0; tries < 30; tries++) {                  // the notebook's dedupe: a repeated stand-in is redrawn (not one drawn for a shown hero)
@@ -93,15 +106,16 @@
       for (let i = 0; i < NZ.length; i++) NZ[i] = gumbel(r);
       for (let u = 0; u < MU + K; u++) { const k = [0, 1, 2, 3, 4, 5].map(i => [r(), i]).sort((p, q) => p[0] - q[0]).map(p => p[1]); OD.push(k); }
       for (let i = 0; i < CU.length; i++) CU[i] = r();
-      const rel = us => { const o = []; for (let j = 0; j < this.J; j++) { const v = new Float64Array(H), t = PL[us ? j : MU + j]; for (const p of t) { const sh = this.row("pool.SH", p); for (let k = 0; k < H; k++) v[k] += sh[k]; } o.push(v); } return o; };
-      return { PL, NZ, OD, CU, RELu: rel(true), RELo: rel(false) };
+      return { PL, NZ, OD, CU, RELu: this.relOf(PL, true), RELo: this.relOf(PL, false) };
     }
     /* draft8: B lineups (the notebook's function, one lineup at a time). base[i]: the slot's utilities (Float64Array H),
        fixed[i] a committed hero or -1, noise(i, s, h), order: the slot order, phi[i] the team-up weight. */
-    draft(base, legal, fixed, noise, order, phi) {
-      const H = this.H, A = this.A, g6 = A["G.g6"], Qs = A["G.Qs"], TU = A["G.TU"], ROLE = this.ROLE, S = this.SW;
+    draft(base, legal, fixed, noise, order, phi, L) {
+      const H = this.H, A = this.A, Qs = A["G.Qs"], TU = A["G.TU"], ROLE = this.ROLE, S = this.SW;
+      // v8.7: the role-count utilities by the lobby's band (g6b) and co-picks that move with its rank (Q1s x rank z); absent before
+      const g6b = L && A["G.g6b"], Q1 = L && A["G.Q1s"], rz = L ? L.rs : 0, g6 = g6b ? A["G.g6"].map((v, k) => v + g6b[L.bd * 6 + k]) : A["G.g6"];
       const picks = Int32Array.from(fixed), free = fixed.map(h => h < 0), tk = new Uint8Array(H), rc = [0, 0, 0], bq = new Float64Array(H), bt = new Float64Array(H);
-      const add = (h, sgn) => { tk[h] += sgn; rc[ROLE[h]] += sgn; const o = h * H; for (let k = 0; k < H; k++) { bq[k] += sgn * Qs[o + k]; bt[k] += sgn * TU[o + k]; } };
+      const add = (h, sgn) => { tk[h] += sgn; rc[ROLE[h]] += sgn; const o = h * H; for (let k = 0; k < H; k++) { bq[k] += sgn * (Q1 ? Qs[o + k] + rz * Q1[o + k] : Qs[o + k]); bt[k] += sgn * TU[o + k]; } };
       for (let i = 0; i < 6; i++) if (fixed[i] >= 0) add(fixed[i], 1);
       for (let s = 0; s < S; s++) for (let t = 0; t < 6; t++) {
         const i = order[t]; if (!free[i]) continue;
@@ -144,7 +158,8 @@
       for (let u = 0; u < MU + K; u++) {
         const us = u < MU, sd = side(u, us ? L.cbu : L.cbo, us ? tu : to), fixed = new Int32Array(6).fill(-1);
         if (us) for (let j = 0; j < 6; j++) { const h = L.shown[j]; if (h >= 0 && legal[h] && (j === 0 || D.CU[u * 6 + j] < commit)) fixed[j] = h; }
-        const off = u * 6 * S * H, pk = this.draft(sd.base, legal, fixed, (i, s, h) => D.NZ[off + (i * S + s) * H + h], D.OD[u], sd.phi);
+        else if (L.theirs) for (let j = 0; j < 6; j++) { const h = L.theirs[j]; if (h >= 0 && legal[h]) fixed[j] = h; }   // seen in the game: certain
+        const off = u * 6 * S * H, pk = this.draft(sd.base, legal, fixed, (i, s, h) => D.NZ[off + (i * S + s) * H + h], D.OD[u], sd.phi, L);
         const v = this.lineup(pk, D.PL[u], legal, us ? L.wu : L.wo); if (us) { pu.push(pk); au[u] = v; } else { po.push(pk); ao[u - MU] = v; }
         if (ex && (us ? u : u - MU) < nex) { const mains = [], forced = [], banned = [];
           for (let i = 0; i < 6; i++) { const m = us && L.shown[i] >= 0 ? L.shown[i] : MAIN[D.PL[u][i]]; mains.push(m); forced.push(pk[i] !== m); banned.push(!legal[m]); }
@@ -157,6 +172,13 @@
     }
     /* The ban model for the team banning at position e, averaged over stand-in teams (the notebook's ban_probs): RELu / RELo
        our and their stand-in teams' summed hero shares. allowed: Uint8Array. */
+    /* Each stand-in team's summed hero shares and (v8.7) summed squared shares: 2H numbers, the notebook's SHX sums. mu: our
+       lineups in PL (the draw's MU, or a fixture's). */
+    relOf(PL, us, mu = this.MU) {
+      const H = this.H, o = [];
+      for (let j = 0; j < this.J; j++) { const v = new Float64Array(2 * H); for (const p of PL[us ? j : mu + j]) { const sh = this.row("pool.SH", p); for (let k = 0; k < H; k++) { v[k] += sh[k]; v[H + k] += sh[k] * sh[k]; } } o.push(v); }
+      return o;
+    }
     banProbs(L, bans, e, allowed, RELu, RELo) {
       const H = this.H, A = this.A, S = this.S, m = L.m, bd = L.bd, us = L.ourpos[e], own = new Uint8Array(H), oth = new Uint8Array(H);
       const fearOf = RELs => {                         // per stand-in team, sum over k of REL[k] x CT[k][h]: fixed for a draw, so computed once per draw
@@ -169,11 +191,13 @@
       const a = A["G.B_a"], am = this.row("G.B_am", m), ab = this.row("G.B_ab", bd), ae = this.row("G.B_ae", e), acm = this.row("G.B_acm", m);
       for (let h = 0; h < H; h++) { let v = a[h] + am[h] + ab[h] + ae[h] + sg * acm[h]; if (last >= 0) v += Lx[last * H + h]; base[h] = v; }
       for (let i = 0; i < H; i++) { if (own[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Ro[r + h]; } if (oth[i]) { const r = i * H; for (let h = 0; h < H; h++) base[h] += Rt[r + h]; } }   // at most six rows: cheap
-      const pre = this.meta.pre_pop, cr = -(S.B_lam + A["G.B_lam_e"][e] + pre * S.B_lam_p), cf = S.B_gam + A["G.B_gam_e"][e] + pre * S.B_gam_p, tau = S.B_tau + A["G.B_tau_e"][e];
+      const lb = A["G.B_lam_b"], tb = A["G.B_tau_b"];            // v8.7 (V8TB): protection and targeting by rank band, absent before
+      const pre = this.meta.pre_pop, cr = -(S.B_lam + A["G.B_lam_e"][e] + pre * S.B_lam_p + (lb ? lb[bd] : 0)), cf = S.B_gam + A["G.B_gam_e"][e] + pre * S.B_gam_p, tau = S.B_tau + A["G.B_tau_e"][e] + (tb ? tb[bd] : 0);
+      const lm = S.B_lam_m || 0;                                   // v8.7 (V8TB): protection by concentration, on the squared-share channels
       const p = new Float64Array(H), u = new Float64Array(H), J = RELu.length, FR = fearOf(us ? RELu : RELo);
       for (let j = 0; j < J; j++) {
         const REL = us ? RELu[j] : RELo[j], RX = us ? RELo[j] : RELu[j], F = FR[j]; let mx = -Infinity;
-        for (let h = 0; h < H; h++) { if (!allowed[h]) continue; u[h] = base[h] + cr * REL[h] + cf * F[h] + tau * RX[h]; if (u[h] > mx) mx = u[h]; }
+        for (let h = 0; h < H; h++) { if (!allowed[h]) continue; u[h] = base[h] + cr * REL[h] - (lm ? lm * REL[H + h] : 0) + cf * F[h] + tau * RX[h]; if (u[h] > mx) mx = u[h]; }
         let se = 0; for (let h = 0; h < H; h++) if (allowed[h]) se += Math.exp(u[h] - mx);
         for (let h = 0; h < H; h++) if (allowed[h]) p[h] += Math.exp(u[h] - mx) / se / J;
       }
@@ -193,6 +217,73 @@
       return out;
     }
     /* Who opens what when the lobby is played out: counts of each hero in our and their drafted lineups. */
+    /* Our ideal lineup for this lobby: six heroes, one per seat, that give the highest win chance against their drafted lineups,
+       for the players behind our seats (the stand-ins, conditioned on the heroes each seat shows). A player's cost of switching
+       (skill and familiarity on the new hero, playing off their main) is in the outcome model, so a swap has to be worth it.
+       runs: [{ D, B, r }] per stand-in draw: the draw, its six bans (the rest of the ban phase simulated) and terminal(.., true).
+       legalNow: heroes we may still pick (not banned yet). Two searches by coordinate ascent from the shown heroes (unshown seats
+       start at their commonest drafted hero): "role", where a seat that shows a hero keeps its role, and "free", any role. The free
+       lineup is chosen only if it beats the role one by at least `thr` (win probability). Returns both, the choice, and the
+       typical draft's win chance on the same runs. */
+    idealComp(L, runs, legalNow, thr = .005) {
+      const H = this.H, ROLE = this.ROLE, MU = this.MU, K = this.K, C = this.A["G.C"], cbb = this.S.cal_b, ca = this.S.cal_a;
+      const pre = runs.map(({ D, B, r }) => {                      // their lineups' values and cross rows, fixed for the search
+        const legal = new Uint8Array(H).fill(1); for (const h of B) legal[h] = 0;
+        const ao = new Float64Array(K), cr = [];
+        for (let o = 0; o < K; o++) { ao[o] = this.lineup(r.po[o], D.PL[MU + o], legal, L.wo); const row = new Float64Array(H);
+          for (let h = 0; h < H; h++) { let x = 0; for (const k of r.po[o]) x += C[h * H + k]; row[h] = x; } cr.push(row); }
+        return { D, legal, ao, cr };
+      });
+      let evals = 0;
+      const value = A => {                                         // P(we win) with lineup A in every run, for every one of our stand-in teams
+        evals++; let tot = 0;
+        for (const q of pre) {
+          const cx = new Float64Array(K); for (let o = 0; o < K; o++) { let x = 0; for (const h of A) x += q.cr[o][h]; cx[o] = x; }
+          for (let u = 0; u < MU; u++) { const au = this.lineup(A, q.D.PL[u], q.legal, L.wu) + L.c0;
+            for (let o = 0; o < K; o++) tot += sig(cbb * (au - q.ao[o] + cx[o]) + ca * L.a); }
+        }
+        return tot / (pre.length * MU * K);
+      };
+      const shown = L.shown.map(h => (h >= 0 && legalNow[h] ? h : -1)), cnt = Array.from({ length: 6 }, () => new Float64Array(H));
+      for (const { r } of runs) for (const pk of r.pu) pk.forEach((h, i) => cnt[i][h]++);
+      const start = shown.slice();
+      for (let i = 0; i < 6; i++) if (start[i] < 0) { let b = -1; for (let h = 0; h < H; h++) if (legalNow[h] && !start.includes(h) && (b < 0 || cnt[i][h] > cnt[i][b])) b = h; start[i] = b; }
+      const search = (A0, roleLock) => {
+        const A = A0.slice(); let v = value(A);
+        for (let pass = 0; pass < 3; pass++) {
+          let moved = false;
+          for (let i = 0; i < 6; i++) {
+            const lock = roleLock && shown[i] >= 0 ? ROLE[shown[i]] : -1; let bh = A[i], bv = v;
+            for (let h = 0; h < H; h++) { if (!legalNow[h] || h === A[i] || A.includes(h) || (lock >= 0 && ROLE[h] !== lock)) continue;
+              const t = A[i]; A[i] = h; const w = value(A); A[i] = t; if (w > bv + 1e-9) { bv = w; bh = h; } }
+            if (bh !== A[i]) { A[i] = bh; v = bv; moved = true; }
+          }
+          if (!moved) break;
+        }
+        return { A, v };
+      };
+      // a seat that shows a hero keeps it unless switching is worth at least `thr` on its own: the smallest change that keeps the gain
+      const keep = R => { const A = R.A.slice(); let v = R.v;
+        for (let i = 0; i < 6; i++) { if (shown[i] < 0 || A[i] === shown[i] || A.some((h, k) => k !== i && h === shown[i])) continue;
+          const t = A[i]; A[i] = shown[i]; const w = value(A); if (v - w < thr) v = w; else A[i] = t; }
+        return { A, v }; };
+      const role = keep(search(start, true)), free = keep(search(role.A, false)), useFree = free.v - role.v >= thr;
+      const typical = runs.reduce((a, { r }) => a + r.win, 0) / runs.length;
+      return { role, free, pick: useFree ? "free" : "role", A: (useFree ? free : role).A, v: (useFree ? free : role).v, typical, shown, evals };
+    }
+    /* Their seat j's likely switch (test layout, a seat whose hero you entered): for each of their stand-in players in seat j
+       (drawn from players who open that hero), the pick model's own choice among the legal heroes other than it, averaged over
+       their K teams. Their side's utilities; teammates are left out (a switch is one player's). */
+    swapProbs(L, D, j, legal, not) {
+      const H = this.H, PB = this.A["pool.PB"], out = new Float64Array(H), u = new Float64Array(H);
+      for (let o = 0; o < this.K; o++) {
+        const p = D.PL[this.MU + o][j]; let mx = -Infinity;
+        for (let h = 0; h < H; h++) { if (!legal[h] || h === not) continue; u[h] = PB[p * H + h] + L.cbo[h]; if (u[h] > mx) mx = u[h]; }
+        let se = 0; for (let h = 0; h < H; h++) if (legal[h] && h !== not) se += Math.exp(u[h] - mx);
+        for (let h = 0; h < H; h++) if (legal[h] && h !== not) out[h] += Math.exp(u[h] - mx) / se / this.K;
+      }
+      return out;
+    }
     static opens(H, res, acc, bans) {                  // bans: this phase's six bans, so rates can be read for the phases where a hero was available
       for (const pk of res.pu) for (const h of pk) acc.us[h]++; for (const pk of res.po) for (const h of pk) acc.them[h]++; acc.nu += res.pu.length; acc.nt += res.po.length;
       if (bans && acc.av) { acc.runs = (acc.runs || 0) + 1; for (let h = 0; h < H; h++) if (!bans.includes(h)) acc.av[h]++; }

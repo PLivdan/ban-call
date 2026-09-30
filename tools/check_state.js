@@ -28,4 +28,9 @@ const hb = LS.decode("#m=11&u=9,-,-,-,-,-&b=9", ctx); ok(hb.team[0] === -1 && LS
 ok(LS.decode("#m=15&u=-,-,-,-,-,-&b=", ctx).map === 16 && LS.decode("#m=15&s=8&u=-,-,-,-,-,-&b=", ctx).map === 15, "map 15: remapped only in links from before the schema");
 ok(["constructor", "toString", "__proto__", "hasOwnProperty"].every(n => LS.decode(`#t=${n}&m=11`, ctx).tier === "Grandmaster 3"), "a tier must be one of the tiers (not an inherited name like constructor)");
 ok(LS.decode("#m=99", ctx).map === 11 && LS.decode("#m=abc", ctx).map === 11, "an unknown map falls back to the default");
+// the other team's entered heroes: only written when one is (old links unchanged), a hero once, never a banned one, cleared by a ban
+const o0 = base(); ok(!LS.encode(o0).includes("o="), "a lobby without their heroes writes no o key");
+o0.them[2] = 7; o0.them[4] = 9; const o1 = LS.decode(LS.encode(o0), ctx); ok(JSON.stringify(o1.them) === "[-1,-1,7,-1,9,-1]", "their entered heroes survive a link");
+ok(JSON.stringify(LS.decode("#m=11&b=9&o=7,7,9,x,-,3", ctx).them) === "[7,-1,-1,-1,-1,3]", "their heroes: once each, not banned, integers only");
+LS.ban(o1, 7); ok(o1.them[2] === -1, "banning a hero takes it off their team");
 console.log(bad ? `${bad} state check(s) FAILED` : "all state checks passed"); process.exit(bad ? 1 : 0);

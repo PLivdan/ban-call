@@ -14,8 +14,7 @@ for (const [i, f] of F.cases.entries()) {
   const SW = S.SW, NZ = new Float64Array((F.mu + F.k) * 6 * SW * H); let o = 0;
   for (const a of f.NZ) for (const bb of a) for (const c of bb) for (const x of c) NZ[o++] = x;
   const CU = new Float64Array(F.mu * 6); f.CU.forEach((r, u) => r.forEach((x, j) => CU[u * 6 + j] = x));
-  const rel = us => { const out = []; for (let j = 0; j < S.J; j++) { const v = new Float64Array(H); for (const p of f.PL[us ? j : F.mu + j]) { const sh = S.row("pool.SH", p); for (let k = 0; k < H; k++) v[k] += sh[k]; } out.push(v); } return out; };
-  const D = { PL: f.PL.map(t => Int32Array.from(t)), NZ, OD: f.OD, CU, RELu: rel(true), RELo: rel(false) };
+  const D = { PL: f.PL.map(t => Int32Array.from(t)), NZ, OD: f.OD, CU, RELu: S.relOf(f.PL, true, F.mu), RELo: S.relOf(f.PL, false, F.mu) };
   const R = S.terminal(L, D, f.bans, true);
   R.pu.forEach((pk, u) => pk.forEach((h, j) => { picks++; if (h !== f.picks_us[u][j]) pickDiff++; }));
   R.po.forEach((pk, u) => pk.forEach((h, j) => { picks++; if (h !== f.picks_them[u][j]) pickDiff++; }));
