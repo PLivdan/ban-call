@@ -129,7 +129,8 @@
     }
     /* P(we win | all six bans) for one draw: the mean over MU x K pairs of drafted lineups. Returns the picks too. nex > 0 (the
        Methods figure): also the first nex lineups of each team, seat by seat (the seat's hero: the one it shows, else the
-       stand-in's main; the pick; whether that hero is banned), and their nex x nex matchup win chances. extraOurs: which team
+       stand-in's main; the pick; whether the pick is another hero, because that hero is banned, taken by a teammate or not
+       chosen; whether it is banned), and their nex x nex matchup win chances. extraOurs: which team
        made a ban beyond the six (the flow job adds our advised ban as a seventh; the fixed order covers positions 0 to 5 only). */
     terminal(L, D, bans, keep = false, nex = 0, extraOurs = true) {
       const H = this.H, A = this.A, MU = this.MU, K = this.K, S = this.SW, legal = new Uint8Array(H).fill(1), ourB = new Float64Array(H), thB = new Float64Array(H);
@@ -145,9 +146,9 @@
         if (us) for (let j = 0; j < 6; j++) { const h = L.shown[j]; if (h >= 0 && legal[h] && (j === 0 || D.CU[u * 6 + j] < commit)) fixed[j] = h; }
         const off = u * 6 * S * H, pk = this.draft(sd.base, legal, fixed, (i, s, h) => D.NZ[off + (i * S + s) * H + h], D.OD[u], sd.phi);
         const v = this.lineup(pk, D.PL[u], legal, us ? L.wu : L.wo); if (us) { pu.push(pk); au[u] = v; } else { po.push(pk); ao[u - MU] = v; }
-        if (ex && (us ? u : u - MU) < nex) { const mains = [], forced = [];
-          for (let i = 0; i < 6; i++) { const m = us && L.shown[i] >= 0 ? L.shown[i] : MAIN[D.PL[u][i]]; mains.push(m); forced.push(!legal[m]); }
-          (us ? ex.us : ex.them).push({ mains, picks: Array.from(pk), forced }); }
+        if (ex && (us ? u : u - MU) < nex) { const mains = [], forced = [], banned = [];
+          for (let i = 0; i < 6; i++) { const m = us && L.shown[i] >= 0 ? L.shown[i] : MAIN[D.PL[u][i]]; mains.push(m); forced.push(pk[i] !== m); banned.push(!legal[m]); }
+          (us ? ex.us : ex.them).push({ mains, picks: Array.from(pk), forced, banned }); }
       }
       const C = A["G.C"], ca = this.S.cal_a, cbb = this.S.cal_b; let tot = 0;
       for (let u = 0; u < MU; u++) for (let o = 0; o < K; o++) { let x = au[u] - ao[o] + L.c0; const X = pu[u], Y = po[o]; for (const h of X) { const r = h * H; for (const k of Y) x += C[r + k]; }

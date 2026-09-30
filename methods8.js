@@ -253,10 +253,13 @@ window.MethodFigs = { init: async function (o) {
       return { stub: true, start() {}, seek() {}, redraw() {}, get t() { return 0; }, get dur() { return 1; }, get playing() { return false; } };
     }
     // the draw's lineups: each seat's hero (what it shows, else the stand-in's main), the pick, and whether that hero is banned
-    // (the player switched, as the pick model has players switch); lineups with a switch first, so the figure shows one early
+    // (the player switched, as the pick model has players switch); lineups with a banned main first, so the figure shows one early.
+    // Every seat shows the hero it plays from the start: two stand-ins can share a main and only one of them gets it, and players
+    // sometimes pick another hero anyway. Only a banned main is shown first and then switched (the crossed tile).
     const pack = (x, youFirst) => { const o = [0, 1, 2, 3, 4, 5].sort((a, b) => (youFirst ? (a === 0 ? -1 : b === 0 ? 1 : 0) : 0) || ROLE[x.picks[a]] - ROLE[x.picks[b]]);
-      return { team: o.map(i => x.mains[i]), picks: o.map(i => x.picks[i]), forced: o.map(i => x.forced[i]) }; };
-    const n = Math.min(NDRAW, EN.n, EN.us.length, EN.them.length), firstForced = xs => xs.map((x, i) => i).sort((a, b) => xs[b].forced.some(Boolean) - xs[a].forced.some(Boolean) || a - b);
+      const bn = x.banned || x.forced, seen = new Set(), sw = o.map(i => { const f = !!bn[i] && !seen.has(x.mains[i]); if (f) seen.add(x.mains[i]); return f; });   // a second player with the same banned main appears on their pick
+      return { team: o.map((i, q) => sw[q] ? x.mains[i] : x.picks[i]), picks: o.map(i => x.picks[i]), forced: sw, banned: sw }; };
+    const n = Math.min(NDRAW, EN.n, EN.us.length, EN.them.length), nb = x => (x.banned || x.forced).some(Boolean), firstForced = xs => xs.map((x, i) => i).sort((a, b) => nb(xs[b]) - nb(xs[a]) || a - b);
     const ou = firstForced(EN.us.slice(0, n)), ot = firstForced(EN.them.slice(0, n));
     const DR = []; for (let k = 0; k < NDRAW; k++) DR.push({ us: pack(EN.us[ou[k % n]], you !== undefined), them: pack(EN.them[ot[k % n]], false) });
     // the matchups' win chances, as the simulator scores them; the running average of the cells scored so far
@@ -319,7 +322,7 @@ window.MethodFigs = { init: async function (o) {
         const a = ease(seg(c, pickAt(tt, i), pickAt(tt, i) + .5)), s = TS + (22 - TS) * a;
         st.main.setAttribute("x", st.x - 8 * a); st.main.setAttribute("y", st.y - 8 * a); st.main.setAttribute("width", s); st.main.setAttribute("height", s); st.main.setAttribute("opacity", 1); st.pick.setAttribute("opacity", a);
         st.main.style.filter = `grayscale(${a})`;
-        st.cross.setAttribute("opacity", a > .9 ? 1 : 0); st.mainBox.setAttribute("opacity", a > .9 ? 1 : 0); });
+        st.cross.setAttribute("opacity", a > .9 && side.banned[i] ? 1 : 0); st.mainBox.setAttribute("opacity", a > .9 ? 1 : 0); });
       cells.forEach(({ i, j, r }) => { const m = Math.max(i, j), on = u >= 0 && (m < k || (m === k && c >= 3.0 + (i + j) * .06));
         r.setAttribute("fill", on ? valCol((RA[m].cells.get(i + "," + j) - D.win) * VMAX / .11) : P.panel); });
       const done = u < 0 ? -1 : c >= 4.1 ? k : k - 1;

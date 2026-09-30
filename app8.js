@@ -538,7 +538,7 @@
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=b0d92bf85f"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=e7cbdd6943"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -673,7 +673,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=b0d92bf85f");
+      flowW = new Worker("sim8-worker.js?v=e7cbdd6943");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -762,7 +762,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=b0d92bf85f");
+      endW = new Worker("sim8-worker.js?v=e7cbdd6943");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }
