@@ -2,7 +2,9 @@
 
 A transcription of the notebook's definition of the page's policy (the notebook's turn_case, section 10): the float16
 students of model8/value_v8.json, the ban model and page-view tables of model8/ban_v8.json, and the rule "among bans a typical
-team makes with probability >= support (all allowed bans when none is), the highest mean - kappa x SD". Every state is
+team makes with probability >= support (all allowed bans when none is), the highest mean - kappa x SD". With the layout's
+`plan` (the notebook's v8.6 second review): the score adds lam x log p, a supported ban must also have counts_ok at its
+position and band, and with no supported ban the advice is the likeliest ban. Every state is
 random: both camps, every own position, ordered ban histories, 0-6 shown heroes. On a two-ban turn the decision is the
 sequence the page advises: the best ban, then the best ban at the state after it.
 
@@ -14,6 +16,7 @@ import numpy as np
 MD = os.environ.get("MODEL_DIR", "model8"); N_STATES = int(sys.argv[1]) if len(sys.argv) > 1 else 400
 L = json.load(open(f"{MD}/value_v8.json", encoding="utf-8")); B = json.load(open(f"{MD}/ban_v8.json", encoding="utf-8"))
 H, ORDER, BANDS, KAPPA, SUPP = len(L["heroes"]), np.array(L["order"]), np.array(L["bands"]), L["kappa"], L["support"]
+PLAN = L.get("plan"); LAM = PLAN["lam"] if PLAN else 0.; CNT = np.asarray(PLAN["counts_ok"], bool) if PLAN else None
 O = {b[0]: b[1] for b in L["blocks"]}; FD = L["input_dim"]; NM = len(L["maps"])
 assert L.get("student"), "this check covers student exports (v8.2 on)"
 buf = {f: np.frombuffer(open(f"{MD}/{v['path']}", "rb").read(), dtype="<f2") for f, v in L["files"].items()}
@@ -70,8 +73,9 @@ def decide(s):
         x = x0.copy(); x[blk + h] = 1; x[O["last_ban"] + h] = 1
         if "ban_order" in O: x[O["ban_order"] + e * H + h] = 1
         o = fwd(e + 1, x); mu[h] = 1 / (1 + math.exp(-o[0])); sd[h] = math.log1p(math.exp(-abs(o[1]))) + max(o[1], 0.)
-    pe = ban_probs(s, e, allowed); sup = allowed & (pe >= SUPP); sup = sup if sup.any() else allowed
-    sc = np.where(sup, mu - KAPPA * sd, -np.inf); best = int(sc.argmax()); runner = np.sort(sc[np.isfinite(sc)])[-2] if np.isfinite(sc).sum() > 1 else -np.inf
+    pe = ban_probs(s, e, allowed); sup = allowed & (pe >= SUPP) & (CNT[e, band(s["r0"])] if CNT is not None else True)
+    if not sup.any(): sup = allowed if PLAN is None else (np.arange(H) == int(np.where(allowed, pe, -np.inf).argmax()))
+    sc = np.where(sup, mu - KAPPA * sd + LAM * np.log(np.maximum(pe, 1e-30)), -np.inf); best = int(sc.argmax()); runner = np.sort(sc[np.isfinite(sc)])[-2] if np.isfinite(sc).sum() > 1 else -np.inf
     return best, float(sc[best] - runner)
 rg = np.random.default_rng(20260927); tiers = [4050, 4250, 4450, 4550, 4650, 4850, 5050]; cases = []
 while len(cases) < N_STATES:

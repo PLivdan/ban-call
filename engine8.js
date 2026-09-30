@@ -5,6 +5,9 @@
      Q(x) = network(k + 1)(the lobby after we ban x): the members' mean and SD;
      value(x) = mean Q(x) − the same for a typical ban (the ban model's probabilities for our team);
      the advice is the highest  mean − kappa × SD  among bans a typical team makes with probability >= support.
+   From the notebook's v8.6 second review (layout.plan): the score adds  lam × log(probability), a supported ban must also be
+   one real teams made at least min_count times at that position in that rank band (plan.counts_ok), and with no supported
+   ban the advice is the ban a typical team is likeliest to make. Without layout.plan the rule above holds as it was.
    Two formats. Members (v8.1): three optimal members, a behaviour and a robust member per position, each giving a logit.
    Student (v8.2 on): one network per position distilled from large teacher ensembles, with three outputs: the logit of the
    teachers' mean, the softplus of their SD, and the logit of the behaviour chain.
@@ -32,6 +35,7 @@
     constructor(layout, ban) {
       this.L = layout; this.H = layout.heroes.length; this.NM = layout.maps.length; this.NB = layout.bands.length + 1;
       this.ORDER = layout.order; this.KAPPA = layout.kappa; this.SUPP = layout.support; this.M = layout.members; this.FD = layout.input_dim;
+      const PL = layout.plan || null; this.LAM = PL ? PL.lam : 0; this.CNT = PL ? PL.counts_ok : null; this.LIKELIEST = !!(PL && PL.fallback === "likeliest");
       this.S = !!layout.student; this.NN = this.S ? layout.teachers.members : this.M;          // networks behind the spread
       this.O = {}; for (const b of layout.blocks) this.O[b[0]] = b[1];
       this.buf = {}; this.cache = new Map(); this.index = new Map(); this.turns = new Map(); this.rel = new Map();
@@ -74,6 +78,10 @@
     }
     ready(chain) { return !!this.buf[this.S || chain === "optimal" ? "opt" : "aux"]; }
     band(r0) { let b = 0; for (const t of this.L.bands) if (r0 > t) b++; return b; }
+    /* The page's rule: is ban h supported at position e in band bd (pe: the ban model's probabilities as the page sees the
+       lobby), and its score (the students' mean − kappa × SD, plus lam × log p). */
+    supportOK(e, bd, h, pe) { return pe[h] >= this.SUPP && (!this.CNT || this.CNT[e][bd][h] === 1); }
+    score(mu, sd, pe, h) { return mu[h] - this.KAPPA * sd[h] + (this.LAM ? this.LAM * Math.log(Math.max(pe[h], 1e-30)) : 0); }
     ours(firstUs, i) { return (this.ORDER[i] === 0) === firstUs; }
     // ---- networks, decoded from float16 the first time they are used
     net(pos, chain, member) {
@@ -221,7 +229,7 @@
     /* A turn's result, cached by the lobby state (and the rule's constants): the page asks for the same turns several times
        (the advice, the likeliest path, a two-ban sequence, the Methods figures). Callers only read the results. */
     memo(kind, s, fn) {
-      const k = [kind, this.SUPP, this.KAPPA, s.m, s.r0, s.firstUs, s.bans.join(","), s.you, s.mates.join(",")].join("|");
+      const k = [kind, this.SUPP, this.KAPPA, this.LAM, s.m, s.r0, s.firstUs, s.bans.join(","), s.you, s.mates.join(",")].join("|");
       if (this.turns.has(k)) return this.turns.get(k);
       const r = fn(); if (r === null) return r; if (this.turns.size > 256) this.turns.clear(); this.turns.set(k, r); return r;
     }
@@ -234,11 +242,13 @@
       const VV = this.values(s, e, cands, true); if (!VV) return null;
       const { mu, sd, Q } = VV, pe = this.banProbs(s, e, allowed);
       let base = 0; for (const h of cands) base += pe[h] * mu[h];
-      const sup = cands.filter(h => pe[h] >= this.SUPP), pool = sup.length ? sup : cands;
-      let best = pool[0]; for (const h of pool) if (mu[h] - this.KAPPA * sd[h] > mu[best] - this.KAPPA * sd[best]) best = h;
+      const bd = this.band(s.r0), sc = h => this.score(mu, sd, pe, h), sup = cands.filter(h => this.supportOK(e, bd, h, pe));
+      let likely = cands[0]; for (const h of cands) if (pe[h] > pe[likely]) likely = h;
+      const pool = sup.length ? sup : (this.LIKELIEST ? [likely] : cands);
+      let best = pool[0]; for (const h of pool) if (sc(h) > sc(best)) best = h;
       const V = new Float64Array(H).fill(NaN); for (const h of cands) V[h] = mu[h] - base;
       const votes = Q ? Q.map(q => { let b = pool[0]; for (const h of pool) if (q[h] > q[b]) b = h; return b; }) : null;
-      const R = { e, cands, allowed, Q, mu, sd, V, pe, base, best, supported: new Set(sup), votes };
+      const R = { e, cands, allowed, Q, mu, sd, V, pe, base, best, supported: new Set(sup), votes, score: sc };
       R.spread = h => this.spread(Q ? Q.map(q => q[h] - base) : null, V[h], sd[h]);
       R.clear = (a, b) => Q ? Q.every(q => q[a] > q[b]) : mu[a] - mu[b] > sd[a] + sd[b];
       return R;
@@ -264,19 +274,20 @@
     /* Pairs scored together, for comparison with the advice (not the advice itself): after each of the top supported first bans
        x, every second ban y that is supported at the state after x (all legal ones when none is), from network e + 2. */
     pairs(s, R, nFirst = 6, bothOrders = false) {
-      const e = R.e, H = this.H, sc = h => R.mu[h] - this.KAPPA * R.sd[h], pool1 = R.supported.size ? R.cands.filter(h => R.supported.has(h)) : R.cands;
+      const e = R.e, H = this.H, sc = R.score, bd = this.band(s.r0), pool1 = R.supported.size ? R.cands.filter(h => R.supported.has(h)) : R.cands;
       const first = pool1.slice().sort((a, b) => sc(b) - sc(a)).slice(0, nFirst), out = [];
       for (const x of first) {
         const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), VV = this.values(s2, e + 1, cands, true); if (!VV) return null;
-        const al2 = new Uint8Array(H); for (const h of cands) al2[h] = 1; const pe2 = this.banProbs(s2, e + 1, al2), sup2 = cands.filter(h => pe2[h] >= this.SUPP);
+        const al2 = new Uint8Array(H); for (const h of cands) al2[h] = 1; const pe2 = this.banProbs(s2, e + 1, al2), sup2 = cands.filter(h => this.supportOK(e + 1, bd, h, pe2));
+        const lx = this.LAM ? this.LAM * Math.log(Math.max(R.pe[x], 1e-30)) : 0;
         for (const y of (sup2.length ? sup2 : cands)) {
           const mv = VV.Q ? VV.Q.map(q => q[y] - R.base) : null, V = VV.mu[y] - R.base;
-          out.push({ a: x, b: y, mu: VV.mu[y], sd: VV.sd[y], V, mv, spread: this.spread(mv, V, VV.sd[y]) });
+          out.push({ a: x, b: y, mu: VV.mu[y], sd: VV.sd[y], V, mv, spread: this.spread(mv, V, VV.sd[y]), sc: this.score(VV.mu, VV.sd, pe2, y) + lx });
         }
       }
-      if (bothOrders) return out.sort((p, q) => (q.mu - this.KAPPA * q.sd) - (p.mu - this.KAPPA * p.sd));
+      if (bothOrders) return out.sort((p, q) => q.sc - p.sc);
       const seen = new Set(), uniq = [];
-      for (const p of out.sort((p, q) => (q.mu - this.KAPPA * q.sd) - (p.mu - this.KAPPA * p.sd))) { const k = Math.min(p.a, p.b) + "," + Math.max(p.a, p.b); if (!seen.has(k)) { seen.add(k); uniq.push(p); } }
+      for (const p of out.sort((p, q) => q.sc - p.sc)) { const k = Math.min(p.a, p.b) + "," + Math.max(p.a, p.b); if (!seen.has(k)) { seen.add(k); uniq.push(p); } }
       return uniq;
     }
     /* Their turn: the forecast of their ban, and what each of their likely bans does to our win chance. */

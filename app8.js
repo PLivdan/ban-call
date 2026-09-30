@@ -121,7 +121,7 @@
     if (matchMedia("(pointer: fine)").matches) $("search").focus({ preventScroll: true });
   }
   function banBoth(a, b) { for (const h of [a, b]) LS.ban(st, h); st.active = { kind: "ban" }; update(); }
-  const score = h => RES.mu[h] - E.KAPPA * RES.sd[h];
+  const score = h => RES.score(h);                                  // the page's rule (engine8.js), anchor included
   const topBans = k => RES ? RES.cands.slice().sort((a, b) => score(b) - score(a)).slice(0, k) : [];
   function quickList() {
     if (st.active.kind === "team") {
@@ -538,7 +538,7 @@
   let compPool = [], COMP = null, compId = 0;
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=267fa7b6fa"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=b0d92bf85f"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -646,7 +646,7 @@
       html += more("All bans as a table", rankTable(topBans(12), [
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => opnCell("them", h) }, { th: "You open", td: h => opnCell("us", h) }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Band: the range, dot: the value, dashed line: a typical ban. Typical: how often a
-        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least 0.1% of the time). They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
+        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least ${+(100 * E.SUPP).toFixed(2)}% of the time${E.CNT ? " and that real teams at your rank have made at this point" : ""})${E.LAM ? ". The advice also leans toward bans real teams make often, so it is not always the ban with the highest value here" : ""}. They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
       html += openers() + "</div>";
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
@@ -673,7 +673,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=267fa7b6fa");
+      flowW = new Worker("sim8-worker.js?v=b0d92bf85f");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -762,7 +762,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=267fa7b6fa");
+      endW = new Worker("sim8-worker.js?v=b0d92bf85f");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }

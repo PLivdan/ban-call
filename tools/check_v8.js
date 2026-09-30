@@ -72,7 +72,7 @@ if (unsupported) { bad++; log("  FAIL: advice outside the support"); }
 // counted: the advice must still be supported there.
 const supAt = (s, e, h) => { const L_ = E.legal(s), sh = E.shownSet(s), al = new Uint8Array(H); let any = false;
   for (let k = 0; k < H; k++) al[k] = L_[k] && !(E.ours(s.firstUs, e) && sh.has(k)) ? 1 : 0;
-  const p = E.banProbs(s, e, al); for (let k = 0; k < H; k++) if (al[k] && p[k] >= E.SUPP) any = true; return !any || p[h] >= E.SUPP; };
+  const p = E.banProbs(s, e, al), bd = E.band(s.r0); for (let k = 0; k < H; k++) if (al[k] && E.supportOK(e, bd, k, p)) any = true; return !any || E.supportOK(e, bd, h, p); };
 let nTwo = 0, seqBad = 0, pairBad = 0, rare = 0, camps = new Set();
 for (let i = 0; i < 200 && nTwo < 24; i++) {
   const heroes = Array.from({ length: H }, (_, k) => k).sort(() => rnd() - .5), firstUs = rnd() < .5;
