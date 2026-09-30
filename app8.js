@@ -84,6 +84,9 @@
   const banSide = h => { const i = st.bans.indexOf(h); return i >= 0 && ours(i) ? "us" : "them"; };
   const slash = (sz, off = 0) => `<svg class="xs" width="${sz}" height="${sz}" style="left:${off}px;top:${off}px;width:${sz}px;height:${sz}px" aria-hidden="true"><line x1="1" y1="1" x2="${sz - 1}" y2="${sz - 1}"/></svg>`;
   const teamSet = () => new Set(st.team.filter(h => h >= 0));
+  // the test layout's banned seat: a slash from the parallelogram's top left corner to its bottom right one (the seat's clip-path
+  // is 12% in at the top left and at the bottom right), drawn over the whole seat so it meets the corners
+  const GSLASH = `<svg class="xs gs" viewBox="0 0 100 100" preserveAspectRatio="none" style="left:0;top:0;width:100%;height:100%" aria-hidden="true"><line x1="12" y1="0" x2="88" y2="100" vector-effect="non-scaling-stroke"/></svg>`;
   // the lobby as the value networks see it: the heroes your team showed stay shown even if the other team bans them
   const shownOf = i => LS.shownOf(st, i);
   const lobby = () => LS.lobby(st, META.tiers[st.tier]);
@@ -189,7 +192,7 @@
     $("teamSlots").innerHTML = st.team.map((h, i) => {
       const act = st.active.kind === "team" && st.active.i === i, g = h < 0 ? st.gone.find(x => x.i === i) : null;
       return `<div class="slot${h < 0 ? " empty" : ""}${g ? ` gone ${banSide(g.h)}` : ""}${act ? " active" : ""}" data-i="${i}" title="${h < 0 ? (g ? `${esc(NAMES[g.h])} was banned: click, then pick a hero` : "click, then pick a hero") : esc(NAMES[h]) + ": click to change"}">
-        <div class="pw"><div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="filter:grayscale(1)">${LB ? slash(54, 3) : slash(60, -2)}` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div></div>
+        <div class="pw"><div class="pic">${h < 0 ? (g ? `<img src="${img(g.h)}" alt="" style="filter:grayscale(1)">${LB ? GSLASH : slash(60, -2)}` : "+") : `<img src="${img(h)}" alt="${esc(NAMES[h])}"><span class="x" data-clear="${i}">✕</span>`}</div></div>
         ${LB ? `${IDEAL_ON ? `<div class="iw" data-i="${i}"></div>` : ""}<div class="lab">${i === 0 ? "You" : "&nbsp;"}</div></div>`
              : `<div class="lab">${i === 0 ? "You" : "Mate " + (i + 1)}</div><div class="lab">${h >= 0 ? esc(short(h)) : g ? `<s>${esc(short(g.h))}</s>` : "&nbsp;"}</div></div>`}`;
     }).join("");
