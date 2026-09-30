@@ -205,7 +205,10 @@
   .tile .tx { position: relative; display: block; width: 48px; height: 48px; margin: 0 auto 2px auto; }
   .tile .tx img { margin: 0; }
   .tile.banned { cursor: default; } .tile.banned img { filter: grayscale(1); border-width: 2px; }
-  .tile.banned.us img, .tile.banned.us:hover img { border-color: var(--blue); } .tile.banned.them img, .tile.banned.them:hover img { border-color: var(--red); }
+  /* the frame sits on the wrapper, not the portrait: the portrait's grayscale filter would grey its own border */
+  .tile.banned img, .tile.banned:hover img { border-color: transparent; }
+  .tile.banned .tx::before { content: ""; position: absolute; inset: 0; border: 2px solid var(--hair); pointer-events: none; }
+  .tile.banned.us .tx::before { border-color: var(--blue); } .tile.banned.them .tx::before { border-color: var(--red); }
   .slot.xban .pic { border: 2px solid var(--hair); } .slot.xban.us .pic { border-color: var(--blue); } .slot.xban.them .pic { border-color: var(--red); }
   .slot.xban .pic img { width: 56px; height: 56px; filter: grayscale(1); }
   .tile.ours img { outline: 2px solid var(--blue); outline-offset: -2px; }
@@ -436,6 +439,6 @@
 
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
-<script src="methods8.js?v=3ce7d890a2"></script>
-<script src="app8.js?v=a1d141b869"></script>
+<script src="methods8.js?v=a6dc113180"></script>
+<script src="app8.js?v=6a61cb0dc3"></script>
 </html>

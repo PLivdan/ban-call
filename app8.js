@@ -82,7 +82,7 @@
   // a banned hero, drawn the same way everywhere: greyed out, a slash from corner to corner, slash and frame in the colour of the
   // team that banned it (the frame is the portrait's border; the slash runs along the border's middle into its corners)
   const banSide = h => { const i = st.bans.indexOf(h); return i >= 0 && ours(i) ? "us" : "them"; };
-  const slash = (sz, off = 0) => `<svg class="xs" width="${sz}" height="${sz}" style="left:${off}px;top:${off}px;width:${sz}px;height:${sz}px" aria-hidden="true"><line x1="1" y1="${sz - 1}" x2="${sz - 1}" y2="1"/></svg>`;
+  const slash = (sz, off = 0) => `<svg class="xs" width="${sz}" height="${sz}" style="left:${off}px;top:${off}px;width:${sz}px;height:${sz}px" aria-hidden="true"><line x1="1" y1="1" x2="${sz - 1}" y2="${sz - 1}"/></svg>`;
   const teamSet = () => new Set(st.team.filter(h => h >= 0));
   // the lobby as the value networks see it: the heroes your team showed stay shown even if the other team bans them
   const shownOf = i => LS.shownOf(st, i);

@@ -29,7 +29,7 @@ window.MethodFigs = { init: async function (o) {
   // a banned hero: the portrait greyed out with a slash from corner to corner, slash and frame in the colour of the team that banned
   // it and the same width, so the slash runs into the frame's corners
   const banTile = (parent, h, x, y, s, stroke, sw = 2) => { const t = tile(parent, h, x, y, s, stroke, sw); t.im.style.filter = "grayscale(1)";
-    el("line", { x1: x, y1: y + s, x2: x + s, y2: y, stroke, "stroke-width": sw }, t.g); t.g.appendChild(t.bx); return t; };
+    el("line", { x1: x, y1: y, x2: x + s, y2: y + s, stroke, "stroke-width": sw }, t.g); t.g.appendChild(t.bx); return t; };
   function player(pp, chEl, chapters, dur, render) {
     let t = 0, playing = false, last = 0;
     chEl.innerHTML = chapters.map((c, i) => `<button data-i="${i}"><span class="track"><span class="fill"></span></span><b>${c[1]}</b>${c[2]}</button>`).join("");
@@ -245,7 +245,7 @@ window.MethodFigs = { init: async function (o) {
 
   // ================================================================ inside one ending
   function buildT3() {
-    const Wd = 1000, Hh = 400, path = D.path, banned = new Set(path.map(p => p.h)), ROLE = D.roles, you = D.lobby.youH >= 0 ? D.lobby.youH : undefined;
+    const Wd = 1000, Hh = 400, path = D.path, banned = new Set(path.map(p => p.h)), banBy = new Map(path.map(p => [p.h, p.us])), ROLE = D.roles, you = D.lobby.youH >= 0 ? D.lobby.youH : undefined;
     const CYC = 5.4, NDRAW = 9, T0 = 1.5, DUR = T0 + CYC * NDRAW, EN = D.ending;
     // one real draw from the simulator (the page asks its worker; MethodFigs.ending hands it over): until it is in, a note
     if (!EN || EN.failed || !EN.us || EN.us.length < 1) {
@@ -283,7 +283,7 @@ window.MethodFigs = { init: async function (o) {
       const frame = el("rect", { x, y, width: TS, height: TS, fill: "none", stroke: col, "stroke-width": 2, opacity: 0 }, g);
       const BX = x - 8, BY = y - 8, BS = 22;                                  // the banned main: a badge over the tile's corner
       const mainBox = el("rect", { x: BX, y: BY, width: BS, height: BS, fill: "none", stroke: col, "stroke-width": 2, opacity: 0 }, g);
-      const cross = el("line", { x1: BX, y1: BY + BS, x2: BX + BS, y2: BY, stroke: col, "stroke-width": 2, opacity: 0 }, g);
+      const cross = el("line", { x1: BX, y1: BY, x2: BX + BS, y2: BY + BS, stroke: col, "stroke-width": 2, opacity: 0 }, g);
       g.appendChild(main);
       g.appendChild(cross); g.appendChild(mainBox);
       seats.push({ tt, i, x, y, g, outline, pick, main, mainBox, cross, frame, hm: -1, hp: -1 }); }
@@ -322,6 +322,8 @@ window.MethodFigs = { init: async function (o) {
         const a = ease(seg(c, pickAt(tt, i), pickAt(tt, i) + .5)), s = TS + (22 - TS) * a;
         st.main.setAttribute("x", st.x - 8 * a); st.main.setAttribute("y", st.y - 8 * a); st.main.setAttribute("width", s); st.main.setAttribute("height", s); st.main.setAttribute("opacity", 1); st.pick.setAttribute("opacity", a);
         st.main.style.filter = `grayscale(${a})`;
+        const bc = side.banned[i] && banBy.has(side.team[i]) ? (banBy.get(side.team[i]) ? P.blue : P.red) : (tt ? P.red : P.blue);   // slash and frame: the banning team's colour
+        st.cross.setAttribute("stroke", bc); st.mainBox.setAttribute("stroke", bc);
         st.cross.setAttribute("opacity", a > .9 && side.banned[i] ? 1 : 0); st.mainBox.setAttribute("opacity", a > .9 ? 1 : 0); });
       cells.forEach(({ i, j, r }) => { const m = Math.max(i, j), on = u >= 0 && (m < k || (m === k && c >= 3.0 + (i + j) * .06));
         r.setAttribute("fill", on ? valCol((RA[m].cells.get(i + "," + j) - D.win) * VMAX / .11) : P.panel); });

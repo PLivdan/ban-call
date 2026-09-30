@@ -321,7 +321,7 @@
       const frame = el("rect", { x, y, width: TS, height: TS, fill: "none", stroke: col, "stroke-width": 2, opacity: 0 }, g);
       const BX = x - 8, BY = y - 8, BS = 22;                                  // the banned main: a badge over the tile's corner
       const mainBox = el("rect", { x: BX, y: BY, width: BS, height: BS, fill: "none", stroke: P.ink, "stroke-width": 1.5, opacity: 0 }, g);
-      const cross = el("line", { x1: BX + 2, y1: BY + BS - 2, x2: BX + BS - 2, y2: BY + 2, stroke: P.red, "stroke-width": 3, opacity: 0 }, g);
+      const cross = el("line", { x1: BX + 2, y1: BY + 2, x2: BX + BS - 2, y2: BY + BS - 2, stroke: P.red, "stroke-width": 3, opacity: 0 }, g);
       g.appendChild(main);
       g.appendChild(mainBox); g.appendChild(cross);
       seats.push({ tt, i, x, y, g, outline, pick, main, mainBox, cross, frame, hm: -1, hp: -1 }); }
