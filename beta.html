@@ -328,6 +328,10 @@
   #teamSlots .slot .pic, #enemySlots .slot .pic { clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); border: 0; padding: 3px; }
   #teamSlots .slot .pic { background: var(--blue); } #teamSlots .slot.empty .pic { background: color-mix(in srgb, var(--blue) 25%, var(--paper)); color: var(--blue); }
   #teamSlots .slot.gone .pic { background: var(--blue); color: inherit; }   /* a banned hover: our seat keeps its blue frame; the slash carries the banning team's colour */
+  /* and an outline round the parallelogram in the banning team's colour (a lighter blue for ours): drop shadows on the wrapper,
+     since the seat's clip-path would cut a border or a shadow of its own */
+  #teamSlots .slot.gone.us .pw { --ring: color-mix(in srgb, var(--blue) 45%, #fff); } #teamSlots .slot.gone.them .pw { --ring: var(--red); }
+  #teamSlots .slot.gone .pw { filter: drop-shadow(3px 0 0 var(--ring)) drop-shadow(-3px 0 0 var(--ring)) drop-shadow(0 3px 0 var(--ring)) drop-shadow(0 -3px 0 var(--ring)); }
   #teamSlots .slot .pic img, #enemySlots .slot .pic img { width: 54px; height: 54px; clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); }
   #enemySlots .slot .pic { background: color-mix(in srgb, var(--red) 55%, var(--paper)); } #enemySlots .slot .pic img { opacity: .78; }
   #enemySlots .slot.empty .pic { background: color-mix(in srgb, var(--red) 25%, var(--paper)); color: var(--red); font-size: 22px; font-weight: 700; }
@@ -442,5 +446,5 @@
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
 <script src="methods8.js?v=a6dc113180"></script>
-<script src="app8.js?v=75c8532bb4"></script>
+<script src="app8.js?v=8e6badfca5"></script>
 </html>
