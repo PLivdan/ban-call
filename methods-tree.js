@@ -75,12 +75,12 @@
   const chapter = t => { let c = 0; CH.forEach((a, i) => { if (t >= a) c = i; }); return c; };
   const M = s => `<span class="math">${s}</span>`;
   const STEP = [
-    [M(`<i>θ</i> = (<i>θ</i><sub><i>A</i></sub>, <i>θ</i><sub><i>B</i></sub>) ~ <i>π</i>(<i>θ</i> | <i>x</i>)`), "Nature draws the type given what the page sees (x: map, rank band, rank, side, heroes on show)"],
+    [M(`<i>θ</i> = (<i>θ</i><sub><i>A</i></sub>, <i>θ</i><sub><i>B</i></sub>) ~ <i>π</i>(<i>θ</i> | <i>x</i>)`), "Nature draws the type given what the model sees (x: map, rank band, rank, side, heroes on show)"],
     [M(`<i>V</i><sub>0</sub>(<i>s</i><sub>0</sub>) = max<sub><i>b</i></sub> <i>V̄</i><sub>1</sub>(<i>s</i><sub>0</sub><i>b</i>)`), "one b for the whole information set s₀, the best in expectation"],
     [M(`<i>π</i>(<i>θ</i> | <i>s</i><sub>3</sub>) ∝ <i>π</i>(<i>θ</i> | <i>x</i>) <i>σ̂</i><sub><i>B</i></sub>(<i>b</i><sub><i>B</i></sub><sup>1</sup><i>b</i><sub><i>B</i></sub><sup>2</sup> | <i>s</i><sub>1</sub>, <i>θ</i><sub><i>B</i></sub>)`), "Bayes' rule: their bans depend on their type, so they are evidence about it"],
     [M(`max<sub><i>a</i></sub> max<sub><i>b</i></sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>) = max<sub>{<i>a</i>,<i>b</i>}</sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>)`), "two of your bans in a row are one choice of pair, the same across the information set"],
     [M(`<i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>; <i>θ</i>) = <sup>1</sup>/<sub>28²</sub> Σ<sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)`), "the payoff in type θ: 28 lineups a side, every pairing scored on the map"],
-    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>) = Σ<sub><i>b</i></sub> <i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>) <i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>; <i>θ</i>)`), "backward induction within a type: an expectation at their bans, the page's choice at yours"],
+    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>) = Σ<sub><i>b</i></sub> <i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>) <i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>; <i>θ</i>)`), "backward induction within a type: an expectation at their bans, the model's choice at yours"],
     [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>) = 𝔼<sub><i>θ</i> | <i>s</i><sub><i>k</i></sub></sub>[<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>)]`), "a regression on s_k alone learns this: simulated games reach s_k from each type in proportion to its posterior"]];
   STEP[6][1] = STEP[6][1].replace("s_k", "s<sub>k</sub>").replace("s_k", "s<sub>k</sub>");
   let shownStep = -1;
@@ -110,7 +110,7 @@
   // of their own. In the last chapter they slide together into the one tree the page can see, each band striped by the types its
   // games came from.
   const VW = 1000, VH = 626, XN = 84, XS = [196, 336, 476, 608, 726], X5 = XS[4], TOPY = 76, BOTY = 548, FLOW = 306;
-  const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, role: "img", "aria-label": "The ban phase as flowing bands: three types of hidden players in lanes, the page's choices joined across them, then the types folded into the page's tree" }, $("gt"));
+  const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, role: "img", "aria-label": "The ban phase as flowing bands: three types of hidden players in lanes, the model's choices joined across them, then the types folded into the model's tree" }, $("gt"));
   const defs = el("defs", {}, svg), clipR = el("rect", { x: 0, y: 0, height: VH, width: 0 }, el("clipPath", { id: "gtclip" }, defs));
   const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip), stream: el("g", {}, gClip) };
   ["res", "info", "lab", "tok", "txt", "card", "panel", "head", "grid"].forEach(k => L[k] = el("g", {}, svg));
@@ -203,7 +203,7 @@
   // the forks: a thin bar in the colour of whoever bans there (a choice for you, odds for them)
   const nodeTip = (v, w) => { const n = v.t, first = v.id === "A1";
     if (n.us) return `<b>Your ${first ? "first ban" : "second and third bans"}, type ${w + 1}</b><br>`
-      + (n.alone[w] !== n.pick ? `If the page knew the type it would ban ${nms(n.kids[n.alone[w]].b)} (${f1(n.kids[n.alone[w]].wv[w])}%). ` : `${nms(n.kids[n.pick].b)} would be best even if the page knew the type. `)
+      + (n.alone[w] !== n.pick ? `If the model knew the type it would ban ${nms(n.kids[n.alone[w]].b)} (${f1(n.kids[n.alone[w]].wv[w])}%). ` : `${nms(n.kids[n.pick].b)} would be best even if the model knew the type. `)
       + `It doesn't, so it takes the best in expectation: ${nms(n.kids[n.pick].b)}, ${f1(n.kids[n.pick].pv)}%.`
       + (!first ? (n.kids[1].prv > n.kids[0].prv ? `<br><span class="d">Before their bans, ${nms(n.kids[1].b)} looked best (${f1(n.kids[1].prv)}% against ${f1(n.kids[0].prv)}%). Their bans changed how likely each type is, and that changed the call.</span>`
         : `<br><span class="d">Their bans moved the types' odds from ${PRIOR.map(pc).join(" / ")} to ${POST[v.id].map(pc).join(" / ")}, not enough to change the call.</span>`) : "");
@@ -215,7 +215,7 @@
   // now: the lobby, before anything is drawn
   const nowR = el("rect", { x: XN - 10, width: 10, height: FLOW }, L.res), nowT = el("text", { x: XN - 16, class: "ar", "font-size": 13, "text-anchor": "end" }, L.res), nowS = el("text", { x: XN - 16, "font-size": 11.5, "text-anchor": "end" }, L.res);
   nowT.textContent = "Now"; nowS.textContent = LIVE ? (D.banSecond ? "your lobby, as if first" : "your lobby (x)") : "the lobby (x)";
-  tip(nowR, () => `<b>Now (x)</b>: what the page can see. The map, the rank, who bans first and the heroes on show.` + (LIVE ? `<br><span class="d">These are your lobby's numbers from the model${D.banSecond ? ", drawn as if you ban first" : ""}: the types are its simulated opponent teams in three groups.</span>` : `<br><span class="d">An illustration: the numbers are made up to show the reasoning.</span>`));
+  tip(nowR, () => `<b>Now (x)</b>: what the model can see. The map, the rank, who bans first and the heroes on show.` + (LIVE ? `<br><span class="d">These are your lobby's numbers from the model${D.banSecond ? ", drawn as if you ban first" : ""}: the types are its simulated opponent teams in three groups.</span>` : `<br><span class="d">An illustration: the numbers are made up to show the reasoning.</span>`));
   add(t => { const y = lerp(ROOT.tw[0], ROOT.tm, FOLD), a = seg(t, ...TS.now); S(nowR, "y", y); S(nowR, "fill", P.ink); op(nowR, a, ["E"]);
     S(nowT, "y", y + FLOW / 2 - 2); S(nowS, "y", y + FLOW / 2 + 12); S(nowT, "fill", P.ink); S(nowS, "fill", P.faint); op(nowT, a); op(nowS, a); });
 
@@ -271,7 +271,7 @@
   TERMS.forEach(tv => { if (!tv.k.wv || tv.H < 7) return; const vt = el("text", { x: X5 + 30, "font-size": 11.5, "font-weight": 700 }, L.txt);
     tip(vt, () => avgTip(tv.k.wv, tv.k.post, tv.k.pv));
     add(t => { S(vt, "y", tv.tm + tv.H / 2 + 4); S(vt, "fill", P.ink); txt(vt, f1(tv.k.pv)); op(vt, E(t, ...TS.merged), tv.parent.t.us ? ["vbar"] : ["vnext"]); }); });
-  const avgTip = (vals, post, v) => `<b>${f1(v)}%</b> = ${post.map((q, w) => `${pc(q)} × ${f1(vals[w])}`).join(" + ")}<br><span class="d">The types weighted by the page's beliefs at this point (the posterior).</span>`;
+  const avgTip = (vals, post, v) => `<b>${f1(v)}%</b> = ${post.map((q, w) => `${pc(q)} × ${f1(vals[w])}`).join(" + ")}<br><span class="d">The types weighted by the model's beliefs at this point (the posterior).</span>`;
 
   // ---------------------------------------------------------------- the values carried back: the scores line, then each fork's value
   const wg = el("linearGradient", { id: "gtwglow", x1: 0, x2: 1, y1: 0, y2: 0 }, defs), wstops = [[0, 0], [.55, .22], [.8, .35], [1, 0]].map(([o]) => el("stop", { offset: o }, wg));
@@ -284,7 +284,7 @@
   const NKEY = { A1: ["max"], B2: ["vbar"], A2: ["vnext"], B1: ["vbar"] };     // a fork's value is V-bar for your options, V(k+1) for theirs
   V.forEach(v => { if (!v.t) return;
     WS.forEach(w => { if (v.h[w] < 6) return; const vt = el("text", { "font-size": 12, class: "ar", "text-anchor": "end" }, L.txt);
-      tip(vt, () => v.t.us ? `<b>${f1(v.t.wv[w])}%</b>: the value of the page's choice (${nms(v.t.kids[v.t.pick].b)}) in type ${w + 1}.` : `<b>${f1(v.t.wv[w])}%</b> = ${v.t.kids.map(k => `${pc(k.p[w])} × ${f1(kv(k, w))}`).join(" + ")}`);
+      tip(vt, () => v.t.us ? `<b>${f1(v.t.wv[w])}%</b>: the value of the model's choice (${nms(v.t.kids[v.t.pick].b)}) in type ${w + 1}.` : `<b>${f1(v.t.wv[w])}%</b> = ${v.t.kids.map(k => `${pc(k.p[w])} × ${f1(kv(k, w))}`).join(" + ")}`);
       add(t => { const f = FOLD, a = passed(v.x + 4, t); S(vt, "x", v.x - 5); S(vt, "y", topOf(v, w, f) - 5 + 4 * (1 - a)); S(vt, "fill", P.ink); txt(vt, f1(v.t.wv[w]));
         op(vt, a * dim(w, t, f) * (1 - cl(f * 2)), NKEY[v.id]); }); });
     const mt = el("text", { "font-size": 12.5, class: "ar", "text-anchor": "end" }, L.txt); tip(mt, () => avgTip(v.t.wv, v.t.post, v.t.pv));
@@ -295,8 +295,8 @@
     const v = VID[id], n = v.t, g = el("g", {}, L.info), halo = el("line", { "stroke-width": 3.5 }, g), ln = el("line", { "stroke-width": 1.4, "stroke-dasharray": "4 3.5" }, g);
     const tg = el("g", {}, g), tr = el("rect", { x: -10, y: -10, width: 20, height: 15 }, tg), tt = el("text", { x: 0, y: 2, class: "mt", "font-size": 14, "text-anchor": "middle" }, tg);
     tt.textContent = id === "A1" ? "s₀" : "s₃";
-    const say = id === "A1" ? `<b>Information set s₀</b>: the page sees only the lobby, which is the same in every type, so it has to make the same ban in all of them.`
-      : `<b>Information set s₃</b>: the lobby and the first three bans, in order. Still the same in every type, so the page picks one pair for all of them.`;
+    const say = id === "A1" ? `<b>Information set s₀</b>: the model sees only the lobby, which is the same in every type, so it has to make the same ban in all of them.`
+      : `<b>Information set s₃</b>: the lobby and the first three bans, in order. Still the same in every type, so the model picks one pair for all of them.`;
     tip(ln, () => say); tip(tg, () => say);
     add(t => { const f = FOLD, y0 = topOf(v, 0, f) - 18, y1 = topOf(v, 2, f) + v.h[2] + 4, a = E(t, ...TS.info[id]), pulse = id === "A1" ? bump(t, ...TS.pulse) : 0;
       [halo, ln].forEach(e => { S(e, "x1", v.x); S(e, "x2", v.x); S(e, "y1", y0); S(e, "y2", lerp(y0, y1, a)); });
@@ -304,7 +304,7 @@
       S(tr, "fill", P.paper); S(tt, "fill", P.ink); op(g, (a > 0 ? 1 : 0) * (1 - cl(f * 1.6)), ["s"]); });
     // under the line, once the scores are back: the page's averages, and the types that would choose differently on their own
     const blk = el("g", {}, L.txt), o = n.kids.filter(k => k.wv).sort((p, q) => q.pv - p.pv), lab = k => k.b.map(h => nm(h).split(" ")[0]).join(" and ");
-    const bt = el("text", { x: v.x, y: BOTY + 24, "font-size": 11.5, "text-anchor": "middle" }, blk); bt.textContent = `the page at ${id === "A1" ? "s₀" : "s₃"}, expected value`;
+    const bt = el("text", { x: v.x, y: BOTY + 24, "font-size": 11.5, "text-anchor": "middle" }, blk); bt.textContent = `the model at ${id === "A1" ? "s₀" : "s₃"}, expected value`;
     const ts = 15, items = o.map((k, i) => { const gi = el("g", {}, blk), tl = k.b.map((h, j) => { const tg = banTile(gi, h, ts); tg.setAttribute("transform", `translate(${j * (ts + 3) + ts / 2} 0)`); return tg; });
       const tx = el("text", { x: k.b.length * (ts + 3) + 3, y: 4.5, class: "ar", "font-size": 13 }, gi); tx.textContent = f1(k.pv);
       return { gi, tl, tx, best: i === 0, wd: k.b.length * (ts + 3) + 33 }; });
@@ -312,7 +312,7 @@
     items.forEach(it => { it.gi.setAttribute("transform", `translate(${cx} ${BOTY + 44})`); cx += it.wd + 18; });
     const ws = WS.filter(w => n.alone[w] !== n.pick), nt = el("text", { x: v.x, y: BOTY + 70, "font-size": 11.5, "font-style": "italic", "text-anchor": "middle" }, blk);
     nt.textContent = ws.length ? `knowing it was type ${ws.map(w => w + 1).join(" or ")}, it would ban ${lab(n.kids[n.alone[ws[0]]])}` : "knowing the type would not change this ban";
-    tip(blk, () => `<b>The page's choice</b>: the best in expectation, with the types weighted by the page's beliefs at this point.<br>
+    tip(blk, () => `<b>The model's choice</b>: the best in expectation, with the types weighted by the model's beliefs at this point.<br>
       <span class="d">${o.map(k => `${nms(k.b)}: ${avgTipShort(k)}`).join("<br>")}</span>`);
     add(t => { const a = passed(v.x + 30, t); S(bt, "fill", P.faint);
       items.forEach(it => { it.tl.forEach(tg => paintTile(tg, it.best ? P.blue : P.faint)); S(it.tx, "fill", it.best ? P.blue : P.faint); });
@@ -345,7 +345,7 @@
     add(t => { const f = FOLD; S(g, "transform", `translate(${R1.x - 52} ${topOf(R1, w, f) - 3})`); S(r, "fill", P.red); S(tx, "fill", "#fff"); txt(tx, pc(R1.k.p[w]));
       op(g, E(t, ...TS.tags) * (1 - cl(f * 2)), ["sig"]); }); });
   { const g = el("g", {}, L.lab), r = el("rect", { x: -13, y: -12, width: 26, height: 12 }, g), tx = el("text", { x: 0, y: -2.5, "font-size": 10, "font-weight": 700, "text-anchor": "middle" }, g);
-    tip(g, () => `<b>They ban ${nms(R1.k.b)}</b>: ${pc(R1.k.pp)} as the page sees it = ${PRIOR.map((q, w) => `${pc(q)} × ${pc(R1.k.p[w])}`).join(" + ")}`);
+    tip(g, () => `<b>They ban ${nms(R1.k.b)}</b>: ${pc(R1.k.pp)} as the model sees it = ${PRIOR.map((q, w) => `${pc(q)} × ${pc(R1.k.p[w])}`).join(" + ")}`);
     add(t => { S(g, "transform", `translate(${R1.x - 52} ${R1.tm - 3})`); S(r, "fill", P.red); S(tx, "fill", "#fff"); txt(tx, pc(R1.k.pp)); op(g, E(t, ...TS.merged), ["sig"]); }); }
 
   // ---------------------------------------------------------------- the column heads
@@ -372,7 +372,7 @@
   // ---------------------------------------------------------------- the panel (folded): how likely each type is at each point
   const PX = 800, PWD = 192, BH = 17, pan = el("g", {}, L.panel), ph = el("text", { x: PX, y: 92, class: "ar", "font-size": 13.5 }, pan);
   ph.textContent = "Beliefs about the type";
-  const pn = ["The probability of each type, given what", "the page has seen, by Bayes' rule. The", "networks never compute it. Simulated", "games reach each point in this mix."]
+  const pn = ["The probability of each type, given what", "the model has seen, by Bayes' rule. The", "networks never compute it. Simulated", "games reach each point in this mix."]
     .map((s_, j) => { const e = el("text", { x: PX, y: 110 + 15 * j, "font-size": 12 }, pan); e.textContent = s_; return e; });
   const BARS = [
     { y: 210, lab: "lobby only (s₀)", post: PRIOR },
@@ -485,11 +485,11 @@
     const list = n => opts(n).map(x => `${nms(x.b)} <b>${f1(x.pv)}%</b>`).join(", "), byType = a => a.map(pc).join(" / ");
     const ch = A1.kids[A1.pick], last = B1.kids[0];
     switch (k) {
-      case "E": return `<b>𝔼 over θ</b>: Nature draws the type, and the page weighs the types by what it believes: ${PRIOR.map((q, w) => `type ${w + 1} ${pc(q)}`).join(", ")} with the lobby alone, ${byType(POST.A2)} after their two bans, ${byType(last.post)} if they then ban ${nm(last.b[0])}.`;
+      case "E": return `<b>𝔼 over θ</b>: Nature draws the type, and the model weighs the types by what it believes: ${PRIOR.map((q, w) => `type ${w + 1} ${pc(q)}`).join(", ")} with the lobby alone, ${byType(POST.A2)} after their two bans, ${byType(last.post)} if they then ban ${nm(last.b[0])}.`;
       case "score": return `<b>V<sub>6</sub></b>: an ending is worth the average of its ${MU * KK} lineup pairings. In type 1, after ${nm(last.b[0])}: <b>${f1(last.leaf[0])}%</b>; in types 2 and 3: ${f1(last.leaf[1])}% and ${f1(last.leaf[2])}%. Click a result bar to open its grid.`;
-      case "max": return `<b>max</b>: at your turns the page takes the best option in expectation. First ban: ${list(A1)}. Your pair: ${list(A2)}.`;
-      case "s": return `<b>The information set</b>: the page sees the same lobby (and later the same bans, in order) whatever the type, so the dashed line joins the three lanes and one choice is made for all of them: ${nms(ch.b)} at s₀, ${nms(A2.kids[A2.pick].b)} at s₃.`;
-      case "vbar": return `<b>V̄</b>: an option's value averaged over the types at the page's beliefs. ${nms(ch.b)}: <b>${f1(ch.pv)}%</b> = ${ch.post.map((q, w) => `${pc(q)} × ${f1(ch.wv[w])}`).join(" + ")}.`;
+      case "max": return `<b>max</b>: at your turns the model takes the best option in expectation. First ban: ${list(A1)}. Your pair: ${list(A2)}.`;
+      case "s": return `<b>The information set</b>: the model sees the same lobby (and later the same bans, in order) whatever the type, so the dashed line joins the three lanes and one choice is made for all of them: ${nms(ch.b)} at s₀, ${nms(A2.kids[A2.pick].b)} at s₃.`;
+      case "vbar": return `<b>V̄</b>: an option's value averaged over the types at the model's beliefs. ${nms(ch.b)}: <b>${f1(ch.pv)}%</b> = ${ch.post.map((q, w) => `${pc(q)} × ${f1(ch.wv[w])}`).join(" + ")}.`;
       case "sig": return `<b>σ̂<sub>B</sub></b>: their bans come from the fitted ban model, type by type. ${nms(B2.kids[0].b)}: ${byType(B2.kids[0].p)}. Then ${nm(last.b[0])}: ${byType(last.p)}. A ban likelier in one type makes that type likelier (Bayes' rule).`;
       case "vnext": return `<b>V<sub>k+1</sub></b>: at their turns the value is the expectation over their bans. Their last ban, type 1: ${B1.kids.map(x => `${pc(x.p[0])} × ${f1(kv(x, 0))}`).join(" + ")} = <b>${f1(B1.wv[0])}%</b>.`;
     }
@@ -529,13 +529,13 @@
       redraw: () => paint(), get t() { return t; }, get playing() { return playing; } };
   }
   const CHAP = [
-    [CH[0], "Nature", "Nature draws who is playing. The page can't see it."],
+    [CH[0], "Nature", "Nature draws who is playing. The model can't see it."],
     [CH[1], "Your first ban", "One information set, so one ban for every type."],
     [CH[2], "Their two bans", "Their bans depend on their type, so beliefs update."],
     [CH[3], "Your pair, their last", "One pair for every type, then their last ban."],
     [CH[4], "Draft and score", "28 lineups a side, every pairing scored."],
     [CH[5], "Back up", "The best option at yours, the expected value at theirs."],
-    [CH[6], "What the page sees", "Merge the types. Values are weighted by beliefs."]];
+    [CH[6], "What the model sees", "Merge the types. Values are weighted by beliefs."]];
   pal();
   const PL = player($("gtpp"), $("gtch"), CHAP, DUR, render);
   window.GameTree = PL;
