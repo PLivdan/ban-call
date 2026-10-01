@@ -224,11 +224,15 @@
   // theirs, and on hover the two lineups behind a square. The lobby's are one draw of the simulator; the example's are made up.
   let CURT = 0;
   const ov = document.createElement("div"); ov.className = "gtOv"; $("gt").appendChild(ov);
-  const gridOf = (kid, w) => { const G = D.grids && D.grids[kid] && D.grids[kid][w]; if (G) return { n: D.n, vals: G.pairs, us: G.us, them: G.them };
+  const gridOf = (kid, w) => { const G = D.grids && D.grids[kid] && D.grids[kid][w]; if (G) return { n: D.n, vals: G.pairs, us: G.us, them: G.them, banBy: new Map((G.bans || []).map(b => [b.h, b.us])) };
     const base = TREE.B1.kids[kid].leaf[w], n = 28, ra = Array.from({ length: n }, (_, i) => (hsh(i * 1.31 + kid * 7 + w * 3) - .5) * 16), ca = Array.from({ length: n }, (_, j) => (hsh(j * 2.11 + kid * 5 + w) - .5) * 16);
     let v = []; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) v.push(base + ra[i] + ca[j] + (hsh(i * 29.3 + j * 13.7 + kid + w) - .5) * 14);
     const m = v.reduce((a, b) => a + b, 0) / v.length; v = v.map(x => x + base - m); return { n, vals: v, us: null, them: null }; };
-  const tiles = (L_, side) => L_.p.map((h, j) => `<span class="pt ${side}${L_.f[j] ? " sw" : ""}" title="${nm(h)}${L_.f[j] ? ": their main was banned, so they switched" : ""}"><img src="${img(h)}" alt="${nm(h)}"></span>`).join("");
+  // a seat: the hero picked; when the player's main was banned, the main in the top left corner, greyed and slashed in the colour of
+  // the team that banned it (as the previous Methods drew a switch)
+  const tiles = (L_, side, banBy) => L_.p.map((h, j) => { const m = L_.m && L_.m[j], sw = L_.f[j] && m;
+    return `<span class="pt ${side}" title="${nm(h)}${sw ? `: ${nm(m)} was banned, so this player switched` : ""}"><img src="${img(h)}" alt="${nm(h)}">`
+      + (sw ? `<span class="bm ${banBy && banBy.get(m) === false ? "them" : banBy && banBy.get(m) ? "us" : "them"}"><img src="${img(m)}" alt="${nm(m)}, banned"></span>` : "") + `</span>`; }).join("");
   function openGrid(kid, w) {
     const G = gridOf(kid, w), n = G.n, avg = G.vals.reduce((a, b) => a + b, 0) / G.vals.length, k = TREE.B1.kids[kid];
     if (window.GameTree && GameTree.playing) GameTree.pause();
@@ -241,10 +245,10 @@
     grid.addEventListener("mouseover", e => { const c = e.target.closest("i"); if (!c) return; const i = +c.dataset.i, u = Math.floor(i / n), o = i % n, v = G.vals[i];
       grid.querySelectorAll("i.hr, i.hc").forEach(x => x.classList.remove("hr", "hc"));
       for (let j = 0; j < n; j++) { grid.children[u * n + j].classList.add("hr"); grid.children[j * n + o].classList.add("hc"); }
-      line.innerHTML = G.us ? `<div class="lt us"><b>Your lineup ${u + 1}</b><div class="row">${tiles(G.us[u], "us")}</div></div>
+      line.innerHTML = G.us ? `<div class="lt us"><b>Your lineup ${u + 1}</b><div class="row">${tiles(G.us[u], "us", G.banBy)}</div></div>
         <div class="vs"><span class="big" style="color:${v >= 50 ? P.blue : P.red}">${f1(v)}%</span><span class="d">your win chance in this pairing</span></div>
-        <div class="lt them"><b>Their lineup ${o + 1}</b><div class="row">${tiles(G.them[o], "them")}</div></div>
-        <p class="d">A dot: that player's main was banned, so they switched heroes.</p>`
+        <div class="lt them"><b>Their lineup ${o + 1}</b><div class="row">${tiles(G.them[o], "them", G.banBy)}</div></div>
+        <p class="d">In a corner: that player's main, banned (slashed in the colour of the team that banned it), and the hero they switched to.</p>`
         : `<div class="vs"><span class="big">${f1(v)}%</span><span class="d">your win chance, row ${u + 1} against column ${o + 1}</span></div>`; });
     ov.querySelector(".gtX").onclick = closeGrid; ov.onclick = e => { if (e.target === ov) closeGrid(); };
   }

@@ -155,8 +155,9 @@ async function treeJob(d) {
   const A1 = { kids: [{ b: [R0.best], to: "B2" }, { b: [alt1], v: alt1V }, { more: Math.max(0, R0.cands.length - 2) }] };
   // the endings the figure opens (their two named last bans, each type): the first draw's 28 x 28 matchups and every drafted lineup,
   // seat by seat (the hero picked, and whether the player's main was banned so they switched)
-  const n = MU, grids = P0.B1.kids.slice(0, 2).map(k => WS.map(w => { const ex = SIM.terminal(L, DW[w][0], P0.s5.concat(k.b), true, MU).ex, side = a => a.map(x => ({ p: x.picks, f: x.forced.map((y, i) => y && x.banned[i]) }));
-    return { pairs: Array.from({ length: n * n }, (_, i) => 100 * ex.pairs[i]), us: side(ex.us), them: side(ex.them) }; }));
+  const n = MU, grids = P0.B1.kids.slice(0, 2).map(k => WS.map(w => { const ex = SIM.terminal(L, DW[w][0], P0.s5.concat(k.b), true, MU).ex, side = a => a.map(x => ({ p: x.picks, f: x.forced.map((y, i) => y && x.banned[i]), m: x.mains }));
+    const path = P0.s5.concat(k.b);                                     // who banned each hero (you ban first in the figure)
+    return { pairs: Array.from({ length: n * n }, (_, i) => 100 * ex.pairs[i]), us: side(ex.us), them: side(ex.them), bans: path.map((h, e) => ({ h, us: !!L.ourpos[e] })) }; }));
   return { live: true, types, tree: { A1, B2: P0.B2, A2: P0.A2, B1: P0.B1 }, grid: grids[0][0].pairs, grids, n, mu: MU, k: K, banSecond: !d.st.firstUs };
 }
 

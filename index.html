@@ -313,7 +313,11 @@
   .gtLine .row { display: flex; gap: 4px; }
   .gtLine .pt { position: relative; width: 42px; height: 42px; border: 2px solid; } .gtLine .pt.us { border-color: var(--blue); } .gtLine .pt.them { border-color: var(--red); }
   .gtLine .pt img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .gtLine .pt.sw::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); border: 1.5px solid var(--paper); }
+  .gtLine .row { padding: 7px 0 0 7px; }
+  .gtLine .pt .bm { position: absolute; left: -8px; top: -8px; width: 20px; height: 20px; border: 1.5px solid; background: var(--paper); }
+  .gtLine .pt .bm img { filter: grayscale(1); }
+  .gtLine .pt .bm::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom right, transparent calc(50% - .8px), currentColor calc(50% - .8px), currentColor calc(50% + .8px), transparent calc(50% + .8px)); }
+  .gtLine .pt .bm.us { border-color: var(--blue); color: var(--blue); } .gtLine .pt .bm.them { border-color: var(--red); color: var(--red); }
   .gtLine .vs { margin: 10px 0; display: flex; align-items: baseline; gap: 8px; } .gtLine .vs .big { font: 700 22px/1 Archivo, sans-serif; }
   #gt svg .halo { paint-order: stroke; stroke: var(--paper); stroke-width: 3.2px; stroke-linejoin: round; }
   .method { margin-top: 12px; }
@@ -529,6 +533,6 @@
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
 <script src="methods8.js?v=a6dc113180"></script>
-<script src="methods-tree.js?v=49c5bf057b"></script>
-<script src="app8.js?v=a2cf0a952c"></script>
+<script src="methods-tree.js?v=c9925481b8"></script>
+<script src="app8.js?v=7a04c8f455"></script>
 </html>
