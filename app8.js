@@ -558,7 +558,7 @@
   let compPool = [], COMP = null, compId = 0, COMP_LAST = null;   // COMP_LAST: the last lobby's drafts, shown on their seats while a new lobby's first batch runs
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans, st.them]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=b7755ebaf4"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=546a374ed8"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -699,7 +699,7 @@
     if (!LB || !IDEAL_ON) return; const key = compKey(); if (IDEAL && IDEAL.key === key) return;
     IDEAL = { key, id: ++idealId, done: false, failed: false }; renderIdeal();
     if (!idealW) {
-      idealW = new Worker("sim8-worker.js?v=b7755ebaf4");
+      idealW = new Worker("sim8-worker.js?v=546a374ed8");
       idealW.onmessage = ev => { const d = ev.data; if (!IDEAL || d.id !== IDEAL.id) return;
         if (d.error) IDEAL.failed = true; else if (d.done) Object.assign(IDEAL, d.ideal, { done: true }); else return; renderIdeal(); };
       idealW.onerror = () => { idealW.terminate(); idealW = null; if (IDEAL) { IDEAL.failed = true; renderIdeal(); } };
@@ -835,7 +835,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=b7755ebaf4");
+      flowW = new Worker("sim8-worker.js?v=546a374ed8");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -925,7 +925,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=b7755ebaf4");
+      endW = new Worker("sim8-worker.js?v=546a374ed8");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }
@@ -945,7 +945,9 @@
     const names = {}, sl = h => { const k = slugOf(h); names[k] = NAMES[h]; return k; };
     const tree = {}; for (const id of ["A1", "B2", "A2", "B1"]) tree[id] = { us: id[0] === "A" ? 1 : 0, row: { A1: 1, B2: 2, A2: 3, B1: 4 }[id],
       kids: T.tree[id].kids.map((k, i) => Object.assign({}, k, k.b ? { b: k.b.map(sl) } : {}, i === 0 && id !== "B1" ? { to: { A1: "B2", B2: "A2", A2: "B1" }[id] } : {})) };
-    return Object.assign({}, T, { names, tree, types: T.types.map(t => ({ prior: t.prior, mains: t.mains.map(sl) })) });
+    const line = a => a.map(x => ({ p: x.p.map(sl), f: x.f }));                // the endings' lineups, as portraits
+    return Object.assign({}, T, { names, tree, types: T.types.map(t => ({ prior: t.prior, mains: t.mains.map(sl) })),
+      grids: (T.grids || []).map(g => g.map(x => ({ pairs: x.pairs, us: line(x.us), them: line(x.them) }))) });
   }
   function treeUpdate() {
     if (!window.GameTree || !GameTree.load) return;
@@ -953,7 +955,7 @@
     clearTimeout(treeTimer); if (!figNear || !METHODS) return;
     treeTimer = setTimeout(() => { if (!figNear || !METHODS) return; treeKey = key; const id = ++treeId;
       if (!treeW) {
-        treeW = new Worker("sim8-worker.js?v=b7755ebaf4");
+        treeW = new Worker("sim8-worker.js?v=546a374ed8");
         treeW.onmessage = ev => { const m = ev.data; if (m.id !== treeId || !(m.done || m.error)) return;
           if (m.tree) { try { GameTree.load(treeConvert(m.tree)); } catch (e) { console.error(e); } } else if (m.error) { console.error(m.error); treeKey = null; } };
         treeW.onerror = () => { treeW.terminate(); treeW = null; treeKey = null; };

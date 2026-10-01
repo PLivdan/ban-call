@@ -296,6 +296,25 @@
   #gt svg .ar { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-weight: 700; }
   #gt svg .mt { font-family: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif; font-style: italic; }
   #gt svg [data-gtip] { cursor: help; }
+  /* an ending opened in full (methods-tree.js): the grid over the figure, the two lineups behind the hovered square */
+  #gt { position: relative; }
+  .gtOv { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; background: color-mix(in srgb, var(--paper) 72%, transparent); }
+  .gtOv.on { display: flex; }
+  .gtOvBox { background: var(--panel); border: 1px solid var(--hair); padding: 12px 14px; max-width: 760px; box-shadow: 0 6px 24px rgba(0, 0, 0, .25); }
+  .gtOvHead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font: 700 14px/1.2 Archivo, sans-serif; }
+  .gtX { border: 0; background: none; color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+  .gtOvSub { color: var(--faint); font-size: 12px; margin: 4px 0 10px; max-width: 70ch; }
+  .gtOvBody { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .gtGrid { display: grid; width: 336px; gap: 0; cursor: crosshair; }
+  .gtGrid i { display: block; aspect-ratio: 1; box-shadow: inset 0 0 0 .4px color-mix(in srgb, var(--paper) 40%, transparent); }
+  .gtGrid i.hr, .gtGrid i.hc { filter: brightness(1.18); } .gtGrid i:hover { outline: 2px solid var(--ink); outline-offset: -1px; position: relative; }
+  .gtLine { width: 300px; font-size: 12px; } .gtLine .d { color: var(--faint); }
+  .gtLine .lt b { display: block; font: 700 12.5px/1.2 Archivo, sans-serif; margin-bottom: 4px; } .gtLine .lt.us b { color: var(--blue); } .gtLine .lt.them b { color: var(--red); }
+  .gtLine .row { display: flex; gap: 4px; }
+  .gtLine .pt { position: relative; width: 42px; height: 42px; border: 2px solid; } .gtLine .pt.us { border-color: var(--blue); } .gtLine .pt.them { border-color: var(--red); }
+  .gtLine .pt img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gtLine .pt.sw::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); border: 1.5px solid var(--paper); }
+  .gtLine .vs { margin: 10px 0; display: flex; align-items: baseline; gap: 8px; } .gtLine .vs .big { font: 700 22px/1 Archivo, sans-serif; }
   #gt svg .halo { paint-order: stroke; stroke: var(--paper); stroke-width: 3.2px; stroke-linejoin: round; }
   .method { margin-top: 12px; }
   .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
@@ -510,6 +529,6 @@
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
 <script src="methods8.js?v=a6dc113180"></script>
-<script src="methods-tree.js?v=162c17ff37"></script>
-<script src="app8.js?v=90f068cefd"></script>
+<script src="methods-tree.js?v=9755d68828"></script>
+<script src="app8.js?v=a2cf0a952c"></script>
 </html>

@@ -219,12 +219,43 @@
   add(t => { const y = lerp(ROOT.tw[0], ROOT.tm, FOLD), a = seg(t, ...TS.now); S(nowR, "y", y); S(nowR, "fill", P.ink); op(nowR, a, ["E"]);
     S(nowT, "y", y + FLOW / 2 - 2); S(nowS, "y", y + FLOW / 2 + 12); S(nowT, "fill", P.ink); S(nowS, "fill", P.faint); op(nowT, a); op(nowS, a); });
 
+  // ---------------------------------------------------------------- an ending opened in full: a click on a result bar (once scored)
+  // The endings with their own value (their named last bans, each type): every one of your drafted lineups against every one of
+  // theirs, and on hover the two lineups behind a square. The lobby's are one draw of the simulator; the example's are made up.
+  let CURT = 0;
+  const ov = document.createElement("div"); ov.className = "gtOv"; $("gt").appendChild(ov);
+  const gridOf = (kid, w) => { const G = D.grids && D.grids[kid] && D.grids[kid][w]; if (G) return { n: D.n, vals: G.pairs, us: G.us, them: G.them };
+    const base = TREE.B1.kids[kid].leaf[w], n = 28, ra = Array.from({ length: n }, (_, i) => (hsh(i * 1.31 + kid * 7 + w * 3) - .5) * 16), ca = Array.from({ length: n }, (_, j) => (hsh(j * 2.11 + kid * 5 + w) - .5) * 16);
+    let v = []; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) v.push(base + ra[i] + ca[j] + (hsh(i * 29.3 + j * 13.7 + kid + w) - .5) * 14);
+    const m = v.reduce((a, b) => a + b, 0) / v.length; v = v.map(x => x + base - m); return { n, vals: v, us: null, them: null }; };
+  const tiles = (L_, side) => L_.p.map((h, j) => `<span class="pt ${side}${L_.f[j] ? " sw" : ""}" title="${nm(h)}${L_.f[j] ? ": their main was banned, so they switched" : ""}"><img src="${img(h)}" alt="${nm(h)}"></span>`).join("");
+  function openGrid(kid, w) {
+    const G = gridOf(kid, w), n = G.n, avg = G.vals.reduce((a, b) => a + b, 0) / G.vals.length, k = TREE.B1.kids[kid];
+    if (window.GameTree && GameTree.playing) GameTree.pause();
+    ov.innerHTML = `<div class="gtOvBox" role="dialog" aria-label="One ending opened up"><div class="gtOvHead"><b>Type ${w + 1}, then they ban ${nm(k.b[0])}</b><button class="gtX" aria-label="Close">×</button></div>
+      <div class="gtOvSub">Your ${n} drafted lineups down, their ${n} across, every pairing scored on the map. Average ${f1(avg)}%${G.us ? ", one draw of the simulator (the ending's " + f1(k.leaf[w]) + "% averages four)" : " (made-up numbers in the example)"}.</div>
+      <div class="gtOvBody"><div class="gtGrid" style="grid-template-columns:repeat(${n},1fr)">${G.vals.map((v, i) => `<i data-i="${i}" style="background:${c3(winA(v))}"></i>`).join("")}</div>
+      <div class="gtLine"><p class="d">${G.us ? "Hover a square: the two lineups behind it." : "With your lobby's numbers, hovering a square shows the two lineups behind it."}</p></div></div></div>`;
+    ov.classList.add("on");
+    const line = ov.querySelector(".gtLine"), grid = ov.querySelector(".gtGrid");
+    grid.addEventListener("mouseover", e => { const c = e.target.closest("i"); if (!c) return; const i = +c.dataset.i, u = Math.floor(i / n), o = i % n, v = G.vals[i];
+      grid.querySelectorAll("i.hr, i.hc").forEach(x => x.classList.remove("hr", "hc"));
+      for (let j = 0; j < n; j++) { grid.children[u * n + j].classList.add("hr"); grid.children[j * n + o].classList.add("hc"); }
+      line.innerHTML = G.us ? `<div class="lt us"><b>Your lineup ${u + 1}</b><div class="row">${tiles(G.us[u], "us")}</div></div>
+        <div class="vs"><span class="big" style="color:${v >= 50 ? P.blue : P.red}">${f1(v)}%</span><span class="d">your win chance in this pairing</span></div>
+        <div class="lt them"><b>Their lineup ${o + 1}</b><div class="row">${tiles(G.them[o], "them")}</div></div>
+        <p class="d">A dot: that player's main was banned, so they switched heroes.</p>`
+        : `<div class="vs"><span class="big">${f1(v)}%</span><span class="d">your win chance, row ${u + 1} against column ${o + 1}</span></div>`; });
+    ov.querySelector(".gtX").onclick = closeGrid; ov.onclick = e => { if (e.target === ov) closeGrid(); };
+  }
+  function closeGrid() { ov.classList.remove("on"); ov.innerHTML = ""; }
   // ---------------------------------------------------------------- the endings: every ending is drafted and scored (the result bars)
   TERMS.forEach((tv, ti) => WS.forEach(w => {
     const g = el("g", {}, L.res), blk = el("rect", {}, g), cells = [0, 1, 2, 3, 4].map(() => el("rect", { width: 4.2 }, g)), val = valOf(tv, w), vk = tv.parent.t.us ? ["score", "vbar"] : ["score", "vnext"];
-    tip(g, () => tv.k.leaf ? `<b>After six bans, type ${w + 1}</b>: both teams draft ${MU} lineups from the players in this type and all ${MU * KK} pairings are scored. Their average: ${f1(val)}% (V<sub>6</sub>).`
+    tip(g, () => tv.k.leaf ? `<b>After six bans, type ${w + 1}</b>: both teams draft ${MU} lineups from the players in this type and all ${MU * KK} pairings are scored. Their average: ${f1(val)}% (V<sub>6</sub>).${CURT >= TS.leafVal[0] ? "<br><b>Click to open it.</b>" : ""}`
       : val !== null ? `<b>${tv.k.b ? nms(tv.k.b) : `Their other ${fmt(tv.k.more)} ${tv.parent.id === "B2" ? "pairs" : "bans"}`}</b>: a branch of its own, played out and scored the same way, folded up here. Worth ${f1(val)}% in type ${w + 1}.`
       : `<b>${fmt(tv.k.more)} more legal ${tv.parent.id === "A1" ? "bans" : "pairs"}</b>, each played out and scored the same way. None beats ${nms(tv.parent.kids[tv.parent.t.pick].k.b)} on average.`);
+    if (tv.k.leaf) { g.style.cursor = "pointer"; g.addEventListener("click", () => { if (CURT >= TS.leafVal[0]) openGrid(tv.ci, w); }); }
     const vt = val !== null && tv.h[w] >= 7 ? el("text", { x: X5 + 30, "font-size": 11.5, "font-weight": 600 }, L.txt) : null;
     if (vt) tip(vt, () => `<b>${f1(val)}%</b> in type ${w + 1}`);
     let off = null;                                                     // the offset of the game that runs into this bar (the bar grows as it goes in)
@@ -448,7 +479,23 @@
     const lx = X5 + 24, ly = y0 + h / 2; S(gLead, "d", `M${lx},${ly} C${lx + 40},${ly} ${GX - 50},${GY + GS / 2} ${GX - 6},${GY + GS / 2}`);
     S(gLead, "stroke", P.faint); op(gLead, op_ * (1 - cl_), ["score"]); });
 
-  function render(t) { FOLD = fold(t); ITEMS.forEach(f => f(t)); }
+  // a clicked term of the recursion, worked out with this figure's numbers (shown under the figure while the term is picked out)
+  function explain(k) {
+    const A1 = TREE.A1, A2 = TREE.A2, B2 = TREE.B2, B1 = TREE.B1, opts = n => n.kids.filter(x => x.wv).sort((a, b) => b.pv - a.pv);
+    const list = n => opts(n).map(x => `${nms(x.b)} <b>${f1(x.pv)}%</b>`).join(", "), byType = a => a.map(pc).join(" / ");
+    const ch = A1.kids[A1.pick], last = B1.kids[0];
+    switch (k) {
+      case "E": return `<b>𝔼 over θ</b>: Nature draws the type, and the page weighs the types by what it believes: ${PRIOR.map((q, w) => `type ${w + 1} ${pc(q)}`).join(", ")} with the lobby alone, ${byType(POST.A2)} after their two bans, ${byType(last.post)} if they then ban ${nm(last.b[0])}.`;
+      case "score": return `<b>V<sub>6</sub></b>: an ending is worth the average of its ${MU * KK} lineup pairings. In type 1, after ${nm(last.b[0])}: <b>${f1(last.leaf[0])}%</b>; in types 2 and 3: ${f1(last.leaf[1])}% and ${f1(last.leaf[2])}%. Click a result bar to open its grid.`;
+      case "max": return `<b>max</b>: at your turns the page takes the best option in expectation. First ban: ${list(A1)}. Your pair: ${list(A2)}.`;
+      case "s": return `<b>The information set</b>: the page sees the same lobby (and later the same bans, in order) whatever the type, so the dashed line joins the three lanes and one choice is made for all of them: ${nms(ch.b)} at s₀, ${nms(A2.kids[A2.pick].b)} at s₃.`;
+      case "vbar": return `<b>V̄</b>: an option's value averaged over the types at the page's beliefs. ${nms(ch.b)}: <b>${f1(ch.pv)}%</b> = ${ch.post.map((q, w) => `${pc(q)} × ${f1(ch.wv[w])}`).join(" + ")}.`;
+      case "sig": return `<b>σ̂<sub>B</sub></b>: their bans come from the fitted ban model, type by type. ${nms(B2.kids[0].b)}: ${byType(B2.kids[0].p)}. Then ${nm(last.b[0])}: ${byType(last.p)}. A ban likelier in one type makes that type likelier (Bayes' rule).`;
+      case "vnext": return `<b>V<sub>k+1</sub></b>: at their turns the value is the expectation over their bans. Their last ban, type 1: ${B1.kids.map(x => `${pc(x.p[0])} × ${f1(kv(x, 0))}`).join(" + ")} = <b>${f1(B1.wv[0])}%</b>.`;
+    }
+    return "";
+  }
+  function render(t) { CURT = t; FOLD = fold(t); ITEMS.forEach(f => f(t)); }
   // tooltips
   const tipEl = $("gtTip");
   svg.addEventListener("mousemove", ev => { let e = ev.target; while (e && e !== svg && !tipOf.has(e)) e = e.parentNode;
@@ -460,7 +507,7 @@
     tipEl.style.left = x + "px"; tipEl.style.top = y + "px"; });
   svg.addEventListener("mouseleave", () => tipEl.classList.remove("on"));
 
-  return { svg, render };
+  return { svg, render, ov, closeGrid, explain };
   }
   pal(); let CUR = build(DEFAULT);
   function render(t) { CUR.render(t); const c = chapter(t); if (c !== shownStep) { shownStep = c; $("gtMline").innerHTML = `${STEP[c][0]}<span class="what">${STEP[c][1]}</span>`; } }
@@ -493,7 +540,7 @@
   const PL = player($("gtpp"), $("gtch"), CHAP, DUR, render);
   window.GameTree = PL;
   // the page sends the lobby's numbers (sim8-worker's tree job): the figure is rebuilt from them where it is in its play
-  PL.load = D => { CUR.svg.remove(); CUR = build(D); pal(); legend(!!D.live); const sub = document.querySelector("#methods .mfs");
+  PL.load = D => { CUR.svg.remove(); CUR.ov.remove(); CUR = build(D); pal(); legend(!!D.live); const sub = document.querySelector("#methods .mfs");
     if (sub) sub.textContent = D.live ? `Your lobby's numbers from the model${D.banSecond ? ", drawn as if you ban first" : ""}. Hover anything for its arithmetic.` : "Illustrative numbers. Hover anything for its arithmetic.";
     PL.redraw(); };                                                 // for checks from the console: GameTree.seek(t)
 
@@ -512,14 +559,18 @@
   // is), and it stays picked out. Clicking it again, or anywhere outside the figure, lets go. Clicking another term switches to it.
   let hold = null;
   const pick = k => { document.querySelectorAll("#gtRec .t").forEach(x => x.classList.toggle("on", x.dataset.k === k));
-    if (k) { if (HL === null) { if (PL.playing) PL.pause(); hold = PL.t; } HL = k; render(Math.max(hold, TS.fold[0] - .3)); }
+    if (k) { if (HL === null) { if (PL.playing) PL.pause(); hold = PL.t; } HL = k; render(TERM_T[k] !== undefined ? TERM_T[k] : Math.max(hold, TS.fold[0] - .3));
+      $("gtMline").innerHTML = `<span class="what">${CUR.explain(k)}</span>`; shownStep = -1; }
     else if (HL !== null) { HL = null; render(hold === null ? PL.t : hold); hold = null; } };
+  // where each term is easiest to see: the lanes once the scores are back (your choices and values), their two bans as the odds update,
+  // the opened-up ending (the payoff), the folded tree (the expectation over the types)
+  const TERM_T = { max: 43.4, s: 43.4, vbar: 43.4, vnext: 43.4, sig: 17.6, score: 33.0, E: 48.4 };
   document.querySelectorAll("#gtRec .t").forEach(s => { s.setAttribute("role", "button"); s.tabIndex = 0;
     s.title = "Click to show this in the figure";
     s.addEventListener("click", e => { e.stopPropagation(); pick(HL === s.dataset.k ? null : s.dataset.k); });
     s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); } }); });
   document.addEventListener("click", e => { if (HL !== null && !e.target.closest("#gt")) pick(null); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") pick(null); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { pick(null); CUR.closeGrid(); } });
 
   // the theme: whatever sets the page's theme (its button), the figure redraws in the new colours
   new MutationObserver(() => { pal(); PL.redraw(); }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
