@@ -359,7 +359,8 @@
     const t1 = el("text", { x, y: 22, class: "ar", "font-size": 13.5, "text-anchor": an }, L.head), t2 = el("text", { x, y: 38, "font-size": 12, "text-anchor": an }, L.head);
     t1.textContent = h; t2.textContent = sub;
     add(t => { const ci = chapter(t), on = [[0], [1], [2], [3], [3], [4]][i].includes(ci) || ci >= 5, a_ = i === 5 ? cl((reveal(t) - X5 - 6) / 30) : cl((reveal(t) - a - 20) / 30);
-      S(t1, "fill", P[col]); S(t2, "fill", P.faint); op(t1, a_ * (on ? 1 : .55), i === 0 ? ["E"] : i === 5 ? ["score"] : i % 2 ? ["max"] : ["sig"]); op(t2, a_ * (on ? 1 : .55)); }); });
+      if (i === 5) { txt(t2, t >= TS.leafVal[0] ? "click a bar to open" : sub); S(t2, "font-weight", t >= TS.leafVal[0] ? 700 : 400); }
+      S(t1, "fill", P[col]); S(t2, "fill", i === 5 && t >= TS.leafVal[0] ? P.ink : P.faint); op(t1, a_ * (on ? 1 : .55), i === 0 ? ["E"] : i === 5 ? ["score"] : i % 2 ? ["max"] : ["sig"]); op(t2, a_ * (on ? 1 : .55)); }); });
 
   // ---------------------------------------------------------------- the types' cards (right of the lanes)
   WS.forEach(w => { const D = TYPES[w], g = el("g", {}, L.card), x0 = 812, bg = el("rect", { x: 0, y: 0, width: 176, height: 62 }, g), bar = el("rect", { x: 0, y: 0, width: 3, height: 62 }, g);
@@ -511,7 +512,7 @@
     tipEl.style.left = x + "px"; tipEl.style.top = y + "px"; });
   svg.addEventListener("mouseleave", () => tipEl.classList.remove("on"));
 
-  return { svg, render, ov, closeGrid, explain };
+  return { svg, render, ov, closeGrid, explain, openGrid };
   }
   pal(); let CUR = build(DEFAULT);
   function render(t) { CUR.render(t); const c = chapter(t); if (c !== shownStep) { shownStep = c; $("gtMline").innerHTML = `${STEP[c][0]}<span class="what">${STEP[c][1]}</span>`; } }
@@ -562,18 +563,25 @@
   // the recursion's terms: a click picks one out in the figure and fades the rest (the figure shown complete, or folded if it already
   // is), and it stays picked out. Clicking it again, or anywhere outside the figure, lets go. Clicking another term switches to it.
   let hold = null;
-  const pick = k => { document.querySelectorAll("#gtRec .t").forEach(x => x.classList.toggle("on", x.dataset.k === k));
+  const pick = k => { document.querySelectorAll("#gtRec .t, .gtExplore [data-k]").forEach(x => x.classList.toggle("on", x.dataset.k === k));
     if (k) { if (HL === null) { if (PL.playing) PL.pause(); hold = PL.t; } HL = k; render(TERM_T[k] !== undefined ? TERM_T[k] : Math.max(hold, TS.fold[0] - .3));
       $("gtMline").innerHTML = `<span class="what">${CUR.explain(k)}</span>`; shownStep = -1; }
     else if (HL !== null) { HL = null; render(hold === null ? PL.t : hold); hold = null; } };
   // where each term is easiest to see: the lanes once the scores are back (your choices and values), their two bans as the odds update,
   // the opened-up ending (the payoff), the folded tree (the expectation over the types)
   const TERM_T = { max: 43.4, s: 43.4, vbar: 43.4, vnext: 43.4, sig: 17.6, score: 33.0, E: 48.4 };
+  // explore: plain buttons under the player for what the figure can show on request (an ending's games, each part of the recursion), since
+  // the result bars and the equation's terms are small targets
+  { const row = document.createElement("div"); row.className = "gtExplore"; $("gtch").parentNode.after(row);
+    const T = [["max", "Your bans: the best in expectation"], ["sig", "Their bans: odds by type"], ["E", "What the model believes"], ["score", "How an ending is scored"], ["vbar", "Averaging over the types"]];
+    row.innerHTML = `<span class="lab">Explore</span><button class="go" data-open>Open an ending's ${28 * 28} games</button>` + T.map(([k, s_]) => `<button data-k="${k}">${s_}</button>`).join("");
+    row.querySelector("[data-open]").addEventListener("click", e => { e.stopPropagation(); pick(null); if (PL.t < TS.leafVal[1]) PL.seek(TS.leafVal[1]); else PL.pause(); CUR.openGrid(0, 0); });
+    row.querySelectorAll("[data-k]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); pick(HL === b.dataset.k ? null : b.dataset.k); })); }
   document.querySelectorAll("#gtRec .t").forEach(s => { s.setAttribute("role", "button"); s.tabIndex = 0;
     s.title = "Click to show this in the figure";
     s.addEventListener("click", e => { e.stopPropagation(); pick(HL === s.dataset.k ? null : s.dataset.k); });
     s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); } }); });
-  document.addEventListener("click", e => { if (HL !== null && !e.target.closest("#gt")) pick(null); });
+  document.addEventListener("click", e => { if (HL !== null && !e.target.closest("#gt") && !e.target.closest(".gtExplore") && !e.target.closest("#gtRec")) pick(null); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { pick(null); CUR.closeGrid(); } });
 
   // the theme: whatever sets the page's theme (its button), the figure redraws in the new colours
