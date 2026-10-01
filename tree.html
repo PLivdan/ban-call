@@ -113,12 +113,6 @@
   footer { margin-top: 32px; border-top: 1px solid var(--hair); padding-top: 6px; }
   footer a { color: inherit; }
   @media (max-width: 720px) { main { padding: 16px 16px 32px 16px; } h1 { font-size: 22px; } .lede { font-size: 13.5px; } }
-  .gtExplore { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 4px; }
-  .gtExplore .lab { font: 700 12.5px/1 Archivo, sans-serif; color: var(--faint); margin-right: 2px; text-transform: uppercase; letter-spacing: .06em; }
-  .gtExplore button { height: auto; font: 600 13px/1.2 Archivo, sans-serif; padding: 7px 11px; border: 1.5px solid var(--hair); background: var(--paper); color: var(--ink); cursor: pointer; }
-  .gtExplore button:hover { border-color: var(--ink); }
-  .gtExplore button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  .gtExplore button.go { background: var(--blue); border-color: var(--blue); color: #fff; } .gtExplore button.go:hover { filter: brightness(1.08); }
   /* an ending opened in full (methods-tree.js): the grid over the figure, the two lineups behind the hovered square */
   #gt { position: relative; }
   .gtOv { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; background: color-mix(in srgb, var(--paper) 72%, transparent); }
@@ -195,7 +189,7 @@
 </main>
 <div class="tip" id="gtTip"></div>
 
-<script src="methods-tree.js?v=c582309e56"></script>
+<script src="methods-tree.js?v=c9925481b8"></script>
 <script>
   // the test page's theme button (on the main page, app8.js has its own)
   (function () { const root = document.documentElement, tb = document.getElementById("themeBtn"), dark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;

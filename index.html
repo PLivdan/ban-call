@@ -296,12 +296,6 @@
   #gt svg .ar { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-weight: 700; }
   #gt svg .mt { font-family: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif; font-style: italic; }
   #gt svg [data-gtip] { cursor: help; }
-  .gtExplore { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 4px; }
-  .gtExplore .lab { font: 700 12.5px/1 Archivo, sans-serif; color: var(--faint); margin-right: 2px; text-transform: uppercase; letter-spacing: .06em; }
-  .gtExplore button { height: auto; font: 600 13px/1.2 Archivo, sans-serif; padding: 7px 11px; border: 1.5px solid var(--hair); background: var(--paper); color: var(--ink); cursor: pointer; }
-  .gtExplore button:hover { border-color: var(--ink); }
-  .gtExplore button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  .gtExplore button.go { background: var(--blue); border-color: var(--blue); color: #fff; } .gtExplore button.go:hover { filter: brightness(1.08); }
   /* an ending opened in full (methods-tree.js): the grid over the figure, the two lineups behind the hovered square */
   #gt { position: relative; }
   .gtOv { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; background: color-mix(in srgb, var(--paper) 72%, transparent); }
@@ -488,7 +482,7 @@
   </div>
   <div class="rec" id="gtRec">
     <h3 class="rect">Backward induction</h3>
-    <p class="small" style="margin: 0 0 10px 0">Click a term (or a button under the figure) to find it in the figure.</p>
+    <p class="small" style="margin: 0 0 10px 0">Click a term to find it in the figure.</p>
     <div class="rrow">
       <span class="who end">After six bans</span>
       <span class="math"><i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>) = <span class="t" data-k="E"><b class="op">𝔼</b><sub><i>θ</i> | <i>s</i><sub>6</sub></sub></span><span class="big">[</span><span class="t" data-k="score"><span class="op">1</span>/28<sup>2</sup> <span class="big op">Σ</span><sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)</span><span class="big">]</span></span>
@@ -539,6 +533,6 @@
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
 <script src="methods8.js?v=a6dc113180"></script>
-<script src="methods-tree.js?v=c582309e56"></script>
+<script src="methods-tree.js?v=c9925481b8"></script>
 <script src="app8.js?v=7a04c8f455"></script>
 </html>
