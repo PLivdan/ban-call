@@ -275,8 +275,8 @@
   const ITEMS = [], add = f => ITEMS.push(f);
   const TS = { now: [.2, .8], cards: w => [2.0 + .3 * w, 2.9 + .3 * w], info: { A1: [8.0, 8.9], A2: [19.2, 20.0] }, pulse: [9.2, 11.2], tags: [13.9, 14.6],
     post: [15.0, 17.5], grid: [25.6, 29.2], leafVal: [29.2, 30.2], open: [25.3, 26.0], cells: [25.9, 28.2], avg: [28.3, 28.9], close: [29.3, 30.3], wave: [31.2, 37.2], note: [37.2, 38.0],
-    fold: [39.2, 42.0], merged: [41.4, 42.4], panel: [41.8, 42.8], dots: [42.6, 48.6] };
-  const CH = [0, 6, 12, 19, 25, 31, 39], DUR = 52.5;
+    fold: [39.2, 42.0], merged: [41.4, 42.4], panel: [41.8, 42.8], dots: [42.6, 50.2] };
+  const CH = [0, 6, 12, 19, 25, 31, 39], DUR = 54.5;
   const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.2, XS[2] + 2], [21.4, XS[3] + 2], [21.6, XS[3] + 2], [23.0, VW]];
   const reveal = t => { for (let i = 1; i < REV.length; i++) if (t < REV[i][0]) { const [ta, xa] = REV[i - 1], [tb, xb] = REV[i]; return lerp(xa, xb, ease(seg(t, ta, tb))); } return VW; };
   const WAVE = t => lerp(X5 + 34, XS[0] - 34, ease(seg(t, ...TS.wave)));
@@ -512,29 +512,43 @@
   });
 
   // ---------------------------------------------------------------- the games: tokens that run down the folded tree, each in its draw's stripe
-  const DOTS = [], NDOT = 900, dr = rng(23), share = (n, p) => { const raw = p.map(x => n * x), fl = raw.map(Math.floor); const r = n - fl.reduce((a, b) => a + b, 0);
+  const DOTS = [], NDOT = 720, dr = rng(23), share = (n, p) => { const raw = p.map(x => n * x), fl = raw.map(Math.floor); const r = n - fl.reduce((a, b) => a + b, 0);
     raw.map((x, j) => [x - fl[j], j]).sort((a, b) => b[0] - a[0]).slice(0, r).forEach(([, j]) => fl[j]++); return fl; };
   const route = (w, v, n) => { if (!n) return []; if (v.term) return Array.from({ length: n }, () => [v]);
     const cnt = share(n, v.t.us ? OURSPLIT : v.kids.map(c => c.k.p[w])), out = []; v.kids.forEach((c, i) => route(w, c, cnt[i]).forEach(r => out.push([v].concat(r)))); return out; };
   WS.forEach(w => route(w, VID.A1, Math.round(NDOT * PRIOR[w])).forEach(r => DOTS.push({ w, r })));
   DOTS.forEach(d => d.o = dr()); DOTS.sort((a, b) => a.o - b.o);
-  const legT = v => .4 * Math.max(1, (v.x - v.parent.x) / 140);
-  DOTS.forEach((d, j) => { d.t0 = TS.dots[0] + (TS.dots[1] - TS.dots[0]) * j / DOTS.length; d.c = el("circle", { r: 1.9 }, L.dot);
-    let c = d.t0; d.ts = d.r.map(v => { const a = c; c += legT(v); return [a, c]; }); d.tEnd = c;
-    d.tA1 = d.ts[0][1]; const i3 = d.r.indexOf(VID.A2); d.tA2 = i3 >= 0 ? d.ts[i3][1] : null;
+  // A game moves at a steady pace across the page, one leg per band. It keeps its height for as long as it can: entering a new band
+  // it takes the place there nearest to where it already is, and when its branch lies elsewhere it drifts across, gently and only as
+  // far as it must, over the leg before the fork. It never jumps.
+  const gInv = s_ => { let u = s_; for (let i = 0; i < 5; i++) u = cl(u - (1.5 * u - 1.5 * u * u + u * u * u - s_) / (1.5 - 3 * u + 3 * u * u)); return u; };   // the band's x(u), inverted
+  const sm = u => u * u * (3 - 2 * u), TAU = .028;
+  function plan(d, f, speed, rnd) { let c = d.t0;
+    d.legs = d.r.map(v => { const g = ribG(v, d.w, f), L_ = { v, g, ta: c }; c += (g.xb - g.xa) / speed; L_.tb = c; return L_; });
+    d.legs[0].rs = .08 + .84 * rnd();
+    d.legs.forEach((L_, j) => { const nx = d.legs[j + 1], h = L_.g.b1 - L_.g.b0; if (!nx) { L_.re = L_.rs; return; }
+      const hn = nx.g.a1 - nx.g.a0; let q = hn > 1e-6 ? (L_.g.b0 + L_.rs * h - nx.g.a0) / hn : .5;   // where it would land in the next band if it kept its height
+      q = q < .06 ? .06 + .3 * rnd() : q > .94 ? .94 - .3 * rnd() : q + (rnd() - .5) * .05;          // outside it: just inside the near edge, spread a little
+      nx.rs = Math.min(.95, Math.max(.05, q)); L_.re = h > 1e-6 ? (nx.g.a0 + nx.rs * hn - L_.g.b0) / h : L_.rs; });
+    d.tEnd = c; }
+  const legAt = (d, t) => { let j = 0; while (j < d.legs.length - 1 && t >= d.legs[j].tb) j++; return j; };
+  function at(d, t) { t = Math.max(d.t0, Math.min(t, d.tEnd)); const L_ = d.legs[legAt(d, t)], g = L_.g, s_ = cl((t - L_.ta) / (L_.tb - L_.ta)), u = gInv(s_);
+    return [g.xa + (g.xb - g.xa) * s_, g.a0 + (g.b0 - g.a0) * sm(u) + (L_.rs + (L_.re - L_.rs) * sm(cl((u - .05) / .95))) * (g.a1 - g.a0)]; }
+  // drawn as short streaks (the last few hundredths of a second of each game's path), all of one colour in one path
+  const streak = (d, t) => { const a = at(d, t - TAU), b = at(d, t); return `M${r2(a[0])},${r2(a[1])}L${r2(b[0]) + .01},${r2(b[1])}`; };
+  DOTS.forEach((d, j) => { d.t0 = TS.dots[0] + (TS.dots[1] - TS.dots[0]) * j / DOTS.length; plan(d, 1, 170, dr);
+    d.tA1 = d.legs[0].tb; const i3 = d.r.indexOf(VID.A2); d.tA2 = i3 >= 0 ? d.legs[i3].tb : null;
     const last = d.r[d.r.length - 1]; d.leaf = last.parent.id === "B1" && last.ci < 2 ? last.ci : null; });
+  const FP = WS.map(() => el("path", { fill: "none", "stroke-width": 2.9, "stroke-linecap": "round" }, L.dot));
   const lum = c => .3 * c[0] + .59 * c[1] + .11 * c[2];
   let DOTC = [];
   add(t => { const a = E(t, ...TS.panel); op(pan, a, ["E"]); DOTC = TINT.map(c => Math.abs(lum(c) - lum(C.paper)) > Math.abs(lum(c) - lum(C.ink)) ? P.paper : P.ink); S(ph, "fill", P.ink); pn.forEach(e => S(e, "fill", P.faint));
-    const live = t >= TS.dots[0] - .01;
+    const live = t >= TS.dots[0] - .01, parts = WS.map(() => []);
     BARS.forEach(B => B.n = [0, 0, 0]);
     DOTS.forEach(d => {
       if (t >= d.tA1) BARS[0].n[d.w]++; if (d.tA2 !== null && t >= d.tA2) BARS[1].n[d.w]++; if (d.leaf !== null && t >= d.tEnd) BARS[2 + d.leaf].n[d.w]++;
-      if (!live || t < d.t0 || t > d.tEnd + .3) { S(d.c, "opacity", 0); return; }
-      const j = Math.max(0, d.ts.findIndex(([a, b]) => t < b)), jj = j < 0 || t >= d.tEnd ? d.r.length - 1 : j, [ta, tb] = d.ts[jj], v = d.r[jj];
-      const q = onRib(ribG(v, d.w, 1), cl((t - ta) / (tb - ta)));
-      S(d.c, "cx", q[0]); S(d.c, "cy", q[1]); S(d.c, "fill", DOTC[d.w]);
-      op(d.c, t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .15), ["E"]); });
+      if (live && t >= d.t0 && t < d.tEnd + TAU) parts[d.w].push(streak(d, t)); });
+    FP.forEach((pth, w) => { S(pth, "d", parts[w].join("")); S(pth, "stroke", c3(mixA(TINT[w], rgb(DOTC[w]), .8))); op(pth, live ? 1 : 0, ["E"]); });
     BARS.forEach(B => { const s = B.n[0] + B.n[1] + B.n[2]; let c = 0; S(B.lt, "fill", P.faint); S(B.bg, "fill", P.panel);
       B.segs.forEach((r, w) => { const q = s ? B.n[w] / s : 0; S(r, "x", PX + PWD * c); S(r, "width", PWD * q); S(r, "fill", c3(TINT[w]));
         const st = B.segT[w]; S(st, "x", PX + PWD * (c + q / 2)); S(st, "fill", DOTC[w]); txt(st, PWD * q >= 30 ? `${Math.round(100 * q)}%` : ""); c += q; });
@@ -544,12 +558,12 @@
   // ---------------------------------------------------------------- the games in the lanes: a stream that follows the bands as they open
   const WD = []; { const r_ = rng(41); WS.forEach(w => route(w, VID.A1, Math.round(260 * PRIOR[w])).forEach(r => WD.push({ w, r, o: r_() }))); }
   WD.sort((a, b) => a.o - b.o);
-  WD.forEach((d, j) => { d.t0 = 1.0 + 21.5 * j / WD.length; d.c = el("circle", { r: 1.7 }, L.wdot); let c = d.t0;
-    d.ts = d.r.map(v => { const a = c; c += .6 * Math.max(1, (v.x - v.parent.x) / 140); return [a, c]; }); d.tEnd = c; });
-  add(t => { WD.forEach(d => { if (FOLD > 0 || t < d.t0 || t > d.tEnd + .3) { S(d.c, "opacity", 0); return; }
-    const j = d.ts.findIndex(([, b]) => t < b), jj = j < 0 ? d.r.length - 1 : j, [ta, tb] = d.ts[jj], v = d.r[jj], q = onRib(ribG(v, d.w, 0), cl((t - ta) / (tb - ta)));
-    const bgc = lum(own(v, d.w, t, 0)); S(d.c, "cx", q[0]); S(d.c, "cy", q[1]); S(d.c, "fill", Math.abs(bgc - lum(C.paper)) > Math.abs(bgc - lum(C.ink)) ? P.paper : P.ink);
-    op(d.c, .9 * dim(d.w, t, 0) * (t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .2)), ["E"]); }); });
+  { const r_ = rng(57); WD.forEach((d, j) => { d.t0 = 1.0 + 23.0 * j / WD.length; plan(d, 0, 150, r_); }); }
+  const WP = WS.map(() => [0, 1].map(() => el("path", { fill: "none", "stroke-width": 2.7, "stroke-linecap": "round" }, L.wdot)));   // light and dark streaks, whichever shows on the band
+  add(t => { const parts = WS.map(() => [[], []]);
+    if (FOLD === 0) WD.forEach(d => { if (t < d.t0 || t >= d.tEnd + TAU) return; const bg = lum(own(d.legs[legAt(d, Math.min(t, d.tEnd))].v, d.w, t, 0));
+      parts[d.w][Math.abs(bg - lum(C.paper)) > Math.abs(bg - lum(C.ink)) ? 0 : 1].push(streak(d, t)); });
+    WS.forEach(w => WP[w].forEach((pth, k) => { S(pth, "d", parts[w][k].join("")); S(pth, "stroke", k ? P.ink : P.paper); op(pth, .8 * dim(w, t, 0), ["E"]); })); });
 
   // ---------------------------------------------------------------- one ending opened up: 28 of your lineups against 28 of theirs
   const LF = VID["B1.0"], GX = 828, GY = 82, GC = 4.9, GN = 28, GS = GN * GC;
