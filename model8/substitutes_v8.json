@@ -4,89 +4,89 @@
   {
    "hero": "Hulk",
    "mains": 2773,
-   "same_role": 0.5372,
+   "same_role": 0.5242,
    "top": [
     [
      "Magneto",
-     0.1114
+     0.1063
     ],
     [
      "Doctor Strange",
-     0.0609
+     0.06
     ],
     [
      "Venom",
-     0.0526
+     0.0521
     ],
     [
      "Captain America",
-     0.0513
-    ],
-    [
-     "The Hood",
-     0.043
-    ],
-    [
-     "Devil Dinosaur",
-     0.0385
-    ],
-    [
-     "Thor",
-     0.0381
-    ],
-    [
-     "The Thing",
-     0.0347
-    ]
-   ]
-  },
-  {
-   "hero": "Doctor Strange",
-   "mains": 5257,
-   "same_role": 0.4793,
-   "top": [
-    [
-     "Magneto",
-     0.1218
-    ],
-    [
-     "Emma Frost",
-     0.0708
-    ],
-    [
-     "Cloak & Dagger",
-     0.0509
-    ],
-    [
-     "Winter Soldier",
-     0.0471
-    ],
-    [
-     "The Thing",
-     0.0455
-    ],
-    [
-     "Devil Dinosaur",
-     0.0437
+     0.0506
     ],
     [
      "The Hood",
      0.0417
     ],
     [
+     "Devil Dinosaur",
+     0.0372
+    ],
+    [
+     "Thor",
+     0.0371
+    ],
+    [
+     "The Thing",
+     0.0348
+    ]
+   ]
+  },
+  {
+   "hero": "Doctor Strange",
+   "mains": 5257,
+   "same_role": 0.4702,
+   "top": [
+    [
+     "Magneto",
+     0.1186
+    ],
+    [
+     "Emma Frost",
+     0.0684
+    ],
+    [
+     "Cloak & Dagger",
+     0.0531
+    ],
+    [
+     "Winter Soldier",
+     0.0488
+    ],
+    [
+     "The Thing",
+     0.0453
+    ],
+    [
+     "Devil Dinosaur",
+     0.0426
+    ],
+    [
+     "The Hood",
+     0.0406
+    ],
+    [
      "Rocket Raccoon",
-     0.0358
+     0.0356
     ]
    ]
   },
   {
    "hero": "Captain America",
    "mains": 1021,
-   "same_role": 0.5555,
+   "same_role": 0.5447,
    "top": [
     [
      "Magneto",
-     0.1089
+     0.1043
     ],
     [
      "Hulk",
@@ -94,136 +94,136 @@
     ],
     [
      "The Hood",
-     0.0512
+     0.0497
     ],
     [
      "Doctor Strange",
-     0.0499
+     0.0495
     ],
     [
      "Devil Dinosaur",
-     0.0378
-    ],
-    [
-     "Deadpool (Vanguard)",
-     0.0356
+     0.0367
     ],
     [
      "Iron Fist",
-     0.0351
+     0.0354
+    ],
+    [
+     "Deadpool (Vanguard)",
+     0.0353
     ],
     [
      "The Thing",
-     0.034
+     0.0342
     ]
    ]
   },
   {
    "hero": "Groot",
    "mains": 928,
-   "same_role": 0.5808,
+   "same_role": 0.5729,
    "top": [
     [
      "Magneto",
-     0.1272
+     0.1236
     ],
     [
      "Doctor Strange",
-     0.0932
+     0.0918
     ],
     [
      "Emma Frost",
-     0.0621
+     0.0603
     ],
     [
      "Devil Dinosaur",
-     0.0537
+     0.0529
     ],
     [
      "Venom",
-     0.0403
+     0.0404
     ],
     [
      "The Thing",
-     0.0367
+     0.0368
     ],
     [
      "Rocket Raccoon",
-     0.0365
+     0.0364
     ],
     [
      "Peni Parker",
-     0.0344
+     0.0342
     ]
    ]
   },
   {
    "hero": "Venom",
    "mains": 1845,
-   "same_role": 0.5335,
+   "same_role": 0.5262,
    "top": [
     [
      "Magneto",
-     0.0981
+     0.0953
     ],
     [
      "Doctor Strange",
-     0.0593
+     0.0591
     ],
     [
      "Devil Dinosaur",
-     0.0566
+     0.0557
     ],
     [
      "The Hood",
-     0.0492
-    ],
-    [
-     "Emma Frost",
-     0.0454
+     0.048
     ],
     [
      "Hulk",
-     0.0447
+     0.0451
+    ],
+    [
+     "Emma Frost",
+     0.044
     ],
     [
      "Gorr The God Butcher",
-     0.0358
+     0.0356
     ],
     [
      "The Thing",
-     0.0306
+     0.0305
     ]
    ]
   },
   {
    "hero": "Magneto",
    "mains": 10165,
-   "same_role": 0.5616,
+   "same_role": 0.5527,
    "top": [
     [
      "Doctor Strange",
-     0.1096
+     0.1083
     ],
     [
      "Emma Frost",
-     0.106
+     0.1017
     ],
     [
      "The Hood",
-     0.0585
+     0.0571
     ],
     [
      "Devil Dinosaur",
-     0.0547
+     0.0534
     ],
     [
      "Winter Soldier",
-     0.042
+     0.0436
     ],
     [
      "The Thing",
-     0.0358
+     0.0359
     ],
     [
      "Venom",
@@ -231,100 +231,100 @@
     ],
     [
      "Hulk",
-     0.0314
+     0.0316
     ]
    ]
   },
   {
    "hero": "Thor",
    "mains": 2821,
-   "same_role": 0.5234,
+   "same_role": 0.5124,
    "top": [
     [
      "Magneto",
-     0.097
+     0.0936
     ],
     [
      "Doctor Strange",
-     0.0846
+     0.0834
     ],
     [
      "The Hood",
-     0.0551
-    ],
-    [
-     "Emma Frost",
-     0.0484
+     0.0532
     ],
     [
      "Hulk",
      0.0477
     ],
     [
+     "Emma Frost",
+     0.0465
+    ],
+    [
      "Devil Dinosaur",
-     0.0407
+     0.0392
+    ],
+    [
+     "Gorr The God Butcher",
+     0.0372
     ],
     [
      "The Thing",
      0.0363
-    ],
-    [
-     "Gorr The God Butcher",
-     0.0355
     ]
    ]
   },
   {
    "hero": "Peni Parker",
    "mains": 577,
-   "same_role": 0.596,
+   "same_role": 0.5815,
    "top": [
     [
      "Emma Frost",
-     0.0946
+     0.0905
     ],
     [
      "Devil Dinosaur",
-     0.0794
+     0.0768
     ],
     [
      "Magneto",
-     0.0698
-    ],
-    [
-     "Doctor Strange",
-     0.0524
-    ],
-    [
-     "The Thing",
-     0.052
-    ],
-    [
-     "The Hood",
-     0.05
+     0.0678
     ],
     [
      "Cloak & Dagger",
-     0.0496
+     0.0526
+    ],
+    [
+     "Doctor Strange",
+     0.0518
+    ],
+    [
+     "The Thing",
+     0.0516
+    ],
+    [
+     "The Hood",
+     0.0488
     ],
     [
      "Groot",
-     0.0439
+     0.0423
     ]
    ]
   },
   {
    "hero": "The Thing",
    "mains": 2092,
-   "same_role": 0.6002,
+   "same_role": 0.5979,
    "top": [
     [
      "Devil Dinosaur",
-     0.1309
+     0.1295
     ],
     [
      "Doctor Strange",
-     0.0933
+     0.0932
     ],
     [
      "Magneto",
@@ -332,7 +332,7 @@
     ],
     [
      "Emma Frost",
-     0.0553
+     0.0548
     ],
     [
      "Rocket Raccoon",
@@ -340,124 +340,124 @@
     ],
     [
      "The Hood",
-     0.0467
+     0.046
     ],
     [
      "Cloak & Dagger",
-     0.0425
+     0.0438
     ],
     [
      "Peni Parker",
-     0.0354
+     0.0355
     ]
    ]
   },
   {
    "hero": "Emma Frost",
    "mains": 5361,
-   "same_role": 0.5348,
+   "same_role": 0.5282,
    "top": [
     [
      "Magneto",
-     0.1171
+     0.1139
     ],
     [
      "Doctor Strange",
-     0.0786
+     0.0781
     ],
     [
      "The Hood",
-     0.0621
+     0.0607
     ],
     [
      "Devil Dinosaur",
-     0.0582
-    ],
-    [
-     "Invisible Woman",
-     0.05
+     0.0565
     ],
     [
      "Cloak & Dagger",
-     0.0496
+     0.0512
+    ],
+    [
+     "Invisible Woman",
+     0.0503
     ],
     [
      "Rogue",
-     0.0484
+     0.0481
     ],
     [
      "The Thing",
-     0.0314
+     0.0315
     ]
    ]
   },
   {
    "hero": "Angela",
    "mains": 1090,
-   "same_role": 0.5329,
+   "same_role": 0.5242,
    "top": [
     [
      "Emma Frost",
-     0.0922
+     0.0882
     ],
     [
      "Magneto",
-     0.0601
+     0.0591
     ],
     [
      "Rogue",
-     0.0589
+     0.0585
     ],
     [
      "Devil Dinosaur",
-     0.055
+     0.0539
     ],
     [
      "The Hood",
-     0.0464
+     0.0449
     ],
     [
      "Gorr The God Butcher",
-     0.0403
+     0.0407
     ],
     [
      "Doctor Strange",
-     0.0373
+     0.0372
     ],
     [
      "Peni Parker",
-     0.0343
+     0.0341
     ]
    ]
   },
   {
    "hero": "Devil Dinosaur",
    "mains": 2523,
-   "same_role": 0.5677,
+   "same_role": 0.5621,
    "top": [
     [
      "Magneto",
-     0.0797
+     0.0785
     ],
     [
      "The Hood",
-     0.0702
+     0.0686
     ],
     [
      "Doctor Strange",
-     0.0652
+     0.0648
     ],
     [
      "Emma Frost",
-     0.064
+     0.0625
     ],
     [
      "The Thing",
-     0.0603
+     0.06
     ],
     [
      "Venom",
-     0.0384
+     0.0385
     ],
     [
      "Gorr The God Butcher",
@@ -465,116 +465,116 @@
     ],
     [
      "Rocket Raccoon",
-     0.0319
+     0.0318
     ]
    ]
   },
   {
    "hero": "Rogue",
    "mains": 1670,
-   "same_role": 0.4497,
+   "same_role": 0.436,
    "top": [
     [
      "Emma Frost",
-     0.098
+     0.0925
     ],
     [
      "Magneto",
-     0.0644
+     0.062
     ],
     [
      "The Hood",
-     0.0536
+     0.0516
     ],
     [
      "Jubilee",
-     0.0413
+     0.0428
     ],
     [
      "Magik",
-     0.0396
+     0.04
     ],
     [
-     "Devil Dinosaur",
-     0.0357
+     "Gorr The God Butcher",
+     0.0346
     ],
     [
      "Angela",
-     0.0349
+     0.0345
     ],
     [
-     "Doctor Strange",
-     0.0336
+     "Devil Dinosaur",
+     0.0342
     ]
    ]
   },
   {
    "hero": "The Hood",
    "mains": 9431,
-   "same_role": 0.4675,
+   "same_role": 0.4622,
    "top": [
     [
      "Magneto",
-     0.0801
+     0.0788
     ],
     [
      "Emma Frost",
-     0.0729
+     0.0709
     ],
     [
      "Gorr The God Butcher",
-     0.0684
+     0.0682
     ],
     [
      "Devil Dinosaur",
-     0.062
+     0.0607
     ],
     [
      "Doctor Strange",
-     0.0454
+     0.0452
     ],
     [
      "Jubilee",
-     0.0369
+     0.0373
     ],
     [
      "Deadpool (Vanguard)",
-     0.0359
+     0.0355
     ],
     [
      "Gambit",
-     0.0318
+     0.0309
     ]
    ]
   },
   {
    "hero": "Deadpool (Vanguard)",
    "mains": 898,
-   "same_role": 0.4612,
+   "same_role": 0.4513,
    "top": [
     [
      "Deadpool (Strategist)",
-     0.0965
+     0.0978
     ],
     [
      "The Hood",
-     0.0786
+     0.0762
     ],
     [
      "Emma Frost",
-     0.0699
+     0.0671
     ],
     [
      "Magneto",
-     0.0699
+     0.0669
     ],
     [
      "Deadpool (Duelist)",
-     0.0645
+     0.0648
     ],
     [
      "Devil Dinosaur",
-     0.043
+     0.0414
     ],
     [
      "Venom",
@@ -582,73 +582,73 @@
     ],
     [
      "Gambit",
-     0.0287
+     0.0275
     ]
    ]
   },
   {
    "hero": "The Punisher",
    "mains": 1636,
-   "same_role": 0.6539,
+   "same_role": 0.6575,
    "top": [
     [
      "Hela",
-     0.1213
+     0.1224
     ],
     [
      "Winter Soldier",
-     0.0777
+     0.0791
     ],
     [
      "Black Widow",
-     0.0686
+     0.0679
     ],
     [
      "Namor",
-     0.0431
+     0.0427
     ],
     [
      "Rocket Raccoon",
-     0.0344
+     0.034
     ],
     [
      "Luna Snow",
-     0.0318
+     0.0337
     ],
     [
      "Cloak & Dagger",
-     0.0297
+     0.0309
     ],
     [
-     "Magneto",
-     0.0268
+     "Spider-man",
+     0.0259
     ]
    ]
   },
   {
    "hero": "Storm",
    "mains": 621,
-   "same_role": 0.4293,
+   "same_role": 0.4325,
    "top": [
     [
      "Scarlet Witch",
-     0.0984
+     0.0997
     ],
     [
      "Emma Frost",
-     0.0688
+     0.0647
     ],
     [
      "Cloak & Dagger",
-     0.0556
+     0.0574
     ],
     [
      "Invisible Woman",
-     0.0554
+     0.0551
     ],
     [
      "Luna Snow",
-     0.0501
+     0.0525
     ],
     [
      "Gorr The God Butcher",
@@ -656,127 +656,127 @@
     ],
     [
      "Hela",
-     0.0326
+     0.0329
     ],
     [
      "White Fox",
-     0.026
+     0.0272
     ]
    ]
   },
   {
    "hero": "Human Torch",
    "mains": 1092,
-   "same_role": 0.6458,
+   "same_role": 0.6494,
    "top": [
     [
      "Gorr The God Butcher",
-     0.0765
+     0.0773
     ],
     [
      "Spider-man",
-     0.074
+     0.0746
     ],
     [
      "Winter Soldier",
-     0.059
+     0.0602
     ],
     [
      "Daredevil",
-     0.0493
+     0.0488
     ],
     [
      "Elsa Bloodstone",
-     0.0407
+     0.0382
     ],
     [
      "Black Panther",
-     0.0348
+     0.036
     ],
     [
      "Magneto",
-     0.0334
+     0.0324
     ],
     [
-     "Gambit",
-     0.0281
+     "Iron Fist",
+     0.0278
     ]
    ]
   },
   {
    "hero": "Hawkeye",
    "mains": 643,
-   "same_role": 0.7132,
+   "same_role": 0.7137,
    "top": [
     [
      "Hela",
-     0.0814
+     0.0812
     ],
     [
      "Winter Soldier",
-     0.0781
+     0.0791
     ],
     [
      "Spider-man",
-     0.0504
+     0.0505
     ],
     [
      "Namor",
-     0.0462
+     0.0452
     ],
     [
      "The Punisher",
-     0.0454
+     0.0449
     ],
     [
      "Gorr The God Butcher",
-     0.0419
+     0.041
     ],
     [
      "Black Widow",
-     0.0375
+     0.0374
     ],
     [
      "Black Panther",
-     0.0295
+     0.03
     ]
    ]
   },
   {
    "hero": "Hela",
    "mains": 3396,
-   "same_role": 0.7193,
+   "same_role": 0.721,
    "top": [
     [
-     "Black Widow",
-     0.0956
+     "Winter Soldier",
+     0.0964
     ],
     [
-     "Winter Soldier",
-     0.0945
+     "Black Widow",
+     0.0948
     ],
     [
      "Psylocke",
-     0.0763
+     0.0784
     ],
     [
      "The Punisher",
-     0.0747
+     0.0752
     ],
     [
      "Elsa Bloodstone",
-     0.0669
+     0.0602
     ],
     [
      "Phoenix",
-     0.054
+     0.0537
     ],
     [
      "Luna Snow",
-     0.0494
+     0.0527
     ],
     [
-     "Magneto",
+     "Namor",
      0.0301
     ]
    ]
@@ -784,27 +784,27 @@
   {
    "hero": "Black Panther",
    "mains": 1150,
-   "same_role": 0.7812,
+   "same_role": 0.7826,
    "top": [
     [
      "Spider-man",
-     0.1319
+     0.1318
     ],
     [
      "Winter Soldier",
-     0.091
+     0.0923
     ],
     [
      "Gorr The God Butcher",
-     0.0813
+     0.0819
     ],
     [
      "Hela",
-     0.045
+     0.0452
     ],
     [
      "Daredevil",
-     0.0441
+     0.0435
     ],
     [
      "Magik",
@@ -812,732 +812,732 @@
     ],
     [
      "Iron Fist",
-     0.0393
+     0.0391
     ],
     [
      "Wolverine",
-     0.0298
+     0.029
     ]
    ]
   },
   {
    "hero": "Magik",
    "mains": 3824,
-   "same_role": 0.6074,
+   "same_role": 0.6105,
    "top": [
     [
      "Gorr The God Butcher",
-     0.1043
+     0.1059
     ],
     [
      "Winter Soldier",
-     0.07
+     0.0715
     ],
     [
      "Elsa Bloodstone",
-     0.0559
+     0.0529
     ],
     [
      "Hela",
-     0.0392
+     0.0397
     ],
     [
      "Psylocke",
-     0.0387
+     0.0394
     ],
     [
      "Doctor Strange",
-     0.0347
+     0.0337
     ],
     [
-     "Emma Frost",
-     0.0327
+     "Cloak & Dagger",
+     0.0316
     ],
     [
-     "Magneto",
-     0.0309
+     "Jubilee",
+     0.031
     ]
    ]
   },
   {
    "hero": "Moon Knight",
    "mains": 1221,
-   "same_role": 0.6137,
+   "same_role": 0.6118,
    "top": [
     [
      "Namor",
-     0.0879
+     0.0855
     ],
     [
      "Cloak & Dagger",
-     0.0657
-    ],
-    [
-     "Scarlet Witch",
-     0.0515
+     0.0672
     ],
     [
      "Winter Soldier",
-     0.0499
+     0.0513
+    ],
+    [
+     "Scarlet Witch",
+     0.0501
     ],
     [
      "Gorr The God Butcher",
-     0.0454
+     0.0451
     ],
     [
      "Rocket Raccoon",
-     0.0395
+     0.0391
     ],
     [
      "Iron Man",
-     0.0372
+     0.037
     ],
     [
      "Cyclops",
-     0.0363
+     0.036
     ]
    ]
   },
   {
    "hero": "Squirrel Girl",
    "mains": 462,
-   "same_role": 0.5647,
+   "same_role": 0.559,
    "top": [
     [
      "Scarlet Witch",
-     0.1297
+     0.1253
     ],
     [
      "Namor",
-     0.0998
+     0.0968
     ],
     [
      "Cloak & Dagger",
-     0.073
+     0.0742
     ],
     [
      "Rocket Raccoon",
-     0.0655
+     0.0653
     ],
     [
      "Jeff The Land Shark",
-     0.0401
+     0.0392
     ],
     [
      "Hela",
-     0.0336
-    ],
-    [
-     "Moon Knight",
-     0.0307
+     0.034
     ],
     [
      "Mister Fantastic",
-     0.0304
+     0.0306
+    ],
+    [
+     "Moon Knight",
+     0.0306
     ]
    ]
   },
   {
    "hero": "Black Widow",
    "mains": 1552,
-   "same_role": 0.732,
+   "same_role": 0.7342,
    "top": [
     [
      "Hela",
-     0.1565
+     0.1583
     ],
     [
      "Psylocke",
-     0.0787
-    ],
-    [
-     "Elsa Bloodstone",
-     0.0628
+     0.0805
     ],
     [
      "The Punisher",
-     0.0589
+     0.0588
     ],
     [
      "Winter Soldier",
-     0.0553
+     0.0567
+    ],
+    [
+     "Elsa Bloodstone",
+     0.0564
     ],
     [
      "Gorr The God Butcher",
-     0.0325
+     0.0333
     ],
     [
      "Spider-man",
-     0.0319
+     0.0322
     ],
     [
      "Luna Snow",
-     0.0296
+     0.0315
     ]
    ]
   },
   {
    "hero": "Iron Man",
    "mains": 1334,
-   "same_role": 0.5723,
+   "same_role": 0.5722,
    "top": [
     [
      "Scarlet Witch",
-     0.0631
+     0.0624
     ],
     [
      "Gorr The God Butcher",
-     0.0521
+     0.0513
     ],
     [
      "Namor",
-     0.0467
+     0.0455
     ],
     [
      "Ultron",
-     0.0417
+     0.0413
     ],
     [
      "Rocket Raccoon",
-     0.0396
+     0.0393
     ],
     [
      "Cloak & Dagger",
-     0.0336
+     0.0345
     ],
     [
      "The Punisher",
-     0.0319
+     0.0318
     ],
     [
      "Doctor Strange",
-     0.0302
+     0.0299
     ]
    ]
   },
   {
    "hero": "Spider-man",
    "mains": 5166,
-   "same_role": 0.7468,
+   "same_role": 0.7486,
    "top": [
     [
      "Winter Soldier",
-     0.0901
+     0.0913
     ],
     [
      "Daredevil",
-     0.0703
+     0.069
     ],
     [
      "Black Panther",
-     0.0609
+     0.0628
     ],
     [
      "Gorr The God Butcher",
-     0.0535
-    ],
-    [
-     "Iron Fist",
-     0.0457
+     0.0541
     ],
     [
      "Psylocke",
-     0.0446
+     0.0453
+    ],
+    [
+     "Iron Fist",
+     0.0452
     ],
     [
      "Deadpool (Duelist)",
-     0.042
+     0.0421
     ],
     [
      "Hela",
-     0.0369
+     0.0374
     ]
    ]
   },
   {
    "hero": "Scarlet Witch",
    "mains": 4222,
-   "same_role": 0.4256,
+   "same_role": 0.4261,
    "top": [
     [
      "Cloak & Dagger",
-     0.1008
+     0.1034
     ],
     [
      "Jubilee",
-     0.0562
+     0.0575
     ],
     [
      "Invisible Woman",
-     0.052
-    ],
-    [
-     "Storm",
-     0.0429
-    ],
-    [
-     "Emma Frost",
-     0.0418
+     0.0516
     ],
     [
      "White Fox",
-     0.0407
+     0.0427
+    ],
+    [
+     "Storm",
+     0.0417
+    ],
+    [
+     "Emma Frost",
+     0.0393
     ],
     [
      "Luna Snow",
-     0.0357
+     0.0377
     ],
     [
-     "Namor",
-     0.0343
+     "Gorr The God Butcher",
+     0.0345
     ]
    ]
   },
   {
    "hero": "Mister Fantastic",
    "mains": 1104,
-   "same_role": 0.4442,
+   "same_role": 0.4467,
    "top": [
     [
      "Gorr The God Butcher",
-     0.0912
+     0.0927
     ],
     [
      "Rocket Raccoon",
-     0.0564
+     0.0557
     ],
     [
      "The Thing",
-     0.046
+     0.0454
     ],
     [
      "Cloak & Dagger",
-     0.0378
+     0.0391
     ],
     [
      "Scarlet Witch",
-     0.0368
+     0.037
     ],
     [
      "Doctor Strange",
-     0.0365
+     0.036
     ],
     [
      "Devil Dinosaur",
-     0.0357
+     0.0352
     ],
     [
      "Blade",
-     0.0317
+     0.0316
     ]
    ]
   },
   {
    "hero": "Winter Soldier",
    "mains": 5606,
-   "same_role": 0.6548,
+   "same_role": 0.6578,
    "top": [
     [
      "Hela",
-     0.0745
+     0.0758
     ],
     [
      "Magneto",
-     0.051
+     0.0491
     ],
     [
      "Elsa Bloodstone",
-     0.051
+     0.0482
     ],
     [
      "The Punisher",
-     0.0446
+     0.0448
     ],
     [
      "Spider-man",
-     0.0412
-    ],
-    [
-     "Doctor Strange",
-     0.0395
+     0.0416
     ],
     [
      "Namor",
-     0.039
+     0.0389
+    ],
+    [
+     "Doctor Strange",
+     0.0387
     ],
     [
      "Psylocke",
-     0.0363
+     0.0371
     ]
    ]
   },
   {
    "hero": "Star-lord",
    "mains": 1061,
-   "same_role": 0.6319,
+   "same_role": 0.6339,
    "top": [
     [
      "Winter Soldier",
-     0.1057
+     0.1074
     ],
     [
      "Hela",
-     0.0557
+     0.0559
     ],
     [
      "Spider-man",
-     0.047
+     0.0474
     ],
     [
      "The Punisher",
-     0.0407
+     0.0405
     ],
     [
      "Psylocke",
-     0.0371
-    ],
-    [
-     "Namor",
-     0.0331
+     0.0379
     ],
     [
      "Luna Snow",
-     0.0326
+     0.0343
+    ],
+    [
+     "Namor",
+     0.0325
     ],
     [
      "Rocket Raccoon",
-     0.031
+     0.0306
     ]
    ]
   },
   {
    "hero": "Blade",
    "mains": 1263,
-   "same_role": 0.6121,
+   "same_role": 0.6126,
    "top": [
     [
      "Gorr The God Butcher",
-     0.1016
+     0.1004
     ],
     [
      "Iron Fist",
-     0.0499
+     0.0498
     ],
     [
      "Wolverine",
-     0.0338
+     0.0323
     ],
     [
      "Black Panther",
-     0.0311
+     0.0321
     ],
     [
      "Scarlet Witch",
-     0.0303
+     0.03
     ],
     [
      "Winter Soldier",
-     0.0287
+     0.0295
     ],
     [
      "Spider-man",
-     0.0282
+     0.0284
     ],
     [
      "Thor",
-     0.0273
+     0.0268
     ]
    ]
   },
   {
    "hero": "Namor",
    "mains": 1583,
-   "same_role": 0.6021,
+   "same_role": 0.6046,
    "top": [
     [
      "Winter Soldier",
-     0.0764
+     0.0781
     ],
     [
      "Scarlet Witch",
-     0.0566
+     0.0565
     ],
     [
      "Cloak & Dagger",
-     0.0498
+     0.0512
     ],
     [
      "Rocket Raccoon",
-     0.0466
+     0.0459
     ],
     [
      "Moon Knight",
-     0.0439
+     0.0443
     ],
     [
      "Squirrel Girl",
-     0.0438
+     0.0437
     ],
     [
      "Cyclops",
-     0.0403
+     0.0401
     ],
     [
      "The Punisher",
-     0.0378
+     0.0376
     ]
    ]
   },
   {
    "hero": "Psylocke",
    "mains": 2113,
-   "same_role": 0.6858,
+   "same_role": 0.6855,
    "top": [
     [
      "Elsa Bloodstone",
-     0.1184
+     0.1081
     ],
     [
      "Hela",
-     0.1002
+     0.1031
     ],
     [
      "Winter Soldier",
-     0.0711
+     0.0731
     ],
     [
      "Black Widow",
-     0.0563
+     0.0564
     ],
     [
      "Luna Snow",
-     0.0516
+     0.0552
     ],
     [
      "Magik",
-     0.0377
+     0.0378
     ],
     [
      "Black Cat",
-     0.0355
+     0.0359
     ],
     [
      "Spider-man",
-     0.0351
+     0.0358
     ]
    ]
   },
   {
    "hero": "Wolverine",
    "mains": 802,
-   "same_role": 0.6124,
+   "same_role": 0.6187,
    "top": [
     [
      "Winter Soldier",
-     0.0669
+     0.0685
     ],
     [
      "Gorr The God Butcher",
-     0.057
+     0.0585
     ],
     [
      "Iron Fist",
-     0.0457
+     0.0455
     ],
     [
      "Blade",
-     0.0375
-    ],
-    [
-     "Magneto",
-     0.0336
-    ],
-    [
-     "Spider-man",
-     0.0324
-    ],
-    [
-     "Doctor Strange",
-     0.0319
+     0.0376
     ],
     [
      "Black Panther",
-     0.0318
+     0.0329
+    ],
+    [
+     "Spider-man",
+     0.0326
+    ],
+    [
+     "Magneto",
+     0.0317
+    ],
+    [
+     "Doctor Strange",
+     0.0313
     ]
    ]
   },
   {
    "hero": "Iron Fist",
    "mains": 3259,
-   "same_role": 0.574,
+   "same_role": 0.5792,
    "top": [
     [
      "Daredevil",
-     0.0689
+     0.0677
     ],
     [
      "Winter Soldier",
-     0.0623
+     0.0639
     ],
     [
      "Gorr The God Butcher",
-     0.0589
+     0.0613
     ],
     [
      "Spider-man",
-     0.0398
+     0.0404
     ],
     [
      "Wolverine",
-     0.037
-    ],
-    [
-     "Magneto",
-     0.0327
+     0.0346
     ],
     [
      "Doctor Strange",
-     0.032
+     0.0312
+    ],
+    [
+     "Magneto",
+     0.0309
     ],
     [
      "Gambit",
-     0.0315
+     0.0294
     ]
    ]
   },
   {
    "hero": "Phoenix",
    "mains": 230,
-   "same_role": 0.7036,
+   "same_role": 0.7024,
    "top": [
     [
      "Hela",
-     0.1351
+     0.1368
     ],
     [
      "Elsa Bloodstone",
-     0.0867
+     0.0803
     ],
     [
      "Black Widow",
-     0.059
+     0.0588
     ],
     [
      "Luna Snow",
-     0.0505
+     0.0526
     ],
     [
      "Psylocke",
-     0.048
+     0.0493
     ],
     [
      "Invisible Woman",
-     0.0416
+     0.0413
     ],
     [
      "Scarlet Witch",
-     0.0414
+     0.0407
     ],
     [
      "Winter Soldier",
-     0.0394
+     0.0405
     ]
    ]
   },
   {
    "hero": "Daredevil",
    "mains": 1687,
-   "same_role": 0.6918,
+   "same_role": 0.6968,
    "top": [
     [
      "Winter Soldier",
-     0.0909
+     0.0928
     ],
     [
      "Spider-man",
-     0.0811
-    ],
-    [
-     "Iron Fist",
-     0.0743
+     0.0822
     ],
     [
      "Gorr The God Butcher",
-     0.0726
+     0.075
     ],
     [
-     "Black Cat",
-     0.0387
+     "Iron Fist",
+     0.0736
     ],
     [
      "Black Panther",
-     0.0381
+     0.0396
     ],
     [
-     "Elsa Bloodstone",
-     0.0373
+     "Black Cat",
+     0.039
     ],
     [
      "Magneto",
-     0.0369
+     0.0349
+    ],
+    [
+     "Elsa Bloodstone",
+     0.0336
     ]
    ]
   },
   {
    "hero": "Elsa Bloodstone",
    "mains": 1472,
-   "same_role": 0.713,
+   "same_role": 0.7165,
    "top": [
     [
      "Psylocke",
-     0.1226
+     0.1243
     ],
     [
      "Winter Soldier",
-     0.1045
+     0.106
     ],
     [
      "Hela",
-     0.0921
+     0.0928
     ],
     [
      "Magik",
-     0.0619
+     0.0618
     ],
     [
      "Black Widow",
-     0.0471
+     0.0463
     ],
     [
      "Gorr The God Butcher",
-     0.0361
+     0.0365
     ],
     [
      "Black Cat",
-     0.0308
+     0.031
     ],
     [
      "Daredevil",
-     0.0303
+     0.0299
     ]
    ]
   },
   {
    "hero": "Black Cat",
    "mains": 888,
-   "same_role": 0.6878,
+   "same_role": 0.6883,
    "top": [
     [
      "Psylocke",
-     0.0766
-    ],
-    [
-     "Elsa Bloodstone",
-     0.0687
+     0.0779
     ],
     [
      "Gorr The God Butcher",
-     0.0657
+     0.0661
+    ],
+    [
+     "Elsa Bloodstone",
+     0.0647
     ],
     [
      "Spider-man",
@@ -1545,19 +1545,19 @@
     ],
     [
      "Magik",
-     0.0539
+     0.0543
     ],
     [
      "Daredevil",
-     0.0508
+     0.0503
     ],
     [
      "Hela",
-     0.0397
+     0.0402
     ],
     [
      "Rogue",
-     0.0389
+     0.038
     ]
    ]
   },
@@ -1567,371 +1567,371 @@
    "same_role": 0.6194,
    "top": [
     [
-     "Gorr The God Butcher",
-     0.0708
+     "Winter Soldier",
+     0.0699
     ],
     [
-     "Winter Soldier",
-     0.0682
+     "Gorr The God Butcher",
+     0.0694
     ],
     [
      "Jubilee",
-     0.0411
+     0.0409
     ],
     [
      "Namor",
-     0.0406
+     0.0396
     ],
     [
      "Cloak & Dagger",
-     0.036
+     0.0368
     ],
     [
      "Hela",
-     0.0357
+     0.036
     ],
     [
      "Magneto",
-     0.0356
+     0.0348
     ],
     [
      "Gambit",
-     0.0321
+     0.0316
     ]
    ]
   },
   {
    "hero": "Gorr The God Butcher",
    "mains": 5155,
-   "same_role": 0.6422,
+   "same_role": 0.6463,
    "top": [
     [
      "Magik",
-     0.0542
+     0.0543
     ],
     [
      "Spider-man",
-     0.0474
+     0.0479
     ],
     [
      "Daredevil",
-     0.0474
+     0.0469
     ],
     [
      "Blade",
-     0.0377
-    ],
-    [
-     "Iron Fist",
-     0.0375
+     0.0379
     ],
     [
      "Winter Soldier",
-     0.0363
+     0.0374
+    ],
+    [
+     "Iron Fist",
+     0.0373
     ],
     [
      "Deadpool (Duelist)",
-     0.0354
+     0.0359
     ],
     [
-     "The Hood",
-     0.0349
+     "Black Panther",
+     0.0356
     ]
    ]
   },
   {
    "hero": "Deadpool (Duelist)",
    "mains": 939,
-   "same_role": 0.4936,
+   "same_role": 0.4955,
    "top": [
     [
      "Deadpool (Strategist)",
-     0.2247
+     0.2289
     ],
     [
      "Deadpool (Vanguard)",
-     0.0812
-    ],
-    [
-     "Spider-man",
-     0.071
+     0.078
     ],
     [
      "Gorr The God Butcher",
-     0.0709
+     0.0721
+    ],
+    [
+     "Spider-man",
+     0.0713
     ],
     [
      "Daredevil",
-     0.041
+     0.0405
     ],
     [
      "Iron Fist",
-     0.0337
+     0.0333
     ],
     [
      "Winter Soldier",
-     0.0246
+     0.0251
     ],
     [
      "Human Torch",
-     0.0224
+     0.0223
     ]
    ]
   },
   {
    "hero": "Loki",
    "mains": 1115,
-   "same_role": 0.6341,
+   "same_role": 0.635,
    "top": [
     [
      "Gambit",
-     0.1509
+     0.1376
     ],
     [
      "Invisible Woman",
-     0.0931
+     0.0957
     ],
     [
      "Rocket Raccoon",
-     0.0665
+     0.0658
     ],
     [
      "Cloak & Dagger",
-     0.0595
+     0.0627
     ],
     [
      "Luna Snow",
-     0.0521
-    ],
-    [
-     "Mantis",
-     0.039
+     0.0559
     ],
     [
      "Jubilee",
-     0.0387
+     0.0403
     ],
     [
      "White Fox",
-     0.0368
+     0.0395
+    ],
+    [
+     "Mantis",
+     0.0386
     ]
    ]
   },
   {
    "hero": "Mantis",
    "mains": 1940,
-   "same_role": 0.6712,
+   "same_role": 0.6715,
    "top": [
     [
      "Invisible Woman",
-     0.1162
+     0.1157
     ],
     [
      "Luna Snow",
-     0.0933
+     0.0973
     ],
     [
      "Cloak & Dagger",
-     0.0792
-    ],
-    [
-     "Gambit",
-     0.0741
+     0.081
     ],
     [
      "Jubilee",
-     0.0735
+     0.074
     ],
     [
-     "Rocket Raccoon",
-     0.061
+     "Gambit",
+     0.0684
     ],
     [
      "White Fox",
-     0.0606
+     0.0625
+    ],
+    [
+     "Rocket Raccoon",
+     0.0599
     ],
     [
      "Loki",
-     0.0357
+     0.0356
     ]
    ]
   },
   {
    "hero": "Rocket Raccoon",
    "mains": 4654,
-   "same_role": 0.5813,
+   "same_role": 0.5823,
    "top": [
     [
      "Cloak & Dagger",
-     0.1645
+     0.1683
     ],
     [
      "Gambit",
-     0.0736
+     0.0695
     ],
     [
      "Invisible Woman",
-     0.0679
+     0.0678
     ],
     [
      "Jeff The Land Shark",
-     0.055
+     0.0545
     ],
     [
      "Jubilee",
-     0.046
+     0.0462
     ],
     [
      "White Fox",
-     0.043
+     0.0443
+    ],
+    [
+     "Luna Snow",
+     0.0282
     ],
     [
      "Magneto",
-     0.027
-    ],
-    [
-     "Doctor Strange",
-     0.0269
+     0.0267
     ]
    ]
   },
   {
    "hero": "Cloak & Dagger",
    "mains": 12414,
-   "same_role": 0.7213,
+   "same_role": 0.7191,
    "top": [
     [
      "Invisible Woman",
-     0.1942
+     0.1932
     ],
     [
      "Rocket Raccoon",
-     0.1242
+     0.123
     ],
     [
      "Jubilee",
-     0.1104
+     0.11
     ],
     [
      "Luna Snow",
-     0.0754
+     0.078
     ],
     [
      "White Fox",
-     0.0676
+     0.0677
     ],
     [
      "Gambit",
-     0.0654
+     0.0639
     ],
     [
      "Scarlet Witch",
-     0.0484
+     0.0472
     ],
     [
      "Jeff The Land Shark",
-     0.0313
+     0.0308
     ]
    ]
   },
   {
    "hero": "Ultron",
    "mains": 888,
-   "same_role": 0.405,
+   "same_role": 0.4062,
    "top": [
     [
      "Rocket Raccoon",
-     0.0606
+     0.0596
     ],
     [
      "Gorr The God Butcher",
-     0.0583
+     0.058
     ],
     [
      "Deadpool (Strategist)",
-     0.0437
-    ],
-    [
-     "Devil Dinosaur",
-     0.0379
+     0.0448
     ],
     [
      "Iron Man",
-     0.037
+     0.0374
+    ],
+    [
+     "Devil Dinosaur",
+     0.0366
     ],
     [
      "White Fox",
+     0.0365
+    ],
+    [
+     "Cloak & Dagger",
      0.0348
     ],
     [
-     "Adam Warlock",
-     0.0343
-    ],
-    [
      "Jubilee",
-     0.0341
+     0.0346
     ]
    ]
   },
   {
    "hero": "Luna Snow",
    "mains": 5971,
-   "same_role": 0.6629,
+   "same_role": 0.6615,
    "top": [
     [
      "Invisible Woman",
-     0.2015
+     0.2001
     ],
     [
      "Cloak & Dagger",
-     0.1078
+     0.1108
     ],
     [
      "Jubilee",
-     0.0991
+     0.1008
     ],
     [
      "Gambit",
-     0.0772
+     0.0721
     ],
     [
      "White Fox",
-     0.0474
+     0.0493
     ],
     [
      "Mantis",
-     0.0428
+     0.0419
     ],
     [
      "Hela",
-     0.0346
+     0.035
     ],
     [
      "Emma Frost",
-     0.0305
+     0.0296
     ]
    ]
   },
   {
    "hero": "Adam Warlock",
    "mains": 613,
-   "same_role": 0.4252,
+   "same_role": 0.425,
    "top": [
     [
      "Rocket Raccoon",
-     0.0637
-    ],
-    [
-     "Loki",
-     0.0486
-    ],
-    [
-     "Mantis",
-     0.0463
+     0.0625
     ],
     [
      "Luna Snow",
-     0.0458
+     0.0485
+    ],
+    [
+     "Loki",
+     0.048
+    ],
+    [
+     "Mantis",
+     0.0454
     ],
     [
      "Ultron",
@@ -1939,14 +1939,14 @@
     ],
     [
      "Gambit",
-     0.0436
+     0.0399
     ],
     [
      "Spider-man",
-     0.0381
+     0.0388
     ],
     [
-     "Jeff The Land Shark",
+     "Hela",
      0.0326
     ]
    ]
@@ -1954,35 +1954,35 @@
   {
    "hero": "Jeff The Land Shark",
    "mains": 2907,
-   "same_role": 0.5362,
+   "same_role": 0.5359,
    "top": [
     [
      "Rocket Raccoon",
-     0.1048
+     0.1027
     ],
     [
      "Cloak & Dagger",
-     0.0956
-    ],
-    [
-     "Gambit",
-     0.0521
+     0.0979
     ],
     [
      "Jubilee",
-     0.0495
+     0.0503
+    ],
+    [
+     "Gambit",
+     0.0483
     ],
     [
      "Luna Snow",
-     0.0404
+     0.0423
     ],
     [
      "Scarlet Witch",
-     0.0385
+     0.0387
     ],
     [
      "White Fox",
-     0.0359
+     0.0374
     ],
     [
      "Invisible Woman",
@@ -1993,195 +1993,195 @@
   {
    "hero": "Invisible Woman",
    "mains": 8300,
-   "same_role": 0.7745,
+   "same_role": 0.7764,
    "top": [
     [
      "Cloak & Dagger",
-     0.2104
+     0.2141
     ],
     [
      "Luna Snow",
-     0.1678
+     0.1746
     ],
     [
      "Gambit",
-     0.108
+     0.099
     ],
     [
      "Jubilee",
-     0.0903
+     0.0911
     ],
     [
      "White Fox",
-     0.0561
+     0.0582
     ],
     [
      "Rocket Raccoon",
-     0.0504
+     0.0493
     ],
     [
      "Mantis",
-     0.0417
+     0.0402
     ],
     [
      "Emma Frost",
-     0.0386
+     0.0367
     ]
    ]
   },
   {
    "hero": "Gambit",
    "mains": 5625,
-   "same_role": 0.6623,
+   "same_role": 0.6636,
    "top": [
     [
      "Invisible Woman",
-     0.131
+     0.1295
     ],
     [
      "Cloak & Dagger",
-     0.0948
+     0.0969
     ],
     [
      "Jubilee",
-     0.0831
+     0.0835
     ],
     [
      "Luna Snow",
-     0.0748
+     0.0781
     ],
     [
      "Rocket Raccoon",
-     0.0706
+     0.069
     ],
     [
      "Loki",
-     0.053
+     0.0518
     ],
     [
      "White Fox",
-     0.0456
+     0.0467
     ],
     [
      "Deadpool (Strategist)",
-     0.0355
+     0.0358
     ]
    ]
   },
   {
    "hero": "White Fox",
    "mains": 3232,
-   "same_role": 0.6187,
+   "same_role": 0.6177,
    "top": [
     [
      "Jubilee",
-     0.1238
+     0.124
     ],
     [
      "Cloak & Dagger",
-     0.0997
+     0.1014
     ],
     [
      "Invisible Woman",
-     0.0889
+     0.0882
     ],
     [
      "Luna Snow",
-     0.0598
+     0.062
     ],
     [
      "Gambit",
-     0.0595
+     0.0576
     ],
     [
      "Rocket Raccoon",
-     0.053
-    ],
-    [
-     "Mantis",
-     0.0391
+     0.0522
     ],
     [
      "Scarlet Witch",
-     0.0391
+     0.0387
+    ],
+    [
+     "Mantis",
+     0.0384
     ]
    ]
   },
   {
    "hero": "Jubilee",
    "mains": 12231,
-   "same_role": 0.6002,
+   "same_role": 0.6,
    "top": [
     [
      "Cloak & Dagger",
-     0.1272
+     0.1287
     ],
     [
      "Invisible Woman",
-     0.099
+     0.0979
     ],
     [
      "Luna Snow",
-     0.0816
+     0.0846
     ],
     [
      "White Fox",
-     0.081
+     0.082
     ],
     [
      "Gambit",
-     0.0778
+     0.0748
     ],
     [
      "Rocket Raccoon",
-     0.0361
+     0.0356
     ],
     [
      "Scarlet Witch",
-     0.0327
+     0.0322
     ],
     [
      "Emma Frost",
-     0.0294
+     0.0291
     ]
    ]
   },
   {
    "hero": "Deadpool (Strategist)",
    "mains": 2312,
-   "same_role": 0.3839,
+   "same_role": 0.3835,
    "top": [
     [
      "Deadpool (Duelist)",
-     0.1002
+     0.1007
     ],
     [
      "Deadpool (Vanguard)",
-     0.0799
+     0.0782
     ],
     [
      "Gambit",
-     0.0674
+     0.0646
     ],
     [
      "Jubilee",
-     0.0536
+     0.0539
     ],
     [
      "Jeff The Land Shark",
-     0.0405
+     0.0404
     ],
     [
      "Rocket Raccoon",
-     0.0372
+     0.0368
     ],
     [
      "White Fox",
-     0.034
+     0.0351
     ],
     [
      "Cloak & Dagger",
-     0.0327
+     0.0337
     ]
    ]
   }

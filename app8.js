@@ -799,10 +799,11 @@
       const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
       if (cnt === 1 && REPLY) { const F = forecastStrip(REPLY, W);
         html += `<h2>Their reply</h2><p class="head">They likely answer with <span class="t">${esc(nm(F.top))}</span> <span class="n t">${pct(REPLY.pe[F.top])}</span> ${worstTxt(F, REPLY)}</p><div class="fig8">${F.svg}</div>`; }
+      const cntBinds = !!E.CNT && E.CNT.some(p => p.some(r => r.some(x => x !== 1)));   // an all-ones count table rules nothing out
       html += more("All bans as a table", rankTable(topBans(12), [
         { th: "Typical", td: h => R.pe[h] < .001 ? "&lt;0.1%" : pct1(R.pe[h]) }, { th: "They open", td: h => opnCell("them", h) }, { th: "You open", td: h => opnCell("us", h) }],
         `Value: change in your team's win probability, in points, if you make this ban and follow the advice afterwards, against a typical ban. Band: the range, dot: the value, dashed line: a typical ban. Typical: how often a
-        typical team in your seat makes this ban now (the advice only picks bans typical teams make at least ${+(100 * E.SUPP).toFixed(2)}% of the time${E.CNT ? " and that real teams at your rank have made at this point" : ""})${E.LAM ? ". The advice also leans toward bans real teams make often, so it is not always the ban with the highest value here" : ""}. They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
+        typical team in your seat makes this ban now (${E.SUPP > 0 || cntBinds ? `the advice only picks bans typical teams make at least ${+(100 * E.SUPP).toFixed(2)}% of the time${cntBinds ? " and that real teams at your rank have made at this point" : ""}` : "the advice weighs every legal ban, including ones typical teams rarely make"})${E.LAM ? ". The advice also leans toward bans real teams make often, so it is not always the ban with the highest value here" : ""}. They open, you open: how often each team opens the hero in the simulator's drafts of this lobby (the rest of the ban phase as typical teams make it).`));
       html += comps() + "</div>";
     } else if (THEM) {
       const T = THEM, F = forecastStrip(T, W);
