@@ -1,7 +1,8 @@
 """Stamp every script address with a hash of its content, so a new page never runs with a cached old script.
 GitHub Pages lets browsers cache files for ten minutes; without this a fresh index.html can load a stale app8.js.
 Run before every commit that changes a script:  python tools/stamp.py
-The page (index.html, the one-column layout; classic.html keeps the old one unlinked) runs engine8.js, lobby-state.js, methods8.js (the Methods figures) and app8.js, with the v8 simulator worker; the previous model's page (v7/) runs
+The page (index.html, the one-column layout; classic.html keeps the old one unlinked) runs engine8.js, lobby-state.js, methods8.js (the previous Methods figures,
+kept but switched off by OLD_FIGS in app8.js), methods-tree.js (the Methods figure, also on tree.html) and app8.js, with the v8 simulator worker; the previous model's page (v7/) runs
 ../engine.js and v7/app.js with the simulator worker ../sim-worker.js. The studio was retired (tag studio-final)."""
 import hashlib, re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -14,8 +15,11 @@ def sub_script(page, name, src_name=None, prefix=""):
 app = root / "app8.js"
 app.write_text(re.sub(r'new Worker\("sim8-worker\.js(\?v=[^"]*)?"\)', f'new Worker("sim8-worker.js?v={h("sim8.js", "engine8.js", "sim8-worker.js")}")', app.read_text(encoding="utf-8")), encoding="utf-8")
 page = root / "index.html"
-for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): t = sub_script(page, name)
+for name in ("engine8.js", "lobby-state.js", "methods8.js", "methods-tree.js", "app8.js"): t = sub_script(page, name)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
+# the Methods figure's test page (tree.html, unlinked): the same figure script
+tree = root / "tree.html"
+if tree.exists(): tt = sub_script(tree, "methods-tree.js"); print("stamped tree:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tt)))
 # the classic layout (classic.html, unlinked since the test layout became the page on 2026-10-01): the same scripts
 classic = root / "classic.html"
 if classic.exists():

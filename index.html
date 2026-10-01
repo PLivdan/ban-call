@@ -6,24 +6,27 @@
 <meta name="description" content="Which hero to ban in Marvel Rivals ranked: trained on simulated Season 10 lobbies, running in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3Cpath d=%27M7.5 24.5L24.5 7.5%27 stroke=%27%23B0382D%27 stroke-width=%274%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@400;600&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap">
 <style>
   :root {
     --paper: #ffffff; --ink: #15171c; --faint: #5e636c; --hair: #d9dce1; --panel: #f3f4f6;
     --blue: #2a4bad; --red: #b0382d; --safe: #1e6b30;
     --active: #eceef2; --cf: #f6f2e4; --hover: #e8edf8; --wash: #dfe6f7;
+    --d1: #62666f; --d2: #9da1a9; --d3: #cfd2d6;                 /* the Methods figure's three types */
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
       --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
       --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+      --d1: #b9bcc2; --d2: #858a93; --d3: #555a63;
     }
   }
   :root[data-theme="dark"] {
     --paper: #121418; --ink: #e8e6e1; --faint: #9a9ea7; --hair: #3a3e46; --panel: #1a1d23;
     --blue: #8aa3ec; --red: #e0877d; --safe: #74c284;
     --active: #252932; --cf: #2c2820; --hover: #232a3d; --wash: #27304a;
+    --d1: #b9bcc2; --d2: #858a93; --d3: #555a63;
   }
   * { box-sizing: border-box; }
   body { background: var(--paper); color: var(--ink); margin: 0;
@@ -267,6 +270,33 @@
   .mfig .chap b { display: block; font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 1px; }
   .mfig .chap button.on, .mfig .chap button.on b { color: var(--ink); }
   @media (max-width: 720px) { .mfig .chap { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+  /* the Methods figure (methods-tree.js): the step's equation under it, the math in STIX Two, the recursion's terms to click */
+  .mfig .note svg { display: block; overflow: visible; }
+  .mline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; min-height: 34px; margin: 10px 0 0 0; padding: 6px 0 6px 12px; border-left: 3px solid var(--ink); background: var(--panel); }
+  .mline .what { color: var(--faint); font-size: 12.5px; }
+  .math { font-family: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif; font-size: 17px; font-variant-numeric: normal; white-space: nowrap; }
+  .math i { font-style: italic; }
+  .math sub, .math sup { font-size: .7em; line-height: 0; }
+  .math .op { font-style: normal; }
+  .math .big { font-size: 1.25em; line-height: 0; vertical-align: -.08em; }
+  .math .sp { display: inline-block; width: .25em; }
+  .rec { margin: 26px 0 0 0; }
+  .rec h3.rect { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 2px 0; }
+  .rec .rrow { display: grid; grid-template-columns: 112px minmax(0, 1.25fr) minmax(0, 1fr); gap: 4px 22px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+  .rec .rrow:first-of-type { border-top: 1px solid var(--ink); }
+  .rec .who { font: 700 13px/1.2 Archivo, sans-serif; font-stretch: 108%; }
+  .rec .who.us { color: var(--blue); } .rec .who.them { color: var(--red); } .rec .who.end { color: var(--ink); }
+  .rec .say { color: var(--faint); font-size: 13px; max-width: 52ch; }
+  .rec .t { cursor: pointer; padding: 1px 2px; border-bottom: 1px dotted var(--faint); transition: background .12s; }
+  .rec .t:hover { background: var(--active); border-bottom-color: var(--ink); }
+  .rec .t.on { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); }
+  @media (max-width: 860px) { .rec .rrow { grid-template-columns: minmax(0, 1fr); } .rec .math { white-space: normal; } }
+  .tip .math { font-size: 14px; white-space: normal; }
+  #gt svg text { font-family: "Archivo Narrow", "Arial Narrow", Arial, sans-serif; }
+  #gt svg .ar { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-weight: 700; }
+  #gt svg .mt { font-family: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif; font-style: italic; }
+  #gt svg [data-tip] { cursor: help; }
+  #gt svg .halo { paint-order: stroke; stroke: var(--paper); stroke-width: 3.2px; stroke-linejoin: round; }
   .method { margin-top: 12px; }
   .mgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
   .mcol > h2:first-child { margin-top: 24px; }
@@ -415,6 +445,40 @@
 <section class="methods lean" id="methods">
   <h2 class="msec hh"><span>Methods</span><span class="hbtn"><button id="methodsBtn" title="Show or hide the methods">Show</button></span></h2>
   <div id="methodsBody">
+  <!-- the ban phase as a game (methods-tree.js) -->
+  <p class="mlede">Why not just ban the hero with the best win rate? A win rate mixes the hero with the players who choose it, a ban changes what both
+    teams draft, and the other team answers your bans without showing who they are. So Ban Call plays the ban phase out as a game with hidden types and solves
+    it backwards.</p>
+  <div class="mfig">
+    <h3 class="mft">One lobby, three possible types</h3>
+    <p class="mfs">Illustrative numbers. Hover anything for its arithmetic.</p>
+    <div class="fig" id="gt"></div>
+    <div class="note" id="gtLegend"></div>
+    <div class="mline" id="gtMline"></div>
+    <div class="player"><button class="pp" id="gtpp" aria-label="Play"></button><div class="chap" id="gtch" style="--n:7"></div></div>
+  </div>
+  <div class="rec" id="gtRec">
+    <h3 class="rect">Backward induction</h3>
+    <p class="small" style="margin: 0 0 10px 0">Click a term to find it in the figure.</p>
+    <div class="rrow">
+      <span class="who end">After six bans</span>
+      <span class="math"><i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>) = <span class="t" data-k="E"><b class="op">𝔼</b><sub><i>θ</i> | <i>s</i><sub>6</sub></sub></span><span class="big">[</span><span class="t" data-k="score"><span class="op">1</span>/28<sup>2</sup> <span class="big op">Σ</span><sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)</span><span class="big">]</span></span>
+      <span class="say">The average over 784 lineup pairings, then over the types.</span>
+    </div>
+    <div class="rrow">
+      <span class="who us">Your turn</span>
+      <span class="math"><i>V</i><sub><i>k</i></sub>(<span class="t" data-k="s"><i>s</i><sub><i>k</i></sub></span>) = <span class="t" data-k="max"><span class="op">max</span><sub><i>b</i> ∈ 𝓛(<i>s</i><sub><i>k</i></sub>)</sub></span><span class="sp"></span><span class="t" data-k="vbar"><i>V̄</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>)</span></span>
+      <span class="say">The best legal ban in expectation, one per information set.</span>
+    </div>
+    <div class="rrow">
+      <span class="who them">Their turn</span>
+      <span class="math"><i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>) = <span class="t" data-k="E"><b class="op">𝔼</b><sub><i>θ</i> | <i>s</i><sub><i>k</i></sub></sub></span><span class="big">[</span><span class="big op">Σ</span><sub><i>b</i></sub> <span class="t" data-k="sig"><i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>)</span> <span class="t" data-k="vnext"><i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>)</span><span class="big">]</span></span>
+      <span class="say">Their likely bans from a fitted model, not their worst.</span>
+    </div>
+  </div>
+  <!-- The previous Methods, kept: "Forward, then back" and "Inside one ending" (methods8.js, drawn from the model's numbers for the lobby
+       on the page) and the text around them. To bring them back, remove `hidden` here and set OLD_FIGS = true in app8.js. -->
+  <div id="methodsOld" hidden>
   <p class="mlede">Choosing a ban is harder than it looks. A ban removes a hero from both teams, it changes what both teams draft, and you usually can't see who is on the
     other side. Ban Call plays your lobby out many times before you choose. The two figures show how, with the model's own numbers for the lobby set above<span>: <span id="figLobby">loading</span></span>.</p>
   <div class="mfig">
@@ -433,6 +497,7 @@
   </div>
   <div class="method" id="method"></div>
   </div>
+  </div>
 </section>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath></defs></svg>
@@ -440,9 +505,11 @@
   <span id="fitted"></span> The models run in your browser. <a href="v7/">The previous model (v7.2)</a> is kept as a backup. Not affiliated with NetEase Games or Marvel.
 </footer>
 </main>
+<div class="tip" id="gtTip"></div>
 
 <script src="engine8.js?v=c5b0fda130"></script>
 <script src="lobby-state.js?v=e1a0afe684"></script>
 <script src="methods8.js?v=a6dc113180"></script>
-<script src="app8.js?v=c7863ed705"></script>
+<script src="methods-tree.js?v=c6d917700d"></script>
+<script src="app8.js?v=1adad4197d"></script>
 </html>

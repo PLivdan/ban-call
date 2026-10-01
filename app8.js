@@ -933,9 +933,12 @@
   }
   // the figures are about a third of a second of computing, so they are brought up to date only while the section is open and near
   // the screen, and only once the lobby has been still for a moment (after the board has moved and the advice has filled in)
+  // OLD_FIGS: the previous Methods figures (methods8.js), kept in the page but hidden since the Methods section became the game tree
+  // (methods-tree.js). While false they are never built, so their numbers and their drafting worker cost nothing.
+  const OLD_FIGS = false;
   let figKey = null, figTimer = 0, figNear = false;
   function figUpdate() {
-    if (!window.MethodFigs || !MethodFigs.show) return;
+    if (!OLD_FIGS || !window.MethodFigs || !MethodFigs.show) return;
     const key = JSON.stringify([st.tier, st.map, st.first, st.team, st.bans]); if (key === figKey) return;
     clearTimeout(figTimer); if (!figNear || !METHODS) return;
     figTimer = setTimeout(() => { if (!figNear || !METHODS) return; try { const d = figData(); if (d) { figKey = key; MethodFigs.show(d); endingStart(d); } } catch (e) { console.error(e); } }, figKey ? 1200 : 0);
@@ -982,7 +985,7 @@
   status(""); $("fitted").textContent = `Fitted on ${fmt(fitN)} PC ranked matches from Season 10 (${fitDates}), model ${REP.version} (run ${REP.run}).`;
   renderMethod(); update();
   compWorkers();                                                               // the drafting workers load the model while the page settles
-  if (window.MethodFigs) MethodFigs.init({ vq: VQ, pool: (REP.world_model || {}).stand_in_pool }).then(figUpdate).catch(e => console.error(e));
+  if (OLD_FIGS && window.MethodFigs) MethodFigs.init({ vq: VQ, pool: (REP.world_model || {}).stand_in_pool }).then(figUpdate).catch(e => console.error(e));
   document.fonts && document.fonts.ready.then(() => { renderMethod(); if (RES || THEM || DONE) renderAdvice(); });
   if (auxP) auxP.then(b => { E.addBuffer("aux", b); update(); }).catch(() => {});
 })().catch(e => {                                          // a bad or partial release: no advice rather than a made-up one
