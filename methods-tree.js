@@ -123,7 +123,7 @@
   const fold = t => E(t, ...TS.fold);
   const post3 = POST.A2, pmax = Math.max(...post3);
   const dim = (w, t, f) => lerp(lerp(1, .32 + .68 * Math.sqrt(post3[w] / pmax), E(t, ...TS.post)), 1, f);
-  const tipOf = new Map(), tip = (e, fn) => { e.dataset.tip = 1; tipOf.set(e, fn); };
+  const tipOf = new Map(), tip = (e, fn) => { e.dataset.gtip = 1; tipOf.set(e, fn); };   // data-gtip: the page's own tooltips read data-tip
   const tint = (c, k) => mixA(C.paper, c, k), winA = v => { const d = (v - 50) / 10, q = Math.min(1, Math.abs(d)); return mixA(C.paper, d >= 0 ? C.blue : C.red, .12 + .88 * Math.pow(q, .7)); };
   const hsh = a => { const x = Math.sin(a) * 43758.5453; return x - Math.floor(x); };
 
