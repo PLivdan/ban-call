@@ -270,13 +270,13 @@
   const VW = 1000, VH = 626, XN = 84, XS = [196, 336, 476, 608, 726], X5 = XS[4], TOPY = 76, BOTY = 548, FLOW = 306;
   const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, role: "img", "aria-label": "The ban phase as flowing bands: three draws of hidden players in lanes, the page's choices joined across them, then the draws folded into the page's tree" }, $("gt"));
   const defs = el("defs", {}, svg), clipR = el("rect", { x: 0, y: 0, height: VH, width: 0 }, el("clipPath", { id: "gtclip" }, defs));
-  const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip), wdot: el("g", {}, gClip) };
-  ["res", "info", "lab", "txt", "card", "panel", "dot", "head", "grid"].forEach(k => L[k] = el("g", {}, svg));
+  const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip), stream: el("g", {}, gClip) };
+  ["res", "info", "lab", "tok", "txt", "card", "panel", "head", "grid"].forEach(k => L[k] = el("g", {}, svg));
   const ITEMS = [], add = f => ITEMS.push(f);
   const TS = { now: [.2, .8], cards: w => [2.0 + .3 * w, 2.9 + .3 * w], info: { A1: [8.0, 8.9], A2: [19.2, 20.0] }, pulse: [9.2, 11.2], tags: [13.9, 14.6],
     post: [15.0, 17.5], grid: [25.6, 29.2], leafVal: [29.2, 30.2], open: [25.3, 26.0], cells: [25.9, 28.2], avg: [28.3, 28.9], close: [29.3, 30.3], wave: [31.2, 37.2], note: [37.2, 38.0],
-    fold: [39.2, 42.0], merged: [41.4, 42.4], panel: [41.8, 42.8], dots: [42.6, 50.2] };
-  const CH = [0, 6, 12, 19, 25, 31, 39], DUR = 54.5;
+    fold: [39.2, 42.0], merged: [41.4, 42.4], panel: [41.8, 42.8] };
+  const CH = [0, 6, 12, 19, 25, 31, 39], DUR = 51.5;
   const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.2, XS[2] + 2], [21.4, XS[3] + 2], [21.6, XS[3] + 2], [23.0, VW]];
   const reveal = t => { for (let i = 1; i < REV.length; i++) if (t < REV[i][0]) { const [ta, xa] = REV[i - 1], [tb, xb] = REV[i]; return lerp(xa, xb, ease(seg(t, ta, tb))); } return VW; };
   const WAVE = t => lerp(X5 + 34, XS[0] - 34, ease(seg(t, ...TS.wave)));
@@ -333,7 +333,7 @@
       if (v.ci !== p.t.pick) c = mixA(c, tint(C.blue, .12), passed(p.x + 8, t));                        // and the options the page would not take fade
       if (p.id === "A1" && v.ci === p.t.pick) c = mixA(c, C.blue, .55 * bump(t, ...TS.pulse)); }
     else { c = tint(C.red, DK() ? .8 : .7); if (v === VID.A2) c = mixA(c, C.red, .55 * bump(t, TS.post[0] - .5, TS.post[1])); }
-    return mixA(c, TINT[w], f); }
+    return mixA(c, C.paper, [0, .3, .56][w] * f); }                       // folded: the draws as shades of the same blue or red, draw 1 strongest
   const KEYS = v => !v.parent.t ? ["E"] : v.parent.t.us ? ["max"] : ["sig"];
   const reason = (k, w) => { const own_ = k.b ? k.b.filter(h => DRAWS[w].mains.includes(h)) : [];
     return own_.length ? ` Their players main ${nms(own_)} in this draw, so they rarely ban ${own_.length > 1 ? "them" : "that hero"}.` : ""; };
@@ -490,80 +490,90 @@
       S(g, "transform", `translate(${x0 + 10 * (1 - a)} ${yc - 31})`); op(g, a * (1 - cl(f * 1.8)) * (1 - E(t, TS.open[0] - .2, TS.open[1]) + E(t, TS.close[1], TS.close[1] + .6)), ["E"]);
       S(bg, "fill", P.panel); S(bar, "fill", c3(TINT[w])); S(tt, "fill", P.ink); S(sub, "fill", P.faint); S(pw, "fill", P.ink); txt(pw, pc(q)); fr.forEach(r => S(r, "stroke", P.red)); }); });
 
-  // ---------------------------------------------------------------- the panel (folded): the draws' mix among the games that reach each point
-  const PX = 800, PWD = 192, pan = el("g", {}, L.panel), ph = el("text", { x: PX, y: 92, class: "ar", "font-size": 13.5 }, pan);
+  // ---------------------------------------------------------------- the panel (folded): how likely each draw is at each point
+  const PX = 800, PWD = 192, BH = 17, pan = el("g", {}, L.panel), ph = el("text", { x: PX, y: 92, class: "ar", "font-size": 13.5 }, pan);
   ph.textContent = "How likely each draw is";
-  const pn = ["among the simulated games that get this far.", "Bars: the games that got there.", "Ticks: what Bayes' rule says.", "The networks only ever see the games."]
-    .map((s, j) => { const e = el("text", { x: PX, y: 110 + 15 * j, "font-size": 12 }, pan); e.textContent = s; return e; });
+  const pn = ["given what the page has seen at each point.", "The networks are never told these numbers.", "They learn from the games that reach each", "point, and those come in exactly this mix."]
+    .map((s_, j) => { const e = el("text", { x: PX, y: 110 + 15 * j, "font-size": 12 }, pan); e.textContent = s_; return e; });
   const BARS = [
     { y: 210, lab: "lobby only (s₀)", post: PRIOR },
-    { y: 286, lab: "after their two bans (s₃)", post: POST.A2 },
-    { y: 362, lab: `then ${nm("psylocke")} banned (s₆)`, post: TREE.B1.kids[0].post },
-    { y: 438, lab: `then ${nm("peni-parker")} banned (s₆)`, post: TREE.B1.kids[1].post }];
-  const BH = 17;
+    { y: 280, lab: "after their two bans (s₃)", post: POST.A2 },
+    { y: 350, lab: `then ${nm("psylocke")} banned (s₆)`, post: TREE.B1.kids[0].post },
+    { y: 420, lab: `then ${nm("peni-parker")} banned (s₆)`, post: TREE.B1.kids[1].post }];
+  const lum = c => .3 * c[0] + .59 * c[1] + .11 * c[2], con = c => Math.abs(lum(c) - lum(C.paper)) > Math.abs(lum(c) - lum(C.ink)) ? P.paper : P.ink;
   BARS.forEach(B => {
-    const g = el("g", {}, pan), lt = el("text", { x: PX, y: B.y - 9, "font-size": 12 }, g), bg = el("rect", { x: PX, y: B.y, width: PWD, height: BH }, g);
+    const g = el("g", {}, pan), lt = el("text", { x: PX, y: B.y - 8, "font-size": 12 }, g), bg = el("rect", { x: PX, y: B.y, width: PWD, height: BH }, g);
     lt.textContent = B.lab; B.segs = WS.map(() => el("rect", { y: B.y, height: BH }, g)); B.segT = WS.map(() => el("text", { y: B.y + 12.5, "font-size": 11, "font-weight": 600, "text-anchor": "middle" }, g));
-    let c = 0; B.ticks = B.post.slice(0, 2).map(q => { c += q; const x = PX + PWD * c; return [el("line", { x1: x, x2: x, y1: B.y + BH - 5, y2: B.y + BH + 2, "stroke-width": 1.4 }, g), el("path", { d: `M${x - 4},${B.y + BH + 7} L${x + 4},${B.y + BH + 7} L${x},${B.y + BH + 2} Z` }, g)]; });
-    B.ct = el("text", { x: PX + PWD, y: B.y - 9, "font-size": 11.5, "text-anchor": "end" }, g); Object.assign(B, { g, lt, bg });
-    tip(g, () => { const n = B.n || [0, 0, 0], s = n[0] + n[1] + n[2];
-      return `<b>${B.lab[0].toUpperCase() + B.lab.slice(1)}</b><br>Of the ${s} simulated games that got here, ${n.map((x, w) => `${x} came from draw ${w + 1}`).join(", ")}.
-        Bayes' rule says ${B.post.map((q, w) => `${pc(q)} for draw ${w + 1}`).join(", ")}.`; });
+    Object.assign(B, { g, lt, bg });
+    tip(g, () => `<b>${B.lab[0].toUpperCase() + B.lab.slice(1)}</b><br>${B.post.map((q, w) => `draw ${w + 1}: ${pc(q)}`).join("<br>")}`);
   });
+  add(t => { const a = E(t, ...TS.panel); op(pan, a, ["E"]); S(ph, "fill", P.ink); pn.forEach(e => S(e, "fill", P.faint));
+    BARS.forEach((B, i) => { const g_ = E(t, TS.panel[0] + .15 * i, TS.panel[1] + .4 + .15 * i); let c = 0; S(B.lt, "fill", P.faint); S(B.bg, "fill", P.panel);
+      B.segs.forEach((r, w) => { const q = B.post[w] * g_; S(r, "x", PX + PWD * c); S(r, "width", PWD * q); S(r, "fill", c3(TINT[w]));
+        const st = B.segT[w]; S(st, "x", PX + PWD * (c + q / 2)); S(st, "fill", con(TINT[w])); txt(st, PWD * B.post[w] >= 30 ? `${Math.round(100 * B.post[w])}%` : ""); S(st, "opacity", g_); c += q; }); }); });
 
-  // ---------------------------------------------------------------- the games: tokens that run down the folded tree, each in its draw's stripe
-  const DOTS = [], NDOT = 720, dr = rng(23), share = (n, p) => { const raw = p.map(x => n * x), fl = raw.map(Math.floor); const r = n - fl.reduce((a, b) => a + b, 0);
+  // ---------------------------------------------------------------- the games: portraits that lead the bands, dots that follow them
+  // One simulated game leads each ending's band in each lane. The games set off from Now together and split at every fork into the
+  // branches they take, so each branch is drawn behind its own games. The middle game of each band shows the ban the band stands for
+  // (on the draw's band, the ban it is about to make). The others are dots in the colour of whoever bans there, and a dot that
+  // becomes the middle game of its new branch at a fork turns into that branch's portrait. At the scoring they all run into the result
+  // bars and become the endings' values. Behind them a light stream of games keeps the bands moving.
+  const OTHER = ["storm", "loki", "magneto", "thor", "the-punisher", "black-panther", "iron-man", "namor", "venom", "jeff-the-land-shark", "invisible-woman", "wolverine"];
+  const gInv = s_ => { let u = s_; for (let i = 0; i < 5; i++) u = cl(u - (1.5 * u - 1.5 * u * u + u * u * u - s_) / (1.5 - 3 * u + 3 * u * u)); return u; };   // a band's x(u), inverted
+  const sm = u => u * u * (3 - 2 * u), MORPH = 22;
+  const moverA = v => !v.parent.t ? C.faint : v.parent.t.us ? C.blue : C.red;
+  const TOK = []; { let oi = 0;
+    WS.forEach(w => TERMS.forEach(tv => { if (tv.h[w] < 2.5) return; const path = []; for (let v = tv; v.parent; v = v.parent) path.unshift(v);
+      oi++; TOK.push({ w, r: path, other: OTHER[oi % OTHER.length], off: 7 * hsh(oi * 7.31 + w * 1.7) }); })); }
+  // its height in each band: the games in a band are spaced evenly across it (in the order of their endings, so they never cross),
+  // and over the band each one glides to where its next band starts, arriving at the fork in its own branch
+  const BANDT = new Map(); TOK.forEach(T => T.r.forEach(v => { const k = `${T.w}|${v.id}`; if (!BANDT.has(k)) BANDT.set(k, []); BANDT.get(k).push(T); }));
+  TOK.forEach(T => { const legs = T.r.map(v => { const list = BANDT.get(`${T.w}|${v.id}`), i = list.indexOf(T);
+      return { v, g: ribG(v, T.w, 0), qs: (i + .5) / list.length, lead: i === Math.floor((list.length - 1) / 2) ? 1 : 0 }; });
+    legs.forEach((L_, j) => { const nx = legs[j + 1], h = L_.g.b1 - L_.g.b0; L_.qe = nx && h > 1e-6 ? (nx.g.a0 + nx.qs * (nx.g.a1 - nx.g.a0) - L_.g.b0) / h : L_.qs; });
+    T.legs = legs; T.g = el("g", {}, L.tok); T.dot = el("circle", { r: 3.1, "stroke-width": 1 }, T.g); T.ic = el("g", {}, T.g);
+    T.tl = [0, 1].map(() => { const g_ = el("g", {}, T.ic); return { g: g_, bg: el("rect", {}, g_), im: el("image", { preserveAspectRatio: "xMidYMid slice" }, g_), fr: el("rect", { fill: "none", "stroke-width": 1.5 }, g_) }; }); });
+  const legOf = (legs, x) => { let j = 0; while (j < legs.length - 1 && x > legs[j].g.xb) j++; return j; };
+  const tokAt = (T, x) => { const j = legOf(T.legs, x), L_ = T.legs[j], g = L_.g, u = gInv(cl((x - g.xa) / (g.xb - g.xa)));
+    return [g.a0 + (g.b0 - g.a0) * sm(u) + (L_.qs + (L_.qe - L_.qs) * sm(cl((u - .1) / .9))) * (g.a1 - g.a0), j]; };
+  const bansOf = (T, v) => { const k = (v.parent.t ? v : T.r[1]).k; return k.b ? k.b : [T.other]; };
+  add(t => { const front = reveal(t), sink = E(t, TS.grid[0] - .3, TS.grid[0] + .8);
+    TOK.forEach(T => { const x = Math.min(front - 3 - T.off, X5 - 18 - T.off * .6);
+      if (FOLD > 0 || x < XN + 3 || sink >= 1) { S(T.g, "opacity", 0); return; }
+      const [y, j] = tokAt(T, x), L_ = T.legs[j], P_ = T.legs[Math.max(0, j - 1)], k = j ? sm(cl((x - L_.g.xa) / MORPH)) : 1;   // just past a fork: becoming what the new band makes it
+      const lead = lerp(P_.lead, L_.lead, k), v = L_.v, hs = bansOf(T, v), n = hs.length, sz = n > 1 ? 12 : 14, col = c3(mixA(moverA(P_.v), moverA(v), k));
+      S(T.dot, "fill", col); S(T.dot, "stroke", P.paper); S(T.dot, "opacity", 1 - lead); S(T.dot, "r", 3.1 * (1 - .5 * lead));
+      S(T.ic, "opacity", lead); S(T.ic, "transform", `scale(${r2(.35 + .65 * lead)})`);
+      T.tl.forEach((tl, i) => { if (i >= n) { S(tl.g, "opacity", 0); return; } const dx = (i - (n - 1) / 2) * (sz + 2);
+        S(tl.g, "opacity", 1); S(tl.im, "href", img(hs[i]));
+        [tl.bg, tl.im, tl.fr].forEach(e => { S(e, "x", dx - sz / 2); S(e, "y", -sz / 2); S(e, "width", sz); S(e, "height", sz); });
+        S(tl.bg, "fill", P.paper); S(tl.fr, "stroke", col); });
+      S(T.g, "transform", `translate(${r2(lerp(x, X5 + 13, sink))} ${r2(y)}) scale(${r2(lerp(1, .3, sink))})`);
+      op(T.g, cl((x - XN - 3) / 14) * dim(T.w, t, 0) * (1 - sink), ["E"]); }); });
+
+  // the stream behind the front: small dots at a steady pace, each keeping its height in its band and drifting only as far as its
+  // branch needs before a fork, turning blue or red with the band; drawn under the front, so the bands show them only once drawn
+  const share = (n, p) => { const raw = p.map(x => n * x), fl = raw.map(Math.floor), r = n - fl.reduce((a, b) => a + b, 0);
     raw.map((x, j) => [x - fl[j], j]).sort((a, b) => b[0] - a[0]).slice(0, r).forEach(([, j]) => fl[j]++); return fl; };
   const route = (w, v, n) => { if (!n) return []; if (v.term) return Array.from({ length: n }, () => [v]);
     const cnt = share(n, v.t.us ? OURSPLIT : v.kids.map(c => c.k.p[w])), out = []; v.kids.forEach((c, i) => route(w, c, cnt[i]).forEach(r => out.push([v].concat(r)))); return out; };
-  WS.forEach(w => route(w, VID.A1, Math.round(NDOT * PRIOR[w])).forEach(r => DOTS.push({ w, r })));
-  DOTS.forEach(d => d.o = dr()); DOTS.sort((a, b) => a.o - b.o);
-  // A game moves at a steady pace across the page, one leg per band. It keeps its height for as long as it can: entering a new band
-  // it takes the place there nearest to where it already is, and when its branch lies elsewhere it drifts across, gently and only as
-  // far as it must, over the leg before the fork. It never jumps.
-  const gInv = s_ => { let u = s_; for (let i = 0; i < 5; i++) u = cl(u - (1.5 * u - 1.5 * u * u + u * u * u - s_) / (1.5 - 3 * u + 3 * u * u)); return u; };   // the band's x(u), inverted
-  const sm = u => u * u * (3 - 2 * u), TAU = .028;
-  function plan(d, f, speed, rnd) { let c = d.t0;
-    d.legs = d.r.map(v => { const g = ribG(v, d.w, f), L_ = { v, g, ta: c }; c += (g.xb - g.xa) / speed; L_.tb = c; return L_; });
-    d.legs[0].rs = .08 + .84 * rnd();
-    d.legs.forEach((L_, j) => { const nx = d.legs[j + 1], h = L_.g.b1 - L_.g.b0; if (!nx) { L_.re = L_.rs; return; }
-      const hn = nx.g.a1 - nx.g.a0; let q = hn > 1e-6 ? (L_.g.b0 + L_.rs * h - nx.g.a0) / hn : .5;   // where it would land in the next band if it kept its height
-      q = q < .06 ? .06 + .3 * rnd() : q > .94 ? .94 - .3 * rnd() : q + (rnd() - .5) * .05;          // outside it: just inside the near edge, spread a little
-      nx.rs = Math.min(.95, Math.max(.05, q)); L_.re = h > 1e-6 ? (nx.g.a0 + nx.rs * hn - L_.g.b0) / h : L_.rs; });
-    d.tEnd = c; }
-  const legAt = (d, t) => { let j = 0; while (j < d.legs.length - 1 && t >= d.legs[j].tb) j++; return j; };
-  function at(d, t) { t = Math.max(d.t0, Math.min(t, d.tEnd)); const L_ = d.legs[legAt(d, t)], g = L_.g, s_ = cl((t - L_.ta) / (L_.tb - L_.ta)), u = gInv(s_);
-    return [g.xa + (g.xb - g.xa) * s_, g.a0 + (g.b0 - g.a0) * sm(u) + (L_.rs + (L_.re - L_.rs) * sm(cl((u - .05) / .95))) * (g.a1 - g.a0)]; }
-  // drawn as short streaks (the last few hundredths of a second of each game's path), all of one colour in one path
-  const streak = (d, t) => { const a = at(d, t - TAU), b = at(d, t); return `M${r2(a[0])},${r2(a[1])}L${r2(b[0]) + .01},${r2(b[1])}`; };
-  DOTS.forEach((d, j) => { d.t0 = TS.dots[0] + (TS.dots[1] - TS.dots[0]) * j / DOTS.length; plan(d, 1, 170, dr);
-    d.tA1 = d.legs[0].tb; const i3 = d.r.indexOf(VID.A2); d.tA2 = i3 >= 0 ? d.legs[i3].tb : null;
-    const last = d.r[d.r.length - 1]; d.leaf = last.parent.id === "B1" && last.ci < 2 ? last.ci : null; });
-  const FP = WS.map(() => el("path", { fill: "none", "stroke-width": 2.9, "stroke-linecap": "round" }, L.dot));
-  const lum = c => .3 * c[0] + .59 * c[1] + .11 * c[2];
-  let DOTC = [];
-  add(t => { const a = E(t, ...TS.panel); op(pan, a, ["E"]); DOTC = TINT.map(c => Math.abs(lum(c) - lum(C.paper)) > Math.abs(lum(c) - lum(C.ink)) ? P.paper : P.ink); S(ph, "fill", P.ink); pn.forEach(e => S(e, "fill", P.faint));
-    const live = t >= TS.dots[0] - .01, parts = WS.map(() => []);
-    BARS.forEach(B => B.n = [0, 0, 0]);
-    DOTS.forEach(d => {
-      if (t >= d.tA1) BARS[0].n[d.w]++; if (d.tA2 !== null && t >= d.tA2) BARS[1].n[d.w]++; if (d.leaf !== null && t >= d.tEnd) BARS[2 + d.leaf].n[d.w]++;
-      if (live && t >= d.t0 && t < d.tEnd + TAU) parts[d.w].push(streak(d, t)); });
-    FP.forEach((pth, w) => { S(pth, "d", parts[w].join("")); S(pth, "stroke", c3(mixA(TINT[w], rgb(DOTC[w]), .8))); op(pth, live ? 1 : 0, ["E"]); });
-    BARS.forEach(B => { const s = B.n[0] + B.n[1] + B.n[2]; let c = 0; S(B.lt, "fill", P.faint); S(B.bg, "fill", P.panel);
-      B.segs.forEach((r, w) => { const q = s ? B.n[w] / s : 0; S(r, "x", PX + PWD * c); S(r, "width", PWD * q); S(r, "fill", c3(TINT[w]));
-        const st = B.segT[w]; S(st, "x", PX + PWD * (c + q / 2)); S(st, "fill", DOTC[w]); txt(st, PWD * q >= 30 ? `${Math.round(100 * q)}%` : ""); c += q; });
-      B.ticks.forEach(([l, tr]) => { S(l, "stroke", P.ink); S(tr, "fill", P.ink); }); S(B.ct, "fill", P.faint);
-      txt(B.ct, s ? `${fmt(s)} game${s > 1 ? "s" : ""}` : ""); }); });
-
-  // ---------------------------------------------------------------- the games in the lanes: a stream that follows the bands as they open
-  const WD = []; { const r_ = rng(41); WS.forEach(w => route(w, VID.A1, Math.round(260 * PRIOR[w])).forEach(r => WD.push({ w, r, o: r_() }))); }
-  WD.sort((a, b) => a.o - b.o);
-  { const r_ = rng(57); WD.forEach((d, j) => { d.t0 = 1.0 + 23.0 * j / WD.length; plan(d, 0, 150, r_); }); }
-  const WP = WS.map(() => [0, 1].map(() => el("path", { fill: "none", "stroke-width": 2.7, "stroke-linecap": "round" }, L.wdot)));   // light and dark streaks, whichever shows on the band
-  add(t => { const parts = WS.map(() => [[], []]);
-    if (FOLD === 0) WD.forEach(d => { if (t < d.t0 || t >= d.tEnd + TAU) return; const bg = lum(own(d.legs[legAt(d, Math.min(t, d.tEnd))].v, d.w, t, 0));
-      parts[d.w][Math.abs(bg - lum(C.paper)) > Math.abs(bg - lum(C.ink)) ? 0 : 1].push(streak(d, t)); });
-    WS.forEach(w => WP[w].forEach((pth, k) => { S(pth, "d", parts[w][k].join("")); S(pth, "stroke", k ? P.ink : P.paper); op(pth, .8 * dim(w, t, 0), ["E"]); })); });
+  // one stream in the lanes while they are drawn, one in the folded tree (each dot in its draw's stripe)
+  const stream = (n, f, ta, tb, speed, seed) => { const out = [], r_ = rng(seed); WS.forEach(w => route(w, VID.A1, Math.round(n * PRIOR[w])).forEach(r => out.push({ w, r, f, o: r_() })));
+    out.sort((a, b) => a.o - b.o); out.forEach((d, j) => { d.t0 = ta + (tb - ta) * j / out.length; d.speed = speed; }); return out; };
+  const SD = stream(150, 0, 1.6, 24.0, 120, 41).concat(stream(240, 1, TS.fold[1] + .2, TS.fold[1] + 4.6, 150, 43));
+  { const r_ = rng(57); SD.forEach(d => { let c = d.t0;
+    d.legs = d.r.map(v => { const g = ribG(v, d.w, d.f), L_ = { v, g, ta: c }; c += (g.xb - g.xa) / d.speed; L_.tb = c; return L_; });
+    d.legs[0].qs = .1 + .8 * r_();
+    d.legs.forEach((L_, j) => { const nx = d.legs[j + 1], h = L_.g.b1 - L_.g.b0; if (!nx) { L_.qe = L_.qs; return; }
+      const hn = nx.g.a1 - nx.g.a0; let q = hn > 1e-6 ? (L_.g.b0 + L_.qs * h - nx.g.a0) / hn : .5;
+      q = q < .08 ? .08 + .3 * r_() : q > .92 ? .92 - .3 * r_() : q; nx.qs = Math.min(.92, Math.max(.08, q)); L_.qe = h > 1e-6 ? (nx.g.a0 + nx.qs * hn - L_.g.b0) / h : L_.qs; });
+    d.tEnd = c; d.c = el("circle", { r: 2.3, "stroke-width": .8 }, L.stream); }); }
+  add(t => { SD.forEach(d => { if ((d.f ? FOLD < 1 : FOLD > 0) || t < d.t0 || t > d.tEnd + .3) { S(d.c, "opacity", 0); return; }
+    const tt = Math.min(t, d.tEnd), j = legOf(d.legs.map(L_ => ({ g: { xb: L_.tb } })), tt), L_ = d.legs[j], P_ = d.legs[Math.max(0, j - 1)], g = L_.g;
+    const s_ = cl((tt - L_.ta) / (L_.tb - L_.ta)), u = gInv(s_), x = g.xa + (g.xb - g.xa) * s_, y = g.a0 + (g.b0 - g.a0) * sm(u) + (L_.qs + (L_.qe - L_.qs) * sm(cl((u - .1) / .9))) * (g.a1 - g.a0);
+    const k = j ? sm(cl((x - g.xa) / MORPH)) : 1;
+    S(d.c, "cx", r2(x)); S(d.c, "cy", r2(y)); S(d.c, "fill", c3(mixA(moverA(P_.v), moverA(L_.v), k))); S(d.c, "stroke", P.paper);
+    op(d.c, .9 * dim(d.w, t, d.f) * (t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .25)), ["E"]); }); });
 
   // ---------------------------------------------------------------- one ending opened up: 28 of your lineups against 28 of theirs
   const LF = VID["B1.0"], GX = 828, GY = 82, GC = 4.9, GN = 28, GS = GN * GC;
@@ -639,6 +649,7 @@
     key(`<rect x="0" y="2" width="18" height="10" fill="color-mix(in srgb, var(--red) 70%, var(--paper))"/><rect x="8" y="1" width="3" height="12" fill="var(--red)"/>`, "Their bans: their model's odds in each draw (expectation)"),
     key(`<path d="M9,0 V14" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="3 2.5"/>`, "The page sees the same thing here"),
     key(`<rect x="0" y="1" width="18" height="4" fill="var(--d1)"/><rect x="0" y="5" width="18" height="4" fill="var(--d2)"/><rect x="0" y="9" width="18" height="4" fill="var(--d3)"/>`, "The three draws (θ)"),
+    key(`<rect x="0" y="0" width="12" height="12" fill="color-mix(in srgb, var(--blue) 18%, var(--paper))" stroke="var(--blue)" stroke-width="1.6"/><circle cx="15.5" cy="9" r="2.4" fill="var(--blue)"/><circle cx="15.5" cy="2.8" r="2.4" fill="var(--red)"/>`, "Simulated games: the middle one of each band shows its ban"),
     `<span>Band height: share of the simulated games</span>`].join("");
 
   // the recursion's terms: hovering one fades the rest of the figure (shown complete, or folded if it already is)
