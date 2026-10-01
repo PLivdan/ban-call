@@ -87,8 +87,9 @@
   .rec .who { font: 700 13px/1.2 Archivo, sans-serif; font-stretch: 108%; }
   .rec .who.us { color: var(--blue); } .rec .who.them { color: var(--red); } .rec .who.end { color: var(--ink); }
   .rec .say { color: var(--faint); font-size: 13px; max-width: 52ch; }
-  .rec .t { cursor: help; padding: 1px 2px; border-bottom: 1px dotted var(--faint); transition: background .12s; }
-  .rec .t:hover, .rec .t.on { background: var(--active); border-bottom-color: var(--ink); }
+  .rec .t { cursor: pointer; padding: 1px 2px; border-bottom: 1px dotted var(--faint); transition: background .12s; }
+  .rec .t:hover { background: var(--active); border-bottom-color: var(--ink); }
+  .rec .t.on { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); }
   @media (max-width: 860px) { .rec .rrow { grid-template-columns: minmax(0, 1fr); } .rec .math { white-space: normal; } }
   .methods h3.sub { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 22px 0 4px 0; }
   .methods .body { font-size: 14px; max-width: 82ch; } .methods ul.body { padding-left: 18px; } .methods ul.body li { margin-bottom: 6px; }
@@ -141,7 +142,7 @@
 
   <div class="rec" id="rec">
     <h3 class="mft" style="font-family: Archivo, sans-serif; font-size: 16px; margin: 0 0 2px 0">Backward induction</h3>
-    <p class="small" style="margin: 0 0 10px 0">Hover a term to find it in the figure.</p>
+    <p class="small" style="margin: 0 0 10px 0">Click a term to find it in the figure.</p>
     <div class="rrow">
       <span class="who end">After six bans</span>
       <span class="math"><i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>) = <span class="t" data-k="E"><b class="op">𝔼</b><sub><i>θ</i> | <i>s</i><sub>6</sub></sub></span><span class="big">[</span><span class="t" data-k="score"><span class="op">1</span>/28<sup>2</sup> <span class="big op">Σ</span><sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)</span><span class="big">]</span></span>
@@ -633,13 +634,18 @@
     key(`<rect x="0" y="0" width="12" height="12" fill="color-mix(in srgb, var(--blue) 18%, var(--paper))" stroke="var(--blue)" stroke-width="1.6"/><circle cx="15.5" cy="9" r="2.4" fill="var(--blue)"/><circle cx="15.5" cy="2.8" r="2.4" fill="var(--red)"/>`, "Simulated games"),
     `<span>Band height: share of games</span>`].join("");
 
-  // the recursion's terms: hovering one fades the rest of the figure (shown complete, or folded if it already is)
+  // the recursion's terms: a click picks one out in the figure and fades the rest (the figure shown complete, or folded if it already
+  // is), and it stays picked out. Clicking it again, or anywhere outside the figure, lets go. Clicking another term switches to it.
   let hold = null;
-  document.querySelectorAll("#rec .t").forEach(s => {
-    s.addEventListener("mouseenter", () => { HL = s.dataset.k; document.querySelectorAll(`#rec .t[data-k="${HL}"]`).forEach(x => x.classList.add("on"));
-      if (PL.playing) PL.pause(); hold = PL.t; render(Math.max(PL.t, TS.fold[0] - .3)); });
-    s.addEventListener("mouseleave", () => { document.querySelectorAll("#rec .t.on").forEach(x => x.classList.remove("on")); HL = null; render(hold === null ? PL.t : hold); hold = null; });
-  });
+  const pick = k => { document.querySelectorAll("#rec .t").forEach(x => x.classList.toggle("on", x.dataset.k === k));
+    if (k) { if (HL === null) { if (PL.playing) PL.pause(); hold = PL.t; } HL = k; render(Math.max(hold, TS.fold[0] - .3)); }
+    else if (HL !== null) { HL = null; render(hold === null ? PL.t : hold); hold = null; } };
+  document.querySelectorAll("#rec .t").forEach(s => { s.setAttribute("role", "button"); s.tabIndex = 0;
+    s.title = "Click to show this in the figure";
+    s.addEventListener("click", e => { e.stopPropagation(); pick(HL === s.dataset.k ? null : s.dataset.k); });
+    s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); } }); });
+  document.addEventListener("click", e => { if (HL !== null && !e.target.closest("#gt")) pick(null); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") pick(null); });
 
   // tooltips
   const tipEl = $("tip");
