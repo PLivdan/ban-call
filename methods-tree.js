@@ -15,17 +15,15 @@
   const pc = x => { const r = 100 * x; return (r >= 9.5 || r === 0 ? Math.round(r) : +r.toFixed(1)) + "%"; };
 
   // ================================================================ the example: one lobby, three types of the players the page can't see
-  const NAME = { "gorr-the-god-butcher": "Gorr", "hela": "Hela", "magik": "Magik", "luna-snow": "Luna Snow", "scarlet-witch": "Scarlet Witch",
+  const NAME0 = { "gorr-the-god-butcher": "Gorr", "hela": "Hela", "magik": "Magik", "luna-snow": "Luna Snow", "scarlet-witch": "Scarlet Witch",
     "rocket-raccoon": "Rocket Raccoon", "peni-parker": "Peni Parker", "psylocke": "Psylocke", "mantis": "Mantis" };
-  const nm = h => NAME[h], nms = b => b.map(nm).join(" and "), img = h => `img/heroes/${h}.webp`;
-  const TYPES = [
+  let NAME = NAME0; const nm = h => NAME[h] || h, nms = b => b.map(nm).join(" and "), img = h => `img/heroes/${h}.webp`;
+  const DEFAULT = { names: NAME0, types: [
     { prior: .5, mains: ["hela", "magik", "luna-snow"] },
     { prior: .3, mains: ["scarlet-witch", "rocket-raccoon", "peni-parker"] },
-    { prior: .2, mains: ["gorr-the-god-butcher", "psylocke", "mantis"] }];
-  const WS = [0, 1, 2], PRIOR = TYPES.map(d => d.prior);
+    { prior: .2, mains: ["gorr-the-god-butcher", "psylocke", "mantis"] }], tree: {
   // the visible tree: four forks on one path (row: the ban column), the other options folded into one band each. p: their ban model's
   // odds in each type (sigma-hat_B), v: a folded branch's value in each type, leaf: the win chance after six bans in each type (V6)
-  const TREE = {
     A1: { us: 1, row: 1, kids: [
       { b: ["gorr-the-god-butcher"], to: "B2" },
       { b: ["hela"], v: [56.0, 50.5, 50.0] },
@@ -42,24 +40,9 @@
       { b: ["psylocke"], p: [.35, .30, .01], leaf: [58.6, 49.6, 52.0] },
       { b: ["peni-parker"], p: [.25, .01, .40], leaf: [57.6, 51.0, 49.4] },
       { more: 49, p: [.40, .69, .59], v: [58.0, 50.2, 50.6] }] },
-  };
-  const IDS = ["A1", "B2", "A2", "B1"], OURSPLIT = [.7, .12, .18];       // OURSPLIT: how the simulated games spread over your options (the same in every type)
-  const bayes = (pi, p) => { const u = pi.map((x, w) => x * p[w]), s = u.reduce((a, b) => a + b, 0); return u.map(x => x / s); };
-  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
-  // what the page has seen at each point: the types' odds (Bayes' rule here, implicit in the model), top down
-  const POST = { A1: PRIOR }, MASS = { A1: 1 };
-  IDS.forEach(id => { const n = TREE[id]; n.kids.forEach((k, i) => {
-    k.post = n.us ? POST[id] : bayes(POST[id], k.p); if (!n.us) k.pp = dot(POST[id], k.p);
-    k.mass = MASS[id] * (n.us ? OURSPLIT[i] : k.pp); if (k.to) { POST[k.to] = k.post; MASS[k.to] = k.mass; k.node = k.to; } }); });
-  // the values: each type's (the page's choices on your turns, their odds on theirs) bottom up, and the page's (averaged over the types)
-  const WV = {}, kv = (k, w) => k.leaf ? k.leaf[w] : k.v ? k.v[w] : k.to ? WV[k.to][w] : null;
-  [...IDS].reverse().forEach(id => { const n = TREE[id];
-    n.kids.forEach(k => { if (k.more && !k.v) return; k.wv = WS.map(w => kv(k, w)); k.pv = dot(k.post, k.wv); k.prv = dot(PRIOR, k.wv); });
-    if (n.us) { const opts = n.kids.filter(k => k.wv); n.pick = n.kids.indexOf(opts.reduce((a, b) => dot(POST[id], b.wv) > dot(POST[id], a.wv) ? b : a));
-      n.alone = WS.map(w => n.kids.indexOf(opts.reduce((a, b) => b.wv[w] > a.wv[w] ? b : a))); WV[id] = n.kids[n.pick].wv; }
-    else WV[id] = WS.map(w => n.kids.reduce((s, k) => s + k.p[w] * kv(k, w), 0));
-    n.wv = WV[id]; n.post = POST[id]; n.pv = dot(POST[id], WV[id]); });
+  } };
 
+  const OURSPLIT = [.7, .12, .18];                                        // how the simulated games spread over your options (the same in every type)
   // ================================================================ drawing helpers
   const P = {}, C = {}; let TINT = [];
   const css = n => getComputedStyle(root).getPropertyValue(n).trim();
@@ -84,6 +67,44 @@
     el("rect", { x: -s / 2, y: -s / 2, width: s, height: s, fill: "none", "stroke-width": 1.6 }, g).dataset.r = "ink"; return g; }
   const paintTile = (g, col) => g.querySelectorAll("[data-r]").forEach(e => { if (e.dataset.r === "back") S(e, "fill", P.paper); else S(e, "stroke", col); });
 
+  const TS = { now: [.2, .8], cards: w => [2.0 + .3 * w, 2.9 + .3 * w], info: { A1: [8.0, 8.9], A2: [19.2, 20.0] }, pulse: [9.2, 11.2], tags: [13.9, 14.6],
+    post: [15.0, 17.5], grid: [28.6, 34.6], leafVal: [34.6, 35.6], open: [28.3, 29.0], cells: [28.9, 32.0], avg: [32.1, 32.7], close: [34.7, 35.7], wave: [36.7, 42.7], note: [42.7, 43.5],
+    fold: [44.7, 47.5], merged: [46.9, 47.9], panel: [47.3, 48.3] };
+  const CH = [0, 6, 12, 19, 28, 36.5, 44.5], DUR = 57;
+  // ================================================================ playing it: the chapters, the step's equation, the legend
+  const chapter = t => { let c = 0; CH.forEach((a, i) => { if (t >= a) c = i; }); return c; };
+  const M = s => `<span class="math">${s}</span>`;
+  const STEP = [
+    [M(`<i>θ</i> = (<i>θ</i><sub><i>A</i></sub>, <i>θ</i><sub><i>B</i></sub>) ~ <i>π</i>(<i>θ</i> | <i>x</i>)`), "Nature draws the type given what the page sees (x: map, rank band, rank, side, heroes on show)"],
+    [M(`<i>V</i><sub>0</sub>(<i>s</i><sub>0</sub>) = max<sub><i>b</i></sub> <i>V̄</i><sub>1</sub>(<i>s</i><sub>0</sub><i>b</i>)`), "one b for the whole information set s₀, the best in expectation"],
+    [M(`<i>π</i>(<i>θ</i> | <i>s</i><sub>3</sub>) ∝ <i>π</i>(<i>θ</i> | <i>x</i>) <i>σ̂</i><sub><i>B</i></sub>(<i>b</i><sub><i>B</i></sub><sup>1</sup><i>b</i><sub><i>B</i></sub><sup>2</sup> | <i>s</i><sub>1</sub>, <i>θ</i><sub><i>B</i></sub>)`), "Bayes' rule: their bans depend on their type, so they are evidence about it"],
+    [M(`max<sub><i>a</i></sub> max<sub><i>b</i></sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>) = max<sub>{<i>a</i>,<i>b</i>}</sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>)`), "two of your bans in a row are one choice of pair, the same across the information set"],
+    [M(`<i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>; <i>θ</i>) = <sup>1</sup>/<sub>28²</sub> Σ<sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)`), "the payoff in type θ: 28 lineups a side, every pairing scored on the map"],
+    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>) = Σ<sub><i>b</i></sub> <i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>) <i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>; <i>θ</i>)`), "backward induction within a type: an expectation at their bans, the page's choice at yours"],
+    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>) = 𝔼<sub><i>θ</i> | <i>s</i><sub><i>k</i></sub></sub>[<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>)]`), "a regression on s_k alone learns this: simulated games reach s_k from each type in proportion to its posterior"]];
+  STEP[6][1] = STEP[6][1].replace("s_k", "s<sub>k</sub>").replace("s_k", "s<sub>k</sub>");
+  let shownStep = -1;
+  // ================================================================ the figure for one data set (the example, or the lobby's)
+  function build(D) {
+  NAME = D.names; const TYPES = D.types, TREE = JSON.parse(JSON.stringify(D.tree)), LIVE = !!D.live, MU = D.mu || 28, KK = D.k || 28;
+  const WS = [0, 1, 2], PRIOR = TYPES.map(d => d.prior);
+  const IDS = ["A1", "B2", "A2", "B1"];       // OURSPLIT (outside): how the simulated games spread over your options (the same in every type)
+  const bayes = (pi, p) => { const u = pi.map((x, w) => x * p[w]), s = u.reduce((a, b) => a + b, 0); return u.map(x => x / s); };
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+  // what the page has seen at each point: the types' odds (Bayes' rule here, implicit in the model), top down
+  const POST = { A1: PRIOR }, MASS = { A1: 1 };
+  IDS.forEach(id => { const n = TREE[id]; n.kids.forEach((k, i) => {
+    k.post = n.us ? POST[id] : bayes(POST[id], k.p); if (!n.us) k.pp = dot(POST[id], k.p);
+    k.mass = MASS[id] * (n.us ? OURSPLIT[i] : k.pp); if (k.to) { POST[k.to] = k.post; MASS[k.to] = k.mass; k.node = k.to; } }); });
+  // the values: each type's (the page's choices on your turns, their odds on theirs) bottom up, and the page's (averaged over the types)
+  const WV = {}, kv = (k, w) => k.leaf ? k.leaf[w] : k.v ? k.v[w] : k.to ? WV[k.to][w] : null;
+  [...IDS].reverse().forEach(id => { const n = TREE[id];
+    n.kids.forEach(k => { if (k.more && !k.v) return; k.wv = WS.map(w => kv(k, w)); k.pv = dot(k.post, k.wv); k.prv = dot(PRIOR, k.wv); });
+    if (n.us) { const opts = n.kids.filter(k => k.wv); n.pick = n.kids.indexOf(opts.reduce((a, b) => dot(POST[id], b.wv) > dot(POST[id], a.wv) ? b : a));
+      n.alone = WS.map(w => n.kids.indexOf(opts.reduce((a, b) => b.wv[w] > a.wv[w] ? b : a))); WV[id] = n.kids[n.pick].wv; }
+    else WV[id] = WS.map(w => n.kids.reduce((s, k) => s + k.p[w] * kv(k, w), 0));
+    n.wv = WV[id]; n.post = POST[id]; n.pv = dot(POST[id], WV[id]); });
+
   // ================================================================ the figure: the ban phase as flowing bands (the look of "Forward, then back")
   // The bans run left to right and every band is as tall as its share of the simulated games. The three types first run in lanes
   // of their own. In the last chapter they slide together into the one tree the page can see, each band striped by the types its
@@ -94,10 +115,6 @@
   const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip), stream: el("g", {}, gClip) };
   ["res", "info", "lab", "tok", "txt", "card", "panel", "head", "grid"].forEach(k => L[k] = el("g", {}, svg));
   const ITEMS = [], add = f => ITEMS.push(f);
-  const TS = { now: [.2, .8], cards: w => [2.0 + .3 * w, 2.9 + .3 * w], info: { A1: [8.0, 8.9], A2: [19.2, 20.0] }, pulse: [9.2, 11.2], tags: [13.9, 14.6],
-    post: [15.0, 17.5], grid: [28.6, 34.6], leafVal: [34.6, 35.6], open: [28.3, 29.0], cells: [28.9, 32.0], avg: [32.1, 32.7], close: [34.7, 35.7], wave: [36.7, 42.7], note: [42.7, 43.5],
-    fold: [44.7, 47.5], merged: [46.9, 47.9], panel: [47.3, 48.3] };
-  const CH = [0, 6, 12, 19, 28, 36.5, 44.5], DUR = 57;
   const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.4, XS[2] + 2], [22.6, XS[3] + 2], [23.4, XS[3] + 2], [26.4, X5 + 42], [26.5, VW]];
   const reveal = t => { for (let i = 1; i < REV.length; i++) if (t < REV[i][0]) { const [ta, xa] = REV[i - 1], [tb, xb] = REV[i]; return lerp(xa, xb, ease(seg(t, ta, tb))); } return VW; };
   const WAVE = t => lerp(X5 + 34, XS[0] - 34, ease(seg(t, ...TS.wave)));
@@ -116,7 +133,11 @@
   (function grow(tid, parent, ci, k) { const n = mk(tid, TREE[tid].row - 1, parent, ci, k, TREE[tid]);
     TREE[tid].kids.forEach((kk, i) => { if (kk.to) grow(kk.to, n, i, kk); else mk(`${tid}.${i}`, 4, n, i, kk, null).term = true; }); })("A1", ROOT, 0, null);
   const VID = Object.fromEntries(V.map(v => [v.id, v]));
-  V.forEach(v => { v.m = WS.map(w => !v.parent || !v.parent.t ? 1 : v.parent.m[w] * (v.parent.t.us ? OURSPLIT[v.ci] : v.k.p[w]));
+  // their forks' shares of the band: the probabilities, or (the lobby's numbers) their square roots renormalised, so a likely branch
+  // among a thousand pairs is still drawn; the tips keep the probabilities
+  IDS.forEach(id => { const n = TREE[id]; if (n.us) return; WS.forEach(w => { const r = n.kids.map(k => LIVE ? Math.sqrt(k.p[w]) * (k.more ? .5 : 1) : k.p[w]), t = r.reduce((a, b) => a + b, 0);   // the folded band at half: it stands for hundreds of options
+    n.kids.forEach((k, i) => (k.q = k.q || [])[w] = r[i] / t); }); });
+  V.forEach(v => { v.m = WS.map(w => !v.parent || !v.parent.t ? 1 : v.parent.m[w] * (v.parent.t.us ? OURSPLIT[v.ci] : v.k.q[w]));
     v.h = WS.map(w => FLOW * PRIOR[w] * v.m[w]); v.H = v.h[0] + v.h[1] + v.h[2]; v.mix = v.h.map(x => x / v.H); });
   // lanes: the endings stacked with gaps (wider between branches than within one), each fork centred on its branches
   const TERMS = V.filter(v => v.term), units = TERMS.map((t, i) => i ? (t.parent === TERMS[i - 1].parent ? 1 : 2) : 0), U1 = units.reduce((a, b) => a + b, 0), LGU = 6;
@@ -184,7 +205,8 @@
     if (n.us) return `<b>Your ${first ? "first ban" : "second and third bans"}, type ${w + 1}</b><br>`
       + (n.alone[w] !== n.pick ? `If the page knew the type it would ban ${nms(n.kids[n.alone[w]].b)} (${f1(n.kids[n.alone[w]].wv[w])}%). ` : `${nms(n.kids[n.pick].b)} would be best even if the page knew the type. `)
       + `It doesn't, so it takes the best in expectation: ${nms(n.kids[n.pick].b)}, ${f1(n.kids[n.pick].pv)}%.`
-      + (!first ? `<br><span class="d">Before their bans, ${nms(n.kids[1].b)} looked best (${f1(n.kids[1].prv)}% against ${f1(n.kids[0].prv)}%). Their bans made type 1 likelier, and that changed the call.</span>` : "");
+      + (!first ? (n.kids[1].prv > n.kids[0].prv ? `<br><span class="d">Before their bans, ${nms(n.kids[1].b)} looked best (${f1(n.kids[1].prv)}% against ${f1(n.kids[0].prv)}%). Their bans changed how likely each type is, and that changed the call.</span>`
+        : `<br><span class="d">Their bans moved the types' odds from ${PRIOR.map(pc).join(" / ")} to ${POST[v.id].map(pc).join(" / ")}, not enough to change the call.</span>`) : "");
     return `<b>Their ${v.id === "B2" ? "first two bans" : "last ban"}, type ${w + 1}</b><br>Worth ${f1(n.wv[w])}% to you here: ${n.kids.map(k => `${pc(k.p[w])} × ${f1(kv(k, w))}`).join(" + ")}.`; };
   V.forEach(v => { if (!v.t) return; WS.forEach(w => { const r = el("rect", { width: 3 }, L.mark); tip(r, () => nodeTip(v, w));
     add(t => { const f = FOLD; S(r, "x", v.x - 1.5); S(r, "y", topOf(v, w, f)); S(r, "height", Math.max(.6, v.h[w])); S(r, "fill", v.t.us ? P.blue : P.red);
@@ -192,15 +214,15 @@
 
   // now: the lobby, before anything is drawn
   const nowR = el("rect", { x: XN - 10, width: 10, height: FLOW }, L.res), nowT = el("text", { x: XN - 16, class: "ar", "font-size": 13, "text-anchor": "end" }, L.res), nowS = el("text", { x: XN - 16, "font-size": 11.5, "text-anchor": "end" }, L.res);
-  nowT.textContent = "Now"; nowS.textContent = "the lobby (x)";
-  tip(nowR, () => `<b>Now (x)</b>: what the page can see. The map, the rank, who bans first and the heroes on show.`);
+  nowT.textContent = "Now"; nowS.textContent = LIVE ? (D.banSecond ? "your lobby, as if first" : "your lobby (x)") : "the lobby (x)";
+  tip(nowR, () => `<b>Now (x)</b>: what the page can see. The map, the rank, who bans first and the heroes on show.` + (LIVE ? `<br><span class="d">These are your lobby's numbers from the model${D.banSecond ? ", drawn as if you ban first" : ""}: the types are its simulated opponent teams in three groups.</span>` : `<br><span class="d">An illustration: the numbers are made up to show the reasoning.</span>`));
   add(t => { const y = lerp(ROOT.tw[0], ROOT.tm, FOLD), a = seg(t, ...TS.now); S(nowR, "y", y); S(nowR, "fill", P.ink); op(nowR, a, ["E"]);
     S(nowT, "y", y + FLOW / 2 - 2); S(nowS, "y", y + FLOW / 2 + 12); S(nowT, "fill", P.ink); S(nowS, "fill", P.faint); op(nowT, a); op(nowS, a); });
 
   // ---------------------------------------------------------------- the endings: every ending is drafted and scored (the result bars)
   TERMS.forEach((tv, ti) => WS.forEach(w => {
     const g = el("g", {}, L.res), blk = el("rect", {}, g), cells = [0, 1, 2, 3, 4].map(() => el("rect", { width: 4.2 }, g)), val = valOf(tv, w), vk = tv.parent.t.us ? ["score", "vbar"] : ["score", "vnext"];
-    tip(g, () => tv.k.leaf ? `<b>After six bans, type ${w + 1}</b>: both teams draft 28 lineups from the players in this type and all 784 pairings are scored. Their average: ${f1(val)}% (V<sub>6</sub>).`
+    tip(g, () => tv.k.leaf ? `<b>After six bans, type ${w + 1}</b>: both teams draft ${MU} lineups from the players in this type and all ${MU * KK} pairings are scored. Their average: ${f1(val)}% (V<sub>6</sub>).`
       : val !== null ? `<b>${tv.k.b ? nms(tv.k.b) : `Their other ${fmt(tv.k.more)} ${tv.parent.id === "B2" ? "pairs" : "bans"}`}</b>: a branch of its own, played out and scored the same way, folded up here. Worth ${f1(val)}% in type ${w + 1}.`
       : `<b>${fmt(tv.k.more)} more legal ${tv.parent.id === "A1" ? "bans" : "pairs"}</b>, each played out and scored the same way. None beats ${nms(tv.parent.kids[tv.parent.t.pick].k.b)} on average.`);
     const vt = val !== null && tv.h[w] >= 7 ? el("text", { x: X5 + 30, "font-size": 11.5, "font-weight": 600 }, L.txt) : null;
@@ -258,7 +280,7 @@
     let cx = v.x - (items.reduce((a, it) => a + it.wd, 0) + 18 * (items.length - 1)) / 2;
     items.forEach(it => { it.gi.setAttribute("transform", `translate(${cx} ${BOTY + 44})`); cx += it.wd + 18; });
     const ws = WS.filter(w => n.alone[w] !== n.pick), nt = el("text", { x: v.x, y: BOTY + 70, "font-size": 11.5, "font-style": "italic", "text-anchor": "middle" }, blk);
-    nt.textContent = `knowing it was type ${ws.map(w => w + 1).join(" or ")}, it would ban ${lab(n.kids[n.alone[ws[0]]])}`;
+    nt.textContent = ws.length ? `knowing it was type ${ws.map(w => w + 1).join(" or ")}, it would ban ${lab(n.kids[n.alone[ws[0]]])}` : "knowing the type would not change this ban";
     tip(blk, () => `<b>The page's choice</b>: the best in expectation, with the types weighted by the page's beliefs at this point.<br>
       <span class="d">${o.map(k => `${nms(k.b)}: ${avgTipShort(k)}`).join("<br>")}</span>`);
     add(t => { const a = passed(v.x + 30, t); S(bt, "fill", P.faint);
@@ -297,7 +319,7 @@
 
   // ---------------------------------------------------------------- the column heads
   const SEGS = [[XN, XS[0], "Nature", "ink", "draws the type (θ)"], [XS[0], XS[1], "Your ban", "blue", "decision (max)"], [XS[1], XS[2], "Their two bans", "red", "chance (fitted model)"],
-    [XS[2], XS[3], "Your two bans", "blue", "decision (max)"], [XS[3], XS[4], "Their last ban", "red", "chance (fitted model)"], [X5, X5 + 92, "Result", "faint", "28 × 28 lineups"]];
+    [XS[2], XS[3], "Your two bans", "blue", "decision (max)"], [XS[3], XS[4], "Their last ban", "red", "chance (fitted model)"], [X5, X5 + 92, "Result", "faint", `${MU} × ${KK} lineups`]];
   SEGS.forEach(([a, b, h, col, sub], i) => { const x = i === 5 ? a + 2 : (a + b) / 2, an = i === 5 ? "start" : "middle";
     const t1 = el("text", { x, y: 22, class: "ar", "font-size": 13.5, "text-anchor": an }, L.head), t2 = el("text", { x, y: 38, "font-size": 12, "text-anchor": an }, L.head);
     t1.textContent = h; t2.textContent = sub;
@@ -324,8 +346,8 @@
   const BARS = [
     { y: 210, lab: "lobby only (s₀)", post: PRIOR },
     { y: 280, lab: "after their two bans (s₃)", post: POST.A2 },
-    { y: 350, lab: `then ${nm("psylocke")} banned (s₆)`, post: TREE.B1.kids[0].post },
-    { y: 420, lab: `then ${nm("peni-parker")} banned (s₆)`, post: TREE.B1.kids[1].post }];
+    { y: 350, lab: `then ${nm(TREE.B1.kids[0].b[0])} banned (s₆)`, post: TREE.B1.kids[0].post },
+    { y: 420, lab: `then ${nm(TREE.B1.kids[1].b[0])} banned (s₆)`, post: TREE.B1.kids[1].post }];
   const lum = c => .3 * c[0] + .59 * c[1] + .11 * c[2], con = c => Math.abs(lum(c) - lum(C.paper)) > Math.abs(lum(c) - lum(C.ink)) ? P.paper : P.ink;
   BARS.forEach(B => {
     const g = el("g", {}, pan), lt = el("text", { x: PX, y: B.y - 8, "font-size": 12 }, g), bg = el("rect", { x: PX, y: B.y, width: PWD, height: BH }, g);
@@ -382,7 +404,7 @@
   const share = (n, p) => { const raw = p.map(x => n * x), fl = raw.map(Math.floor), r = n - fl.reduce((a, b) => a + b, 0);
     raw.map((x, j) => [x - fl[j], j]).sort((a, b) => b[0] - a[0]).slice(0, r).forEach(([, j]) => fl[j]++); return fl; };
   const route = (w, v, n) => { if (!n) return []; if (v.term) return Array.from({ length: n }, () => [v]);
-    const cnt = share(n, v.t.us ? OURSPLIT : v.kids.map(c => c.k.p[w])), out = []; v.kids.forEach((c, i) => route(w, c, cnt[i]).forEach(r => out.push([v].concat(r)))); return out; };
+    const cnt = share(n, v.t.us ? OURSPLIT : v.kids.map(c => c.k.q[w])), out = []; v.kids.forEach((c, i) => route(w, c, cnt[i]).forEach(r => out.push([v].concat(r)))); return out; };
   // one stream in the lanes while they are drawn, one in the folded tree (each dot in its type's stripe)
   const stream = (n, f, ta, tb, speed, seed) => { const out = [], r_ = rng(seed); WS.forEach(w => route(w, VID.A1, Math.round(n * PRIOR[w])).forEach(r => out.push({ w, r, f, o: r_() })));
     out.sort((a, b) => a.o - b.o); out.forEach((d, j) => { d.t0 = ta + (tb - ta) * j / out.length; d.speed = speed; }); return out; };
@@ -402,43 +424,46 @@
     op(d.c, .9 * dim(d.w, t, d.f) * (t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .25)), ["E"]); }); });
 
   // ---------------------------------------------------------------- one ending opened up: 28 of your lineups against 28 of theirs
-  const LF = VID["B1.0"], GX = 828, GY = 82, GC = 4.9, GN = 28, GS = GN * GC;
+  const LF = VID["B1.0"], GX = 828, GY = 82, GN = D.grid ? D.n : 28, GC = 137.2 / GN, GS = GN * GC;
   const gg = el("g", {}, L.grid), gIn = el("g", {}, gg), gBg = el("rect", { x: -3, y: -3, width: GS + 5, height: GS + 5 }, gIn);
   const gT1 = el("text", { x: 0, y: -26, class: "ar", "font-size": 12.5 }, gIn), gT2 = el("text", { x: 0, y: -11, "font-size": 11.5 }, gIn);
-  gT1.textContent = "One ending, opened up"; gT2.textContent = "your 28 lineups down, their 28 across";
+  gT1.textContent = "One ending, opened up"; gT2.textContent = `your ${GN} lineups down, their ${GN} across`;
   const gAv = el("text", { x: 0, y: GS + 20, "font-size": 12 }, gIn), gAvA = el("tspan", {}, gAv), gAvB = el("tspan", { class: "ar", "font-size": 13 }, gAv);
-  gAvA.textContent = "average of all 784 games"; gAvB.setAttribute("dx", 6);
+  gAvA.textContent = `average of all ${GN * GN} games`; gAvB.setAttribute("dx", 6);
   const gLead = el("path", { fill: "none", "stroke-width": 1.2, "stroke-dasharray": "3 3" }, L.grid);
   const base6 = LF.k.leaf[0], rr = Array.from({ length: GN }, (_, i) => (hsh(i * 1.71 + .3) - .5) * 16), cc = Array.from({ length: GN }, (_, j) => (hsh(j * 2.37 + 5.1) - .5) * 16);
   let GV = []; for (let i = 0; i < GN; i++) for (let j = 0; j < GN; j++) GV.push(base6 + rr[i] + cc[j] + (hsh(i * 31.7 + j * 17.3) - .5) * 14);
-  { const m = GV.reduce((a, b) => a + b, 0) / GV.length; GV = GV.map(x => x + base6 - m); }   // the cells average to the ending's value exactly
+  { const m = GV.reduce((a, b) => a + b, 0) / GV.length; GV = GV.map(x => x + base6 - m); }   // the example's cells average to the ending's value exactly
+  if (D.grid) GV = D.grid.slice();                                     // the lobby's: one draw's matchups (their average is that draw's value, near the ending's)
   const GCELL = GV.map((_, k) => el("rect", { x: (k % GN) * GC, y: Math.floor(k / GN) * GC, width: GC - .7, height: GC - .7 }, gIn));
-  tip(gBg, () => `<b>One ending in type 1, opened up</b>: each square is one of your 28 drafted lineups against one of theirs, scored on the map (P(W<sub>A</sub> = 1 | L<sub>A</sub><sup>i</sup>, L<sub>B</sub><sup>j</sup>, m)). Blue squares favour you. Their average, ${f1(base6)}%, is the ending's value.`);
+  tip(gBg, () => `<b>One ending in type 1, opened up</b>: each square is one of your ${GN} drafted lineups against one of theirs, scored on the map (P(W<sub>A</sub> = 1 | L<sub>A</sub><sup>i</sup>, L<sub>B</sub><sup>j</sup>, m)). Blue squares favour you. Their average, ${f1(GV.reduce((a, b) => a + b, 0) / GV.length)}%, is ${D.grid ? "this draw's value (the ending's averages several draws)" : "the ending's value"}.`);
   add(t => { const op_ = E(t, ...TS.open), cl_ = E(t, ...TS.close), on = op_ * (1 - seg(t, TS.close[1] - .3, TS.close[1]));
     if (on <= 0 || FOLD > 0) { S(gg, "opacity", 0); S(gLead, "opacity", 0); return; }
     const y0 = topOf(LF, 0, 0), h = LF.h[0], sx = lerp(1, 22 / GS, cl_), sy = lerp(1, Math.max(h, 2) / GS, cl_), tx = lerp(GX, X5 + 2, cl_), ty = lerp(GY, y0, cl_);
     S(gIn, "transform", `translate(${tx} ${ty}) scale(${sx} ${sy})`); op(gg, on, ["score"]);
     S(gBg, "fill", P.paper); S(gBg, "stroke", P.hair); [gT1, gAvB].forEach(e => S(e, "fill", P.ink)); [gT2, gAvA].forEach(e => S(e, "fill", P.faint));
-    [gT1, gT2, gAv].forEach(e => S(e, "opacity", 1 - cl_)); txt(gAvB, `${f1(base6)}%`); S(gAvB, "opacity", E(t, ...TS.avg));
+    [gT1, gT2, gAv].forEach(e => S(e, "opacity", 1 - cl_)); txt(gAvB, `${f1(GV.reduce((a, b) => a + b, 0) / GV.length)}%`); S(gAvB, "opacity", E(t, ...TS.avg));
     GCELL.forEach((c, k) => { const i = Math.floor(k / GN), j = k % GN, at = TS.cells[0] + (TS.cells[1] - TS.cells[0]) * (i + j) / (2 * GN - 2);
       S(c, "fill", c3(winA(GV[k]))); S(c, "opacity", t >= at ? 1 : 0); });
     const lx = X5 + 24, ly = y0 + h / 2; S(gLead, "d", `M${lx},${ly} C${lx + 40},${ly} ${GX - 50},${GY + GS / 2} ${GX - 6},${GY + GS / 2}`);
     S(gLead, "stroke", P.faint); op(gLead, op_ * (1 - cl_), ["score"]); });
 
-  // ================================================================ playing it: the chapters, the step's equation, the legend
-  const chapter = t => { let c = 0; CH.forEach((a, i) => { if (t >= a) c = i; }); return c; };
-  const M = s => `<span class="math">${s}</span>`;
-  const STEP = [
-    [M(`<i>θ</i> = (<i>θ</i><sub><i>A</i></sub>, <i>θ</i><sub><i>B</i></sub>) ~ <i>π</i>(<i>θ</i> | <i>x</i>)`), "Nature draws the type given what the page sees (x: map, rank band, rank, side, heroes on show)"],
-    [M(`<i>V</i><sub>0</sub>(<i>s</i><sub>0</sub>) = max<sub><i>b</i></sub> <i>V̄</i><sub>1</sub>(<i>s</i><sub>0</sub><i>b</i>)`), "one b for the whole information set s₀, the best in expectation"],
-    [M(`<i>π</i>(<i>θ</i> | <i>s</i><sub>3</sub>) ∝ <i>π</i>(<i>θ</i> | <i>x</i>) <i>σ̂</i><sub><i>B</i></sub>(<i>b</i><sub><i>B</i></sub><sup>1</sup><i>b</i><sub><i>B</i></sub><sup>2</sup> | <i>s</i><sub>1</sub>, <i>θ</i><sub><i>B</i></sub>)`), "Bayes' rule: their bans depend on their type, so they are evidence about it"],
-    [M(`max<sub><i>a</i></sub> max<sub><i>b</i></sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>) = max<sub>{<i>a</i>,<i>b</i>}</sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>)`), "two of your bans in a row are one choice of pair, the same across the information set"],
-    [M(`<i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>; <i>θ</i>) = <sup>1</sup>/<sub>28²</sub> Σ<sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)`), "the payoff in type θ: 28 lineups a side, every pairing scored on the map"],
-    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>) = Σ<sub><i>b</i></sub> <i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>) <i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>; <i>θ</i>)`), "backward induction within a type: an expectation at their bans, the page's choice at yours"],
-    [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>) = 𝔼<sub><i>θ</i> | <i>s</i><sub><i>k</i></sub></sub>[<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>)]`), "a regression on s_k alone learns this: simulated games reach s_k from each type in proportion to its posterior"]];
-  STEP[6][1] = STEP[6][1].replace("s_k", "s<sub>k</sub>").replace("s_k", "s<sub>k</sub>");
-  let shownStep = -1;
-  function render(t) { FOLD = fold(t); ITEMS.forEach(f => f(t)); const c = chapter(t); if (c !== shownStep) { shownStep = c; $("gtMline").innerHTML = `${STEP[c][0]}<span class="what">${STEP[c][1]}</span>`; } }
+  function render(t) { FOLD = fold(t); ITEMS.forEach(f => f(t)); }
+  // tooltips
+  const tipEl = $("gtTip");
+  svg.addEventListener("mousemove", ev => { let e = ev.target; while (e && e !== svg && !tipOf.has(e)) e = e.parentNode;
+    let vis = e && e !== svg; for (let a = e; vis && a && a !== svg; a = a.parentNode) if (a.getAttribute && +(a.getAttribute("opacity") ?? 1) < .2) vis = false;
+    if (!vis) { tipEl.classList.remove("on"); return; }
+    tipEl.innerHTML = tipOf.get(e)(); tipEl.classList.add("on");
+    const r = tipEl.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14;
+    if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+    tipEl.style.left = x + "px"; tipEl.style.top = y + "px"; });
+  svg.addEventListener("mouseleave", () => tipEl.classList.remove("on"));
+
+  return { svg, render };
+  }
+  pal(); let CUR = build(DEFAULT);
+  function render(t) { CUR.render(t); const c = chapter(t); if (c !== shownStep) { shownStep = c; $("gtMline").innerHTML = `${STEP[c][0]}<span class="what">${STEP[c][1]}</span>`; } }
   const ICON = { play: `<svg viewBox="0 0 14 14"><path d="M2 1 L13 7 L2 13 Z"/></svg>`, pause: `<svg viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>` };
   function player(pp, chEl, chapters, dur, draw0) {
     let t = 0, playing = false, last = 0;
@@ -466,17 +491,22 @@
     [CH[6], "What the page sees", "Merge the types. Values are weighted by beliefs."]];
   pal();
   const PL = player($("gtpp"), $("gtch"), CHAP, DUR, render);
-  window.GameTree = PL;                                                 // for checks from the console: GameTree.seek(t)
+  window.GameTree = PL;
+  // the page sends the lobby's numbers (sim8-worker's tree job): the figure is rebuilt from them where it is in its play
+  PL.load = D => { CUR.svg.remove(); CUR = build(D); pal(); legend(!!D.live); const sub = document.querySelector("#methods .mfs");
+    if (sub) sub.textContent = D.live ? `Your lobby's numbers from the model${D.banSecond ? ", drawn as if you ban first" : ""}. Hover anything for its arithmetic.` : "Illustrative numbers. Hover anything for its arithmetic.";
+    PL.redraw(); };                                                 // for checks from the console: GameTree.seek(t)
 
   // the legend
   const key = (svgIn, s) => `<span class="key"><svg width="18" height="14" viewBox="0 0 18 14">${svgIn}</svg>${s}</span>`;
-  $("gtLegend").innerHTML = [
+  const legend = live => $("gtLegend").innerHTML = [
     key(`<rect x="0" y="2" width="18" height="10" fill="color-mix(in srgb, var(--blue) 50%, var(--paper))"/><rect x="8" y="1" width="3" height="12" fill="var(--blue)"/>`, "Your bans: decisions (max)"),
     key(`<rect x="0" y="2" width="18" height="10" fill="color-mix(in srgb, var(--red) 70%, var(--paper))"/><rect x="8" y="1" width="3" height="12" fill="var(--red)"/>`, "Their bans: chance, from a fitted model (expectation)"),
     key(`<path d="M9,0 V14" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="3 2.5"/>`, "Information set"),
     key(`<rect x="0" y="1" width="18" height="4" fill="var(--d1)"/><rect x="0" y="5" width="18" height="4" fill="var(--d2)"/><rect x="0" y="9" width="18" height="4" fill="var(--d3)"/>`, "The three types (θ)"),
     key(`<rect x="0" y="0" width="12" height="12" fill="color-mix(in srgb, var(--blue) 18%, var(--paper))" stroke="var(--blue)" stroke-width="1.6"/><circle cx="15.5" cy="9" r="2.4" fill="var(--blue)"/><circle cx="15.5" cy="2.8" r="2.4" fill="var(--red)"/>`, "Simulated games"),
-    `<span>Band height: share of games</span>`].join("");
+    `<span>${live ? "Band height: share of games; at their forks drawn by square root (the folded options at half), so the named bans show" : "Band height: share of games"}</span>`].join("");
+  legend(false);
 
   // the recursion's terms: a click picks one out in the figure and fades the rest (the figure shown complete, or folded if it already
   // is), and it stays picked out. Clicking it again, or anywhere outside the figure, lets go. Clicking another term switches to it.
@@ -490,17 +520,6 @@
     s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); } }); });
   document.addEventListener("click", e => { if (HL !== null && !e.target.closest("#gt")) pick(null); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") pick(null); });
-
-  // tooltips
-  const tipEl = $("gtTip");
-  svg.addEventListener("mousemove", ev => { let e = ev.target; while (e && e !== svg && !tipOf.has(e)) e = e.parentNode;
-    let vis = e && e !== svg; for (let a = e; vis && a && a !== svg; a = a.parentNode) if (a.getAttribute && +(a.getAttribute("opacity") ?? 1) < .2) vis = false;
-    if (!vis) { tipEl.classList.remove("on"); return; }
-    tipEl.innerHTML = tipOf.get(e)(); tipEl.classList.add("on");
-    const r = tipEl.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14;
-    if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
-    tipEl.style.left = x + "px"; tipEl.style.top = y + "px"; });
-  svg.addEventListener("mouseleave", () => tipEl.classList.remove("on"));
 
   // the theme: whatever sets the page's theme (its button), the figure redraws in the new colours
   new MutationObserver(() => { pal(); PL.redraw(); }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
