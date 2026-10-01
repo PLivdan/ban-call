@@ -259,7 +259,7 @@
     post: [15.0, 17.5], grid: [28.6, 34.6], leafVal: [34.6, 35.6], open: [28.3, 29.0], cells: [28.9, 32.0], avg: [32.1, 32.7], close: [34.7, 35.7], wave: [36.7, 42.7], note: [42.7, 43.5],
     fold: [44.7, 47.5], merged: [46.9, 47.9], panel: [47.3, 48.3] };
   const CH = [0, 6, 12, 19, 28, 36.5, 44.5], DUR = 57;
-  const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.4, XS[2] + 2], [22.6, XS[3] + 2], [23.4, XS[3] + 2], [25.8, VW]];
+  const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.4, XS[2] + 2], [22.6, XS[3] + 2], [23.4, XS[3] + 2], [26.4, X5 + 42], [26.5, VW]];
   const reveal = t => { for (let i = 1; i < REV.length; i++) if (t < REV[i][0]) { const [ta, xa] = REV[i - 1], [tb, xb] = REV[i]; return lerp(xa, xb, ease(seg(t, ta, tb))); } return VW; };
   const WAVE = t => lerp(X5 + 34, XS[0] - 34, ease(seg(t, ...TS.wave)));
   const passed = (x, t) => t < TS.wave[0] ? 0 : ease(cl((x - WAVE(t)) / 40));
@@ -360,16 +360,21 @@
 
   // ---------------------------------------------------------------- the endings: every ending is drafted and scored (the result bars)
   TERMS.forEach((tv, ti) => WS.forEach(w => {
-    const g = el("g", {}, L.res), cells = [0, 1, 2, 3, 4].map(() => el("rect", { width: 4.2 }, g)), val = valOf(tv, w), vk = tv.parent.t.us ? ["score", "vbar"] : ["score", "vnext"];
+    const g = el("g", {}, L.res), blk = el("rect", {}, g), cells = [0, 1, 2, 3, 4].map(() => el("rect", { width: 4.2 }, g)), val = valOf(tv, w), vk = tv.parent.t.us ? ["score", "vbar"] : ["score", "vnext"];
     tip(g, () => tv.k.leaf ? `<b>After six bans, type ${w + 1}</b>: both teams draft 28 lineups from the players in this type and all 784 pairings are scored. Their average: ${f1(val)}% (V<sub>6</sub>).`
       : val !== null ? `<b>${tv.k.b ? nms(tv.k.b) : `Their other ${fmt(tv.k.more)} ${tv.parent.id === "B2" ? "pairs" : "bans"}`}</b>: a branch of its own, played out and scored the same way, folded up here. Worth ${f1(val)}% in type ${w + 1}.`
       : `<b>${fmt(tv.k.more)} more legal ${tv.parent.id === "A1" ? "bans" : "pairs"}</b>, each played out and scored the same way. None beats ${nms(tv.parent.kids[tv.parent.t.pick].k.b)} on average.`);
     const vt = val !== null && tv.h[w] >= 7 ? el("text", { x: X5 + 30, "font-size": 11.5, "font-weight": 600 }, L.txt) : null;
     if (vt) tip(vt, () => `<b>${f1(val)}%</b> in type ${w + 1}`);
-    add(t => { const f = FOLD, y0 = topOf(tv, w, f), h = tv.h[w], a = seg(t, TS.grid[0] - .5, TS.grid[0]), res = E(t, ...TS.leafVal), step = Math.floor(Math.min(t, TS.leafVal[0]) * 8);
-      cells.forEach((c, j) => { S(c, "x", X5 + 2 + j * 4.4); S(c, "y", y0); S(c, "height", Math.max(.6, h));
-        S(c, "fill", val === null ? c3(tint(C.faint, .3)) : c3(mixA(winA(val + (hsh(ti * 31 + w * 7 + j * 3.3 + step * 11.1) - .5) * 26), winA(val), res))); });
-      op(g, a * dim(w, t, f), vk);
+    let off = null;                                                     // the offset of the game that runs into this bar (the bar grows as it goes in)
+    add(t => { if (off === null) { const T = TOK.find(T_ => T_.w === w && T_.r[T_.r.length - 1] === tv); off = T ? T.off : 4; }
+      const f = FOLD, y0 = topOf(tv, w, f), h = tv.h[w], grow = Math.max(0, Math.min(22, reveal(t) - 3 - off - X5 + 4)), sc = seg(t, TS.grid[0] - .5, TS.grid[0]);
+      const res = E(t, ...TS.leafVal), step = Math.floor(Math.min(t, TS.leafVal[0]) * 8);
+      // grown as one solid block in the colour of the band that fed it, then split into the scored lineups when the scoring starts
+      S(blk, "x", X5 + 2); S(blk, "y", y0); S(blk, "height", Math.max(.6, h)); S(blk, "width", grow); S(blk, "fill", c3(mixA(own(tv, w, t, f), moverA(tv), .35))); S(blk, "opacity", 1 - sc);
+      cells.forEach((c, j) => { S(c, "x", X5 + 2 + j * 4.4); S(c, "y", y0); S(c, "height", Math.max(.6, h)); S(c, "width", Math.max(0, Math.min(4.2, grow - j * 4.4))); S(c, "opacity", sc);
+        S(c, "fill", c3(val === null ? tint(C.faint, .3) : mixA(winA(val + (hsh(ti * 31 + w * 7 + j * 3.3 + step * 11.1) - .5) * 26), winA(val), res))); });
+      op(g, (grow > 0 ? 1 : 0) * dim(w, t, f), vk);
       if (vt) { S(vt, "y", y0 + h / 2 + 4); S(vt, "fill", P.ink); txt(vt, f1(val)); op(vt, res * dim(w, t, f) * (1 - cl(f * 2)), vk); } }); }));
   TERMS.forEach(tv => { if (!tv.k.wv || tv.H < 7) return; const vt = el("text", { x: X5 + 30, "font-size": 11.5, "font-weight": 700 }, L.txt);
     tip(vt, () => avgTip(tv.k.wv, tv.k.post, tv.k.pv));
@@ -457,7 +462,7 @@
   SEGS.forEach(([a, b, h, col, sub], i) => { const x = i === 5 ? a + 2 : (a + b) / 2, an = i === 5 ? "start" : "middle";
     const t1 = el("text", { x, y: 22, class: "ar", "font-size": 13.5, "text-anchor": an }, L.head), t2 = el("text", { x, y: 38, "font-size": 12, "text-anchor": an }, L.head);
     t1.textContent = h; t2.textContent = sub;
-    add(t => { const ci = chapter(t), on = [[0], [1], [2], [3], [3], [4]][i].includes(ci) || ci >= 5, a_ = i === 5 ? seg(t, TS.grid[0] - .6, TS.grid[0]) : cl((reveal(t) - a - 20) / 30);
+    add(t => { const ci = chapter(t), on = [[0], [1], [2], [3], [3], [4]][i].includes(ci) || ci >= 5, a_ = i === 5 ? cl((reveal(t) - X5 - 6) / 30) : cl((reveal(t) - a - 20) / 30);
       S(t1, "fill", P[col]); S(t2, "fill", P.faint); op(t1, a_ * (on ? 1 : .55), i === 0 ? ["E"] : i === 5 ? ["score"] : i % 2 ? ["max"] : ["sig"]); op(t2, a_ * (on ? 1 : .55)); }); });
 
   // ---------------------------------------------------------------- the types' cards (right of the lanes)
@@ -519,9 +524,9 @@
   const tokAt = (T, x) => { const j = legOf(T.legs, x), L_ = T.legs[j], g = L_.g, u = gInv(cl((x - g.xa) / (g.xb - g.xa)));
     return [g.a0 + (g.b0 - g.a0) * sm(u) + (L_.qs + (L_.qe - L_.qs) * sm(cl((u - .1) / .9))) * (g.a1 - g.a0), j]; };
   const bansOf = (T, v) => { const k = (v.parent.t ? v : T.r[1]).k; return k.b ? k.b : [T.other]; };
-  add(t => { const front = reveal(t), sink = E(t, TS.grid[0] - .3, TS.grid[0] + .8);
-    TOK.forEach(T => { const x = Math.min(front - 3 - T.off, X5 - 18 - T.off * .6);
-      if (FOLD > 0 || x < XN + 3 || sink >= 1) { S(T.g, "opacity", 0); return; }
+  add(t => { const front = reveal(t);
+    TOK.forEach(T => { const x = front - 3 - T.off, into = cl((x - X5 + 6) / 30);   // into: how far it has run into its result bar
+      if (FOLD > 0 || x < XN + 3 || into >= 1) { S(T.g, "opacity", 0); return; }
       const [y, j] = tokAt(T, x), L_ = T.legs[j], P_ = T.legs[Math.max(0, j - 1)], k = j ? sm(cl((x - L_.g.xa) / MORPH)) : 1;   // just past a fork: becoming what the new band makes it
       const lead = lerp(P_.lead, L_.lead, k), v = L_.v, hs = bansOf(T, v), n = hs.length, sz = n > 1 ? 12 : 14, col = c3(mixA(moverA(P_.v), moverA(v), k));
       S(T.dot, "fill", col); S(T.dot, "stroke", P.paper); S(T.dot, "opacity", 1 - lead); S(T.dot, "r", 3.1 * (1 - .5 * lead));
@@ -530,8 +535,8 @@
         S(tl.g, "opacity", 1); S(tl.im, "href", img(hs[i]));
         [tl.bg, tl.im, tl.fr].forEach(e => { S(e, "x", dx - sz / 2); S(e, "y", -sz / 2); S(e, "width", sz); S(e, "height", sz); });
         S(tl.bg, "fill", P.paper); S(tl.fr, "stroke", col); });
-      S(T.g, "transform", `translate(${r2(lerp(x, X5 + 13, sink))} ${r2(y)}) scale(${r2(lerp(1, .3, sink))})`);
-      op(T.g, cl((x - XN - 3) / 14) * dim(T.w, t, 0) * (1 - sink), ["E"]); }); });
+      S(T.g, "transform", `translate(${r2(x)} ${r2(y)}) scale(${r2(1 - .75 * sm(into))})`);
+      op(T.g, cl((x - XN - 3) / 14) * dim(T.w, t, 0) * (1 - sm(into)), ["E"]); }); });
 
   // the stream behind the front: small dots at a steady pace, each keeping its height in its band and drifting only as far as its
   // branch needs before a fork, turning blue or red with the band; drawn under the front, so the bands show them only once drawn
