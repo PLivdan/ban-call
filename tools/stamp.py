@@ -1,7 +1,7 @@
 """Stamp every script address with a hash of its content, so a new page never runs with a cached old script.
 GitHub Pages lets browsers cache files for ten minutes; without this a fresh index.html can load a stale app8.js.
 Run before every commit that changes a script:  python tools/stamp.py
-The page (index.html) runs engine8.js, lobby-state.js, methods8.js (the Methods figures) and app8.js, with the v8 simulator worker; the previous model's page (v7/) runs
+The page (index.html, the one-column layout; classic.html keeps the old one unlinked) runs engine8.js, lobby-state.js, methods8.js (the Methods figures) and app8.js, with the v8 simulator worker; the previous model's page (v7/) runs
 ../engine.js and v7/app.js with the simulator worker ../sim-worker.js. The studio was retired (tag studio-final)."""
 import hashlib, re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -16,11 +16,11 @@ app.write_text(re.sub(r'new Worker\("sim8-worker\.js(\?v=[^"]*)?"\)', f'new Work
 page = root / "index.html"
 for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): t = sub_script(page, name)
 print("stamped:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', t)))
-# the test layout (beta.html): the same scripts as the page
-beta = root / "beta.html"
-if beta.exists():
-    for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): tb = sub_script(beta, name)
-    print("stamped beta:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tb)))
+# the classic layout (classic.html, unlinked since the test layout became the page on 2026-10-01): the same scripts
+classic = root / "classic.html"
+if classic.exists():
+    for name in ("engine8.js", "lobby-state.js", "methods8.js", "app8.js"): tb = sub_script(classic, name)
+    print("stamped classic:", ", ".join(re.findall(r'src="([^"]+\?v=[^"]+)"', tb)))
 # the previous model's page: its worker version sits inside v7/app.js, so v7/app.js is hashed after it
 v7 = root / "v7" / "app.js"
 if v7.exists():
