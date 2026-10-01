@@ -102,6 +102,7 @@
   svg .ar { font-family: "Archivo", "Archivo Narrow", Arial, sans-serif; font-weight: 700; }
   svg .mt { font-family: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif; font-style: italic; }
   svg [data-tip] { cursor: help; }
+  svg .halo { paint-order: stroke; stroke: var(--paper); stroke-width: 3.2px; stroke-linejoin: round; }
   footer { margin-top: 32px; border-top: 1px solid var(--hair); padding-top: 6px; }
   footer a { color: inherit; }
   @media (max-width: 720px) { main { padding: 16px 16px 32px 16px; } h1 { font-size: 22px; } .lede { font-size: 13.5px; } }
@@ -266,14 +267,14 @@
   // The bans run left to right and every band is as tall as its share of the simulated games. The three draws first run in lanes
   // of their own. In the last chapter they slide together into the one tree the page can see, each band striped by the draws its
   // games came from.
-  const VW = 1000, VH = 606, XN = 84, XS = [196, 336, 476, 608, 726], X5 = XS[4], TOPY = 76, BOTY = 548, FLOW = 306;
+  const VW = 1000, VH = 626, XN = 84, XS = [196, 336, 476, 608, 726], X5 = XS[4], TOPY = 76, BOTY = 548, FLOW = 306;
   const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, role: "img", "aria-label": "The ban phase as flowing bands: three draws of hidden players in lanes, the page's choices joined across them, then the draws folded into the page's tree" }, $("gt"));
   const defs = el("defs", {}, svg), clipR = el("rect", { x: 0, y: 0, height: VH, width: 0 }, el("clipPath", { id: "gtclip" }, defs));
-  const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip) };
-  ["res", "info", "lab", "txt", "card", "panel", "dot", "head"].forEach(k => L[k] = el("g", {}, svg));
+  const gClip = el("g", { "clip-path": "url(#gtclip)" }, svg), L = { band: el("g", {}, gClip), mark: el("g", {}, gClip), wdot: el("g", {}, gClip) };
+  ["res", "info", "lab", "txt", "card", "panel", "dot", "head", "grid"].forEach(k => L[k] = el("g", {}, svg));
   const ITEMS = [], add = f => ITEMS.push(f);
   const TS = { now: [.2, .8], cards: w => [2.0 + .3 * w, 2.9 + .3 * w], info: { A1: [8.0, 8.9], A2: [19.2, 20.0] }, pulse: [9.2, 11.2], tags: [13.9, 14.6],
-    post: [15.0, 17.5], grid: [25.6, 29.2], leafVal: [29.2, 30.2], wave: [31.2, 37.2], note: [37.2, 38.0],
+    post: [15.0, 17.5], grid: [25.6, 29.2], leafVal: [29.2, 30.2], open: [25.3, 26.0], cells: [25.9, 28.2], avg: [28.3, 28.9], close: [29.3, 30.3], wave: [31.2, 37.2], note: [37.2, 38.0],
     fold: [39.2, 42.0], merged: [41.4, 42.4], panel: [41.8, 42.8], dots: [42.6, 48.6] };
   const CH = [0, 6, 12, 19, 25, 31, 39], DUR = 52.5;
   const REV = [[0, XN], [1.0, XN], [2.6, XS[0] + 2], [6.2, XS[0] + 2], [7.8, XS[1] + 2], [12.2, XS[1] + 2], [13.8, XS[2] + 2], [20.2, XS[2] + 2], [21.4, XS[3] + 2], [21.6, XS[3] + 2], [23.0, VW]];
@@ -331,7 +332,7 @@
       if (val !== null) c = mixA(c, blueOf(val), passed(Math.min((p.x + v.x) / 2, p.x + 70), t));        // the scores coming back deepen your bands by their value
       if (v.ci !== p.t.pick) c = mixA(c, tint(C.blue, .12), passed(p.x + 8, t));                        // and the options the page would not take fade
       if (p.id === "A1" && v.ci === p.t.pick) c = mixA(c, C.blue, .55 * bump(t, ...TS.pulse)); }
-    else c = tint(C.red, DK() ? .8 : .7);
+    else { c = tint(C.red, DK() ? .8 : .7); if (v === VID.A2) c = mixA(c, C.red, .55 * bump(t, TS.post[0] - .5, TS.post[1])); }
     return mixA(c, TINT[w], f); }
   const KEYS = v => !v.parent.t ? ["E"] : v.parent.t.us ? ["max"] : ["sig"];
   const reason = (k, w) => { const own_ = k.b ? k.b.filter(h => DRAWS[w].mains.includes(h)) : [];
@@ -423,31 +424,42 @@
       S(halo, "stroke", P.paper); S(ln, "stroke", P.ink); S(ln, "stroke-width", 1.4 + 1.2 * pulse); S(tg, "transform", `translate(${v.x} ${y0 - 8})`);
       S(tr, "fill", P.paper); S(tt, "fill", P.ink); op(g, (a > 0 ? 1 : 0) * (1 - cl(f * 1.6)), ["s"]); });
     // under the line, once the scores are back: the page's averages, and the draws that would choose differently on their own
-    const at = el("text", { x: v.x, y: BOTY + 26, "font-size": 12, "text-anchor": "middle" }, L.txt), o = n.kids.filter(k => k.wv).sort((p, q) => q.pv - p.pv);
-    const lab = k => k.b.map(h => nm(h).split(" ")[0]).join(", ");
-    const s0 = el("tspan", { x: v.x, "font-size": 11 }, at); s0.textContent = `the page at ${id === "A1" ? "s₀" : "s₃"}, on average:`;
-    const s1 = el("tspan", { x: v.x, dy: 15 }, at); o.forEach((k, i) => { const s = el("tspan", {}, s1); s.textContent = `${i ? "  ·  " : ""}${lab(k)} ${f1(k.pv)}`; s.dataset.best = i ? "" : 1; });
-    const ws = WS.filter(w => n.alone[w] !== n.pick), s2 = el("tspan", { x: v.x, dy: 15, "font-size": 11.5, "font-style": "italic" }, at);
-    s2.textContent = `${ws.length > 1 ? "draws" : "draw"} ${ws.map(w => w + 1).join(" and ")} alone would ban ${lab(n.kids[n.alone[ws[0]]])}`;
-    tip(at, () => `<b>The page's choice</b>: the best on average over the draws, weighted by how likely each is given what the page has seen.<br>
+    const blk = el("g", {}, L.txt), o = n.kids.filter(k => k.wv).sort((p, q) => q.pv - p.pv), lab = k => k.b.map(h => nm(h).split(" ")[0]).join(" and ");
+    const bt = el("text", { x: v.x, y: BOTY + 24, "font-size": 11.5, "text-anchor": "middle" }, blk); bt.textContent = `the page at ${id === "A1" ? "s₀" : "s₃"}, on average`;
+    const ts = 15, items = o.map((k, i) => { const gi = el("g", {}, blk), tl = k.b.map((h, j) => { const tg = banTile(gi, h, ts); tg.setAttribute("transform", `translate(${j * (ts + 3) + ts / 2} 0)`); return tg; });
+      const tx = el("text", { x: k.b.length * (ts + 3) + 3, y: 4.5, class: "ar", "font-size": 13 }, gi); tx.textContent = f1(k.pv);
+      return { gi, tl, tx, best: i === 0, wd: k.b.length * (ts + 3) + 33 }; });
+    let cx = v.x - (items.reduce((a, it) => a + it.wd, 0) + 18 * (items.length - 1)) / 2;
+    items.forEach(it => { it.gi.setAttribute("transform", `translate(${cx} ${BOTY + 44})`); cx += it.wd + 18; });
+    const ws = WS.filter(w => n.alone[w] !== n.pick), nt = el("text", { x: v.x, y: BOTY + 70, "font-size": 11.5, "font-style": "italic", "text-anchor": "middle" }, blk);
+    nt.textContent = `${ws.length > 1 ? "Draws" : "Draw"} ${ws.map(w => w + 1).join(" and ")} alone would ban ${lab(n.kids[n.alone[ws[0]]])}`;
+    tip(blk, () => `<b>The page's choice</b>: the best on average over the draws, weighted by how likely each is given what the page has seen.<br>
       <span class="d">${o.map(k => `${nms(k.b)}: ${avgTipShort(k)}`).join("<br>")}</span>`);
-    add(t => { const a = passed(v.x - 10, t); S(s0, "fill", P.faint); [...s1.childNodes].forEach(s => { S(s, "fill", s.dataset.best ? P.blue : P.faint); S(s, "font-weight", s.dataset.best ? 700 : 400); });
-      S(s2, "fill", P.faint); S(s2, "fill-opacity", E(t, ...TS.note) * (1 - cl(FOLD * 2))); op(at, a, ["vbar", "max"]); });
+    add(t => { const a = passed(v.x + 30, t); S(bt, "fill", P.faint);
+      items.forEach(it => { it.tl.forEach(tg => paintTile(tg, it.best ? P.blue : P.faint)); S(it.tx, "fill", it.best ? P.blue : P.faint); });
+      S(nt, "fill", P.faint); S(nt, "opacity", E(t, ...TS.note) * (1 - cl(FOLD * 2))); op(blk, a, ["vbar", "max"]); });
   });
   const avgTipShort = k => `${f1(k.pv)} = ${k.post.map((q, w) => `${pc(q)} × ${f1(k.wv[w])}`).join(" + ")}`;
 
   // ---------------------------------------------------------------- the bans' portraits (draw 1's lane, then the folded tree) and their odds by draw
+  const lane = (w, f) => w ? 1 - cl(f * 2) : 1;                          // in the fold, draw 1's labels move onto the folded tree and the others go
   V.forEach(v => { if (!v.k || !v.k.b) return;
-    const s = v.parent.id === "B1" ? 12 : 15, n = v.k.b.length, g = el("g", {}, L.lab), col = v.parent.t.us ? "blue" : "red";
-    const tiles = v.k.b.map((h, j) => { const tg = banTile(g, h, s); tg.setAttribute("transform", `translate(${(j - (n - 1) / 2) * (s + 3)} 0)`); return tg; });
-    tip(g, () => `<b>${v.parent.t.us ? "You" : "They"} ban ${nms(v.k.b)}</b>${v.parent.t.us ? "" : `: ${WS.map(w => `${pc(v.k.p[w])} in draw ${w + 1}`).join(", ")}`}`);
-    const xAt = v.x - v.parent.x > 160 ? v.parent.x + 64 : null;
-    add(t => { const f = FOLD, gw = ribG(v, 0, 0), gm = bundle(v, 1), uw = xAt ? uAtX(gw, xAt) : .5, um = xAt ? uAtX(gm, xAt) : .5, pw = onRib(gw, uw), pm = onRib(gm, um);
-      const x = lerp(pw[0], pm[0], f), y = lerp(pw[1], pm[1], f);
-      S(g, "transform", `translate(${x} ${y})`); tiles.forEach(tg => paintTile(tg, P[col])); op(g, cl((reveal(t) - x - 10) / 30), KEYS(v)); }); });
-  V.forEach(v => { if (!v.k || !v.k.more) return; const ft = el("text", { x: X5 - 6, "font-size": 10.5, "text-anchor": "end" }, L.lab); ft.textContent = `+${fmt(v.k.more)} more`;
-    add(t => { const f = FOLD, h = lerp(v.h[0], v.H, f), g = lerp(1, 0, f), yc = lerp(v.tw[0] + v.h[0] / 2, v.tm + v.H / 2, f); S(ft, "y", yc + 3.5); S(ft, "fill", P.faint);
-      op(ft, (h >= 9 ? 1 : 0) * cl((reveal(t) - X5) / 10 + 1), KEYS(v)); }); });
+    const s = v.parent.id === "B1" ? 12 : 15, n = v.k.b.length, col = v.parent.t.us ? "blue" : "red", xAt = v.x - v.parent.x > 160 ? v.parent.x + 64 : null;
+    WS.forEach(w => { if (w && v.h[w] < 12) return;
+      const g = el("g", {}, L.lab), tiles = v.k.b.map((h, j) => { const tg = banTile(g, h, s); tg.setAttribute("transform", `translate(${(j - (n - 1) / 2) * (s + 3)} 0)`); return tg; });
+      tip(g, () => `<b>${v.parent.t.us ? "You" : "They"} ban ${nms(v.k.b)}</b>${v.parent.t.us ? "" : `: ${WS.map(q => `${pc(v.k.p[q])} in draw ${q + 1}`).join(", ")}`}`);
+      add(t => { const f = FOLD, gw = ribG(v, w, 0), gm = bundle(v, 1), pw = onRib(gw, xAt ? uAtX(gw, xAt) : .5), pm = onRib(gm, xAt ? uAtX(gm, xAt) : .5);
+        const x = lerp(pw[0], pm[0], f), y = lerp(pw[1], pm[1], f);
+        S(g, "transform", `translate(${x} ${y})`); tiles.forEach(tg => paintTile(tg, P[col])); op(g, cl((reveal(t) - x - 10) / 30) * dim(w, t, f) * lane(w, f), KEYS(v)); }); }); });
+  // the other options, folded into one band each: a label at the start of the band, outlined so it reads on any colour
+  const NOUN = { A1: "bans", B2: "pairs", A2: "pairs", B1: "bans" };
+  V.forEach(v => { if (!v.k || !v.k.more) return; const x0 = v.parent.x + 14;
+    WS.forEach(w => { if (v.h[w] < 12) return;
+      const ft = el("text", { x: x0, class: "halo", "font-size": 11.5, "font-weight": 600 }, L.lab); ft.textContent = `+${fmt(v.k.more)} more ${NOUN[v.parent.id]}`;
+      tip(ft, () => v.parent.t.us ? `<b>${fmt(v.k.more)} more legal ${NOUN[v.parent.id]}</b>, each played out and scored the same way. None beats ${nms(v.parent.kids[v.parent.t.pick].k.b)} on average.`
+        : `<b>Their other ${fmt(v.k.more)} ${NOUN[v.parent.id]}</b>: ${WS.map(q => `${pc(v.k.p[q])} in draw ${q + 1}`).join(", ")}. Each is played out and scored, then folded into this band.`);
+      add(t => { const f = FOLD, gw = ribG(v, w, 0), gm = bundle(v, 1), yw = onRib(gw, uAtX(gw, x0 + 44))[1], ym_ = onRib(gm, uAtX(gm, x0 + 44))[1];
+        S(ft, "y", lerp(yw, ym_, f) + 4); S(ft, "fill", P.ink); op(ft, cl((reveal(t) - x0 - 70) / 30) * dim(w, t, f) * lane(w, f), KEYS(v)); }); }); });
   const R1 = VID.A2;                                                    // their two bans that happened: the odds in each draw, above where they land
   WS.forEach(w => { const g = el("g", {}, L.lab), r = el("rect", { x: -13, y: -12, width: 26, height: 12 }, g), tx = el("text", { x: 0, y: -2.5, "font-size": 10, "font-weight": 700, "text-anchor": "middle" }, g);
     tip(g, () => `<b>They ban ${nms(R1.k.b)}</b>: ${pc(R1.k.p[w])} in draw ${w + 1}.${reason(R1.k, w)}`);
@@ -475,28 +487,28 @@
     tip(bg, () => `<b>Draw ${w + 1}</b>: their players main ${D.mains.map(nm).join(", ")}. Your teammates are drawn too. They change the draft, not their bans.<br>
       <span class="d">How likely this draw is: ${pc(PRIOR[w])} from the lobby alone, ${pc(post3[w])} once they have made their first two bans.</span>`);
     add(t => { const f = FOLD, a = E(t, ...TS.cards(w)), q = lerp(PRIOR[w], post3[w], E(t, ...TS.post)), yc = (LANE[w][0] + LANE[w][1]) / 2;
-      S(g, "transform", `translate(${x0 + 10 * (1 - a)} ${yc - 31})`); op(g, a * (1 - cl(f * 1.8)), ["E"]);
+      S(g, "transform", `translate(${x0 + 10 * (1 - a)} ${yc - 31})`); op(g, a * (1 - cl(f * 1.8)) * (1 - E(t, TS.open[0] - .2, TS.open[1]) + E(t, TS.close[1], TS.close[1] + .6)), ["E"]);
       S(bg, "fill", P.panel); S(bar, "fill", c3(TINT[w])); S(tt, "fill", P.ink); S(sub, "fill", P.faint); S(pw, "fill", P.ink); txt(pw, pc(q)); fr.forEach(r => S(r, "stroke", P.red)); }); });
 
   // ---------------------------------------------------------------- the panel (folded): the draws' mix among the games that reach each point
   const PX = 800, PWD = 192, pan = el("g", {}, L.panel), ph = el("text", { x: PX, y: 92, class: "ar", "font-size": 13.5 }, pan);
   ph.textContent = "How likely each draw is";
-  const pn = ["among the simulated games that get", "this far. The ticks are what Bayes' rule", "gives. The bars are the games themselves,", "and the networks only ever see the games."]
+  const pn = ["among the simulated games that get this far.", "Bars: the games that got there.", "Ticks: what Bayes' rule says.", "The networks only ever see the games."]
     .map((s, j) => { const e = el("text", { x: PX, y: 110 + 15 * j, "font-size": 12 }, pan); e.textContent = s; return e; });
   const BARS = [
-    { y: 206, lab: "lobby only (s₀)", post: PRIOR },
-    { y: 280, lab: "after their two bans (s₃)", post: POST.A2 },
-    { y: 354, lab: `then ${nm("psylocke")} banned (s₆)`, post: TREE.B1.kids[0].post },
-    { y: 428, lab: `then ${nm("peni-parker")} banned (s₆)`, post: TREE.B1.kids[1].post }];
+    { y: 210, lab: "lobby only (s₀)", post: PRIOR },
+    { y: 286, lab: "after their two bans (s₃)", post: POST.A2 },
+    { y: 362, lab: `then ${nm("psylocke")} banned (s₆)`, post: TREE.B1.kids[0].post },
+    { y: 438, lab: `then ${nm("peni-parker")} banned (s₆)`, post: TREE.B1.kids[1].post }];
+  const BH = 17;
   BARS.forEach(B => {
-    const g = el("g", {}, pan), lt = el("text", { x: PX, y: B.y - 7, "font-size": 12 }, g), bg = el("rect", { x: PX, y: B.y, width: PWD, height: 10 }, g);
-    B.bt = el("text", { x: PX + PWD, y: B.y + 25, "font-size": 11.5, "text-anchor": "end" }, g); B.bt.textContent = `Bayes ${B.post.map(q => Math.round(100 * q)).join(" · ")}`;
-    lt.textContent = B.lab; B.segs = WS.map(() => el("rect", { y: B.y, height: 10 }, g));
-    let c = 0; B.ticks = B.post.slice(0, 2).map(q => { c += q; return el("line", { x1: PX + PWD * c, x2: PX + PWD * c, y1: B.y - 3, y2: B.y + 13, "stroke-width": 1.4 }, g); });
-    B.ct = el("text", { x: PX, y: B.y + 25, "font-size": 11.5 }, g); Object.assign(B, { g, lt, bg });
+    const g = el("g", {}, pan), lt = el("text", { x: PX, y: B.y - 9, "font-size": 12 }, g), bg = el("rect", { x: PX, y: B.y, width: PWD, height: BH }, g);
+    lt.textContent = B.lab; B.segs = WS.map(() => el("rect", { y: B.y, height: BH }, g)); B.segT = WS.map(() => el("text", { y: B.y + 12.5, "font-size": 11, "font-weight": 600, "text-anchor": "middle" }, g));
+    let c = 0; B.ticks = B.post.slice(0, 2).map(q => { c += q; const x = PX + PWD * c; return [el("line", { x1: x, x2: x, y1: B.y + BH - 5, y2: B.y + BH + 2, "stroke-width": 1.4 }, g), el("path", { d: `M${x - 4},${B.y + BH + 7} L${x + 4},${B.y + BH + 7} L${x},${B.y + BH + 2} Z` }, g)]; });
+    B.ct = el("text", { x: PX + PWD, y: B.y - 9, "font-size": 11.5, "text-anchor": "end" }, g); Object.assign(B, { g, lt, bg });
     tip(g, () => { const n = B.n || [0, 0, 0], s = n[0] + n[1] + n[2];
       return `<b>${B.lab[0].toUpperCase() + B.lab.slice(1)}</b><br>Of the ${s} simulated games that got here, ${n.map((x, w) => `${x} came from draw ${w + 1}`).join(", ")}.
-        Bayes' rule says ${B.post.map(pc).join(", ")}.`; });
+        Bayes' rule says ${B.post.map((q, w) => `${pc(q)} for draw ${w + 1}`).join(", ")}.`; });
   });
 
   // ---------------------------------------------------------------- the games: tokens that run down the folded tree, each in its draw's stripe
@@ -524,9 +536,44 @@
       S(d.c, "cx", q[0]); S(d.c, "cy", q[1]); S(d.c, "fill", DOTC[d.w]);
       op(d.c, t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .15), ["E"]); });
     BARS.forEach(B => { const s = B.n[0] + B.n[1] + B.n[2]; let c = 0; S(B.lt, "fill", P.faint); S(B.bg, "fill", P.panel);
-      B.segs.forEach((r, w) => { const q = s ? B.n[w] / s : 0; S(r, "x", PX + PWD * c); S(r, "width", PWD * q); S(r, "fill", c3(TINT[w])); c += q; });
-      B.ticks.forEach(l => S(l, "stroke", P.ink)); S(B.ct, "fill", P.faint); S(B.bt, "fill", P.ink);
-      txt(B.ct, s ? `${s} game${s > 1 ? "s" : ""}: ${B.n.map(x => Math.round(100 * x / s)).join(" · ")}%` : ""); }); });
+      B.segs.forEach((r, w) => { const q = s ? B.n[w] / s : 0; S(r, "x", PX + PWD * c); S(r, "width", PWD * q); S(r, "fill", c3(TINT[w]));
+        const st = B.segT[w]; S(st, "x", PX + PWD * (c + q / 2)); S(st, "fill", DOTC[w]); txt(st, PWD * q >= 30 ? `${Math.round(100 * q)}%` : ""); c += q; });
+      B.ticks.forEach(([l, tr]) => { S(l, "stroke", P.ink); S(tr, "fill", P.ink); }); S(B.ct, "fill", P.faint);
+      txt(B.ct, s ? `${fmt(s)} game${s > 1 ? "s" : ""}` : ""); }); });
+
+  // ---------------------------------------------------------------- the games in the lanes: a stream that follows the bands as they open
+  const WD = []; { const r_ = rng(41); WS.forEach(w => route(w, VID.A1, Math.round(260 * PRIOR[w])).forEach(r => WD.push({ w, r, o: r_() }))); }
+  WD.sort((a, b) => a.o - b.o);
+  WD.forEach((d, j) => { d.t0 = 1.0 + 21.5 * j / WD.length; d.c = el("circle", { r: 1.7 }, L.wdot); let c = d.t0;
+    d.ts = d.r.map(v => { const a = c; c += .6 * Math.max(1, (v.x - v.parent.x) / 140); return [a, c]; }); d.tEnd = c; });
+  add(t => { WD.forEach(d => { if (FOLD > 0 || t < d.t0 || t > d.tEnd + .3) { S(d.c, "opacity", 0); return; }
+    const j = d.ts.findIndex(([, b]) => t < b), jj = j < 0 ? d.r.length - 1 : j, [ta, tb] = d.ts[jj], v = d.r[jj], q = onRib(ribG(v, d.w, 0), cl((t - ta) / (tb - ta)));
+    const bgc = lum(own(v, d.w, t, 0)); S(d.c, "cx", q[0]); S(d.c, "cy", q[1]); S(d.c, "fill", Math.abs(bgc - lum(C.paper)) > Math.abs(bgc - lum(C.ink)) ? P.paper : P.ink);
+    op(d.c, .9 * dim(d.w, t, 0) * (t > d.tEnd ? 1 - (t - d.tEnd) / .3 : cl((t - d.t0) / .2)), ["E"]); }); });
+
+  // ---------------------------------------------------------------- one ending opened up: 28 of your lineups against 28 of theirs
+  const LF = VID["B1.0"], GX = 828, GY = 82, GC = 4.9, GN = 28, GS = GN * GC;
+  const gg = el("g", {}, L.grid), gIn = el("g", {}, gg), gBg = el("rect", { x: -3, y: -3, width: GS + 5, height: GS + 5 }, gIn);
+  const gT1 = el("text", { x: 0, y: -26, class: "ar", "font-size": 12.5 }, gIn), gT2 = el("text", { x: 0, y: -11, "font-size": 11.5 }, gIn);
+  gT1.textContent = "One ending, opened up"; gT2.textContent = "your 28 lineups down, their 28 across";
+  const gAv = el("text", { x: 0, y: GS + 20, "font-size": 12 }, gIn), gAvA = el("tspan", {}, gAv), gAvB = el("tspan", { class: "ar", "font-size": 13 }, gAv);
+  gAvA.textContent = "average of all 784 games"; gAvB.setAttribute("dx", 6);
+  const gLead = el("path", { fill: "none", "stroke-width": 1.2, "stroke-dasharray": "3 3" }, L.grid);
+  const base6 = LF.k.leaf[0], rr = Array.from({ length: GN }, (_, i) => (hsh(i * 1.71 + .3) - .5) * 16), cc = Array.from({ length: GN }, (_, j) => (hsh(j * 2.37 + 5.1) - .5) * 16);
+  let GV = []; for (let i = 0; i < GN; i++) for (let j = 0; j < GN; j++) GV.push(base6 + rr[i] + cc[j] + (hsh(i * 31.7 + j * 17.3) - .5) * 14);
+  { const m = GV.reduce((a, b) => a + b, 0) / GV.length; GV = GV.map(x => x + base6 - m); }   // the cells average to the ending's value exactly
+  const GCELL = GV.map((_, k) => el("rect", { x: (k % GN) * GC, y: Math.floor(k / GN) * GC, width: GC - .7, height: GC - .7 }, gIn));
+  tip(gBg, () => `<b>One ending, draw 1, opened up</b>: each square is one of your 28 drafted lineups against one of theirs, scored on the map (P(W<sub>A</sub> = 1 | L<sub>A</sub><sup>i</sup>, L<sub>B</sub><sup>j</sup>, m)). Blue squares favour you. Their average, ${f1(base6)}%, is the ending's value.`);
+  add(t => { const op_ = E(t, ...TS.open), cl_ = E(t, ...TS.close), on = op_ * (1 - seg(t, TS.close[1] - .3, TS.close[1]));
+    if (on <= 0 || FOLD > 0) { S(gg, "opacity", 0); S(gLead, "opacity", 0); return; }
+    const y0 = topOf(LF, 0, 0), h = LF.h[0], sx = lerp(1, 22 / GS, cl_), sy = lerp(1, Math.max(h, 2) / GS, cl_), tx = lerp(GX, X5 + 2, cl_), ty = lerp(GY, y0, cl_);
+    S(gIn, "transform", `translate(${tx} ${ty}) scale(${sx} ${sy})`); op(gg, on, ["score"]);
+    S(gBg, "fill", P.paper); S(gBg, "stroke", P.hair); [gT1, gAvB].forEach(e => S(e, "fill", P.ink)); [gT2, gAvA].forEach(e => S(e, "fill", P.faint));
+    [gT1, gT2, gAv].forEach(e => S(e, "opacity", 1 - cl_)); txt(gAvB, `${f1(base6)}%`); S(gAvB, "opacity", E(t, ...TS.avg));
+    GCELL.forEach((c, k) => { const i = Math.floor(k / GN), j = k % GN, at = TS.cells[0] + (TS.cells[1] - TS.cells[0]) * (i + j) / (2 * GN - 2);
+      S(c, "fill", c3(winA(GV[k]))); S(c, "opacity", t >= at ? 1 : 0); });
+    const lx = X5 + 24, ly = y0 + h / 2; S(gLead, "d", `M${lx},${ly} C${lx + 40},${ly} ${GX - 50},${GY + GS / 2} ${GX - 6},${GY + GS / 2}`);
+    S(gLead, "stroke", P.faint); op(gLead, op_ * (1 - cl_), ["score"]); });
 
   // ================================================================ playing it: the chapters, the step's equation, the legend
   const chapter = t => { let c = 0; CH.forEach((a, i) => { if (t >= a) c = i; }); return c; };
@@ -534,7 +581,7 @@
   const STEP = [
     [M(`<i>θ</i> = (<i>θ</i><sub><i>A</i></sub>, <i>θ</i><sub><i>B</i></sub>) ~ <i>π</i>(<i>θ</i> | <i>x</i>)`), "the players are drawn given what the page can see (x: map, rank band, rank, side, the heroes on show)"],
     [M(`<i>V</i><sub>0</sub>(<i>s</i><sub>0</sub>) = max<sub><i>b</i></sub> <i>V̄</i><sub>1</sub>(<i>s</i><sub>0</sub><i>b</i>)`), "the same b in every draw: the page sees s₀ only"],
-    [M(`<i>π</i>(<i>θ</i> | <i>s</i><sub>3</sub>) ∝ <i>π</i>(<i>θ</i> | <i>x</i>) · <i>σ̂</i><sub><i>B</i></sub>(<i>b</i><sub><i>B</i></sub><sup>1</sup><i>b</i><sub><i>B</i></sub><sup>2</sup> | <i>s</i><sub>1</sub>, <i>θ</i><sub><i>B</i></sub>)`), "their bans depend on their players, so they carry information about them"],
+    [M(`<i>π</i>(<i>θ</i> | <i>s</i><sub>3</sub>) ∝ <i>π</i>(<i>θ</i> | <i>x</i>) <i>σ̂</i><sub><i>B</i></sub>(<i>b</i><sub><i>B</i></sub><sup>1</sup><i>b</i><sub><i>B</i></sub><sup>2</sup> | <i>s</i><sub>1</sub>, <i>θ</i><sub><i>B</i></sub>)`), "their bans depend on their players, so they carry information about them"],
     [M(`max<sub><i>a</i></sub> max<sub><i>b</i></sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>) = max<sub>{<i>a</i>,<i>b</i>}</sub> <i>V̄</i><sub>5</sub>(<i>s</i><sub>3</sub><i>ab</i>)`), "two bans in a row are one choice of pair, the same pair in every draw"],
     [M(`<i>V</i><sub>6</sub>(<i>s</i><sub>6</sub>; <i>θ</i>) = <sup>1</sup>/<sub>28²</sub> Σ<sub><i>i</i>,<i>j</i></sub> <i>P</i>(<i>W</i><sub><i>A</i></sub> = 1 | <i>L</i><sub><i>A</i></sub><sup><i>i</i></sup>, <i>L</i><sub><i>B</i></sub><sup><i>j</i></sup>, <i>m</i>)`), "28 lineups a side, drafted from the players in the draw, every pairing scored on the map"],
     [M(`<i>V</i><sub><i>k</i></sub>(<i>s</i><sub><i>k</i></sub>; <i>θ</i>) = Σ<sub><i>b</i></sub> <i>σ̂</i><sub><i>B</i></sub>(<i>b</i> | <i>s</i><sub><i>k</i></sub>, <i>θ</i><sub><i>B</i></sub>) <i>V</i><sub><i>k</i>+1</sub>(<i>s</i><sub><i>k</i></sub><i>b</i>; <i>θ</i>)`), "on their turns, and the page's choice on yours"],
