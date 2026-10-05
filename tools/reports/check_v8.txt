@@ -1,7 +1,7 @@
 value networks: 8 parity cases x the student's 3 outputs, largest output difference 4.17e-8; page input against the notebook's 9.16e-16
 ban model: 40 states against the notebook's formula with the fitted parameters, largest probability difference 5.55e-17 (export rounding 0.00e+0)
 whole turns: 32 (14 ours), same advice 14 of 14; largest difference in value 1.89e-5, spread 2.36e-6, ban probability 7.88e-6
-advice on 15 of our turns (1 clear of the runner-up, 0 outside the support): 218 ms each; 4 two-ban turns, pairs 1348 ms; 15 of their turns 221 ms
+advice on 15 of our turns (1 clear of the runner-up, 0 outside the support): 53 ms each; 4 two-ban turns, pairs 325 ms; 15 of their turns 55 ms
 two-ban turns as the page advises them: 24 (camps: second, first), advice = the advised ban then the advice again, supported at both states: 24 of 24; compared pairs outside the support: 0; states where the highest raw score is unsupported: 0 (the advice was supported in all of them)
 with a 5% support threshold: 10 two-ban states where the best raw score is a rare ban; the advice and the compared pairs stayed supported in 10 of them
 bad weight files refused before any forecast: 4 of 4 (empty, truncated, oversized, a NaN weight)

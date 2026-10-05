@@ -46,8 +46,11 @@ def inp(s, e, zero_last=False):
 P = {k: np.asarray(v, np.float64) for k, v in B["params"].items()}; C = np.asarray(B["counter"], np.float64); CT = C.T; PRE = B["premade_share"]
 T = np.asarray(B["stand_in_team_shares"], np.float64); J = T.shape[1]
 TP = np.asarray(B["stand_in_players"], np.float64) if B.get("stand_in_players") is not None else None
-if TP is not None: SP = np.asarray(B["shown_profiles"], np.float64); TAIL = np.concatenate([np.flip(np.cumsum(np.flip(TP, 2), 2), 2), np.zeros(TP[:, :, :1].shape)], 2)
+tails = lambda X: np.concatenate([np.flip(np.cumsum(np.flip(X, 2), 2), 2), np.zeros(X[:, :, :1].shape)], 2)
+if TP is not None: SP = np.asarray(B["shown_profiles"], np.float64); TAIL = tails(TP)
 else: SS = np.asarray(B["shown_shares"], np.float64); PS = np.asarray(B["player_shares"], np.float64)
+SP2 = np.asarray(B["shown_profiles_sq"], np.float64) if TP is not None and B.get("shown_profiles_sq") is not None else None   # v8.7: concentration (squared shares)
+if SP2 is not None: TAIL2 = tails(TP ** 2)
 g = lambda k, d: P[k] if k in P else d
 def rel_tables(bd, shown):
     them = T[bd][(np.arange(J) + J // 2) % J]; shown = sorted(set(shown))
@@ -60,9 +63,16 @@ def ban_probs(s, e, allowed):
     for i in range(e): (own if ours(s["firstUs"], i) == us else oth)[s["bans"][i]] = 1
     u = P["a"] + P["am"][m] + P["ab"][bd] + P["ae"][e] + own @ P["Ro"] + oth @ P["Rt"] + (1. if ORDER[e] == 0 else -1.) * g("acm", np.zeros((NM, H)))[m]
     if e > 0 and "Lo" in P: u = u + (P["Lo"] if ORDER[e - 1] == ORDER[e] else P["Lt"])[s["bans"][e - 1]]
-    lam = P["lam"] + g("lam_e", np.zeros(6))[e] + PRE * g("lam_p", 0.); gam = P["gam"] + g("gam_e", np.zeros(6))[e] + PRE * g("gam_p", 0.); tau = g("tau", 0.) + g("tau_e", np.zeros(6))[e]
+    lam = P["lam"] + g("lam_e", np.zeros(6))[e] + PRE * g("lam_p", 0.) + g("lam_b", np.zeros(len(BANDS) + 1))[bd]; gam = P["gam"] + g("gam_e", np.zeros(6))[e] + PRE * g("gam_p", 0.)
+    tau = g("tau", 0.) + g("tau_e", np.zeros(6))[e] + g("tau_b", np.zeros(len(BANDS) + 1))[bd]   # v8.7: band terms
     RU, RO = rel_tables(bd, [s["you"]] + s["mates"] if s["you"] >= 0 else s["mates"]); REL, RX = (RU, RO) if us else (RO, RU)
-    uj = u[None] - lam * REL + gam * (REL @ CT) + tau * RX; uj = np.where(allowed[None], uj, -np.inf); uj -= uj.max(1, keepdims=True)
+    uj = u[None] - lam * REL + gam * (REL @ CT) + tau * RX
+    lm = float(g("lam_m", 0.))
+    if lm and SP2 is not None:                                                # v8.7: the concentration term, ours following the shown heroes
+        sh_ = sorted({h for h in ([s["you"]] + s["mates"] if s["you"] >= 0 else s["mates"])})
+        U2 = TAIL2[bd][:, min(len(sh_), 6)] + sum((SP2[bd, h] for h in sh_), np.zeros(H))[None]; T2 = TAIL2[bd][(np.arange(J) + J // 2) % J, 0]
+        uj = uj - lm * (U2 if us else T2)
+    uj = np.where(allowed[None], uj, -np.inf); uj -= uj.max(1, keepdims=True)
     p = np.exp(uj); return (p / p.sum(1, keepdims=True)).mean(0)
 def decide(s):
     """The page's advice at the state after len(s['bans']) bans (our turn): the best ban and every allowed ban's mean and SD."""
@@ -76,7 +86,7 @@ def decide(s):
     pe = ban_probs(s, e, allowed); sup = allowed & (pe >= SUPP) & (CNT[e, band(s["r0"])] if CNT is not None else True)
     if not sup.any(): sup = allowed if PLAN is None else (np.arange(H) == int(np.where(allowed, pe, -np.inf).argmax()))
     sc = np.where(sup, mu - KAPPA * sd + LAM * np.log(np.maximum(pe, 1e-30)), -np.inf); best = int(sc.argmax()); runner = np.sort(sc[np.isfinite(sc)])[-2] if np.isfinite(sc).sum() > 1 else -np.inf
-    return best, float(sc[best] - runner)
+    return best, min(float(sc[best] - runner), 1e9)   # one supported ban (the anchored rule's fallback): no runner-up, a clear lead
 rg = np.random.default_rng(20260927); tiers = [4050, 4250, 4450, 4550, 4650, 4850, 5050]; cases = []
 while len(cases) < N_STATES:
     first = bool(rg.integers(0, 2)); own = [e for e in range(6) if ours(first, e)]; e = int(rg.choice(own)); heroes = rg.permutation(H)
