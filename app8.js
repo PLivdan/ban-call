@@ -351,13 +351,11 @@
   const sum = a => a.reduce((x, y) => x + y, 0), mean = a => sum(a) / a.length, IDX = new Map(NAMES.map((n, i) => [n, i]));
   const nm = h => SHORT[NAMES[h]] || NAMES[h];
   // v9: how many real games had a ban at this position in this rank band (the notebook's evidence, from the real-outcome model's
-  // training span): enough to check it (200+), thin (20-199) or none. The note never hides a ban; it says when real games cannot check it.
+  // training span), shown in each hero's tooltip on your turn.
   const EVID = LAY.evidence || null;
   const evid = (h, e) => { if (!EVID) return null; const bd = E.band(META.tiers[st.tier]), n = EVID.real_bans[e][bd][h]; return { n, f: EVID.flags[EVID.flag[e][bd][h]] }; };
   const evidN = n => n < 20 ? "under 20" : fmt(n);
   const evidTip = (h, e) => { const v = evid(h, e); return v ? `<br>real games with this ban here: ${evidN(v.n)}` : ""; };
-  const evidNote = (h, e) => { const v = evid(h, e); if (!v || v.f === "identified") return "";
-    return `<p class="small evid">${v.f === "thin" ? `Only ${evidN(v.n)}` : "Fewer than 20"} real games had ${esc(NAMES[h])} banned at this point at your rank, so real results ${v.f === "thin" ? "can only roughly check" : "cannot check"} this ban.</p>`; };
   const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
   let tipEl = null, tipText = "", tipW = 0, tipH = 0;         // the tooltip is filled and measured once per element, then only moved
   document.addEventListener("mousemove", ev => {
@@ -801,7 +799,7 @@
       if (!LB) html += `<h2 class="hh"><span>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</span>${chartsBtn()}</h2>`;
       if (!LB) html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
-      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}${evidNote(pair ? pair.a : R.best, e)}<div class="det">`;
+      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}<div class="det">`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
         then the best ban once it is made. The other squares score both bans together, for comparison.</p>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
