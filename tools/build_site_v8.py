@@ -26,6 +26,13 @@ after them, so every share stays nonnegative and the team's shares sum to six. T
 bans (the ban_order block). A v8.4 run that failed the null-world gate (deploy_ok false in the summary) is refused unless
 FORCE_DEPLOY=1.
 
+From v9 (ban-solver notebook 02_ban_solver_v9) the run names its site files *_v9; they are read under those names and published
+under the same model8/ names as before, so the pages load them unchanged. A v9 network input ends with the registered block
+(registration of the user's own slot); the page has no registration and leaves that block at zero, the anonymous page the
+notebook also trains and evaluates. The value file's `evidence` (real bans per position, band and hero) is carried into
+model8/value_v8.json for the page's evidence note. Refused: a run whose simulator has nonzero specialist deltas (FFS; sim8.js has
+no such term). The profile table (profiles_v9) is not published.
+
 A release is all or nothing. Everything is read and checked before anything is written: the gate (from v8.4 the summary must
 carry deploy_ok), the files, versions and run identities, the hero and map order across the value networks, the ban model and
 the simulator, and that every tensor and array lies inside its binary. The bundle is then built in model8.staging, checked
@@ -43,19 +50,20 @@ DATA = sys.argv[2] if len(sys.argv) > 2 else "../ban-solver/data/colab_v8"
 LIVE, OUT = "model8", "model8.staging"
 def refuse(msg): sys.exit(f"refused, model8 unchanged: {msg}")
 # ---- read and check everything before writing anything
-need = [f"{RUN}/site/{f}" for f in ("value_v8.json", "value_v8.bin", "ban_model_v8.json", "substitutes_v8.json", "parity_v8.json")] + \
+V9 = os.path.exists(f"{RUN}/site/value_v9.json"); SV = "v9" if V9 else "v8"                 # the run's site-file suffix (v9 from notebook v9.0)
+need = [f"{RUN}/site/{f}" for f in (f"value_{SV}.json", f"value_{SV}.bin", f"ban_model_{SV}.json", f"substitutes_{SV}.json", f"parity_{SV}.json")] + \
        [f"{RUN}/reports/{f}" for f in ("summary_v8.json", "world_model_checks_v8.json", "ope_v8.json", "test_report_v8.json", "selection_v8.json")]
 missing = [f for f in need if not os.path.exists(f)]
 if missing: refuse(f"missing {missing}")
-L = json.load(open(f"{RUN}/site/value_v8.json", encoding="utf-8")); raw = open(f"{RUN}/site/value_v8.bin", "rb").read()
-B = json.load(open(f"{RUN}/site/ban_model_v8.json", encoding="utf-8")); SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
+L = json.load(open(f"{RUN}/site/value_{SV}.json", encoding="utf-8")); raw = open(f"{RUN}/site/value_{SV}.bin", "rb").read()
+B = json.load(open(f"{RUN}/site/ban_model_{SV}.json", encoding="utf-8")); SUM = json.load(open(f"{RUN}/reports/summary_v8.json", encoding="utf-8"))
 H = len(L["heroes"]); vnum = tuple(int(x) for x in str(L.get("version", "v0")).lstrip("v").split(".")[:2] + ["0"])[:2]
 if SUM.get("version") != L.get("version") or SUM.get("run") != L.get("run"): refuse(f"the summary is {SUM.get('version')} run {SUM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
 if vnum >= (8, 4) and "deploy_ok" not in SUM: refuse("a v8.4+ summary without deploy_ok (the null-world gate)")
 # v8.6: a run whose only problem was the notebook's simulator step (training_ok, not release_bundle_ok) is importable once
 # export/build_sim_v8.py has built the simulator locally; every other reason needs FORCE_DEPLOY=1
 SIM_REBUILT = (SUM.get("training_ok") is True and SUM.get("release_bundle_ok") is False
-               and os.path.exists(f"{RUN}/site/sim_v8.json") and os.path.exists(f"{RUN}/site/sim_v8.bin"))
+               and os.path.exists(f"{RUN}/site/sim_{SV}.json") and os.path.exists(f"{RUN}/site/sim_{SV}.bin"))
 if SIM_REBUILT: print("note: the notebook did not write the simulator; using the one built locally (export/build_sim_v8.py)")
 if SUM.get("deploy_ok") is False and not SIM_REBUILT and os.environ.get("FORCE_DEPLOY") != "1":   # v8.4: the null-world gate; v8.6: also forced tests, D-taught students, C contradicted
     refuse("the run is marked not for deployment (" + ("; ".join(SUM.get("deploy_notes") or []) or "the null-world gate failed") + "); FORCE_DEPLOY=1 overrides")
@@ -65,17 +73,21 @@ if _pm.get("mix") or _pm.get("outcome") or _pm.get("kept"):                 # v8
 if B.get("heroes") is not None and B["heroes"] != L["heroes"]: refuse("the ban model's hero order differs from the networks'")
 if B.get("maps") is not None and [m["label"] if isinstance(m, dict) else m for m in L["maps"]] != list(B["maps"]): refuse("the ban model's map order differs from the networks'")
 for w in L["weights"]:
-    if w["offset"] + 2 * int(np.prod(w["shape"])) > len(raw): refuse(f"tensor {w['position']}/{w['chain']}/{w['layer']}/{w['name']} lies outside value_v8.bin")
-HAS_SIM = os.path.exists(f"{RUN}/site/sim_v8.json") and os.path.exists(f"{RUN}/site/sim_v8.bin")
+    if w["offset"] + 2 * int(np.prod(w["shape"])) > len(raw): refuse(f"tensor {w['position']}/{w['chain']}/{w['layer']}/{w['name']} lies outside value_{SV}.bin")
+_blk = {b_[0]: (b_[1], b_[2]) for b_ in L["blocks"]}
+if "registered" in _blk and _blk["registered"][0] + _blk["registered"][1] != L["input_dim"]: refuse("the registered block is not the last input block (engine8.js leaves it at zero)")
+HAS_SIM = os.path.exists(f"{RUN}/site/sim_{SV}.json") and os.path.exists(f"{RUN}/site/sim_{SV}.bin")
 if HAS_SIM:
-    SM = json.load(open(f"{RUN}/site/sim_v8.json", encoding="utf-8")); sbin = open(f"{RUN}/site/sim_v8.bin", "rb").read()
+    SM = json.load(open(f"{RUN}/site/sim_{SV}.json", encoding="utf-8")); sbin = open(f"{RUN}/site/sim_{SV}.bin", "rb").read()
     if SM.get("run") != L.get("run") or SM.get("version") != L.get("version"): refuse(f"the simulator is {SM.get('version')} run {SM.get('run')}, the networks {L.get('version')} run {L.get('run')}")
     if SM["heroes"] != L["heroes"]: refuse("the simulator's hero order differs from the networks'")
-    if "bin_bytes" in SM and (SM["bin_bytes"] != len(sbin) or SM.get("bin_sha256") != hashlib.sha256(sbin).hexdigest()): refuse("sim_v8.bin does not match the size and hash in sim_v8.json")
+    if "bin_bytes" in SM and (SM["bin_bytes"] != len(sbin) or SM.get("bin_sha256") != hashlib.sha256(sbin).hexdigest()): refuse(f"sim_{SV}.bin does not match the size and hash in sim_{SV}.json")
     for a_ in SM["arrays"]:
-        if a_["offset"] + int(np.prod(a_["shape"])) * np.dtype(a_["dtype"]).itemsize > len(sbin): refuse(f"simulator array {a_['name']} lies outside sim_v8.bin")
+        if a_["offset"] + int(np.prod(a_["shape"])) * np.dtype(a_["dtype"]).itemsize > len(sbin): refuse(f"simulator array {a_['name']} lies outside sim_{SV}.bin")
+        if a_["name"] in ("G.fsm", "G.fsf") and np.any(np.frombuffer(sbin, a_["dtype"], int(np.prod(a_["shape"])), a_["offset"])):   # v9.0 FFS: not in sim8.js
+            refuse(f"the simulator's {a_['name']} (specialist deltas, FFS) is nonzero; sim8.js has no such term")
 elif os.environ.get("ALLOW_NO_SIM") != "1":
-    refuse(f"{RUN}/site/sim_v8.json not found: run ban-solver export/build_sim_v8.py {RUN} first (ALLOW_NO_SIM=1 publishes without a simulator)")
+    refuse(f"{RUN}/site/sim_{SV}.json not found: run ban-solver export/build_sim_v8.py {RUN} first (ALLOW_NO_SIM=1 publishes without a simulator)")
 sha = lambda b_: hashlib.sha256(b_).hexdigest()
 if os.path.exists(OUT): shutil.rmtree(OUT)
 os.makedirs(OUT)
@@ -120,11 +132,11 @@ else:
     shown = None; avg = None; print("no data bundle: shown heroes will not shift the stand-in tables")
 BAN = dict(B, run=L["run"], version=L["version"]) if FROM_RUN else dict(B, run=L["run"], version=L["version"], shown_shares=None if shown is None else np.round(shown, 4).tolist(), player_shares=None if avg is None else np.round(avg, 4).tolist())
 json.dump(BAN, open(f"{OUT}/ban_v8.json", "w", encoding="utf-8"), ensure_ascii=False, default=lambda x: np.asarray(x).tolist())
-for f in ("substitutes_v8.json", "parity_v8.json"): shutil.copy(f"{RUN}/site/{f}", f"{OUT}/{f}")
+for f in ("substitutes", "parity"): shutil.copy(f"{RUN}/site/{f}_{SV}.json", f"{OUT}/{f}_v8.json")   # published under the v8 names
 # the simulator (the notebook's world model), when the run folder has it: ban-solver export/build_sim_v8.py writes it there
 if HAS_SIM:
-    shutil.copy(f"{RUN}/site/sim_v8.bin", f"{OUT}/sim_v8.bin"); json.dump(dict(SM, bin_bytes=len(sbin), bin_sha256=sha(sbin)), open(f"{OUT}/sim_v8.json", "w", encoding="utf-8"))
-    print("simulator: copied sim_v8.json and sim_v8.bin")
+    shutil.copy(f"{RUN}/site/sim_{SV}.bin", f"{OUT}/sim_v8.bin"); json.dump(dict(SM, bin_bytes=len(sbin), bin_sha256=sha(sbin)), open(f"{OUT}/sim_v8.json", "w", encoding="utf-8"))
+    print(f"simulator: copied sim_{SV}.json and sim_{SV}.bin")
 else: print("simulator: none in this release (ALLOW_NO_SIM=1); the pages show the simulator as unavailable")
 
 # ---- the numbers the page quotes
@@ -141,7 +153,7 @@ REP = dict(run=L["run"], version=L["version"], splits=SUM["splits"], selected=SE
            test_consulted=SUM.get("test_consulted"), estimator_checks=OPE.get("estimator_checks"),
            value_chain=CHK["value_chain"], networks=dict(student=bool(L.get("student")), members=L["members"], hidden=L["hidden"], layers=L["layers"], teachers=L.get("teachers")),
            ope=dict(decisions=OPE["decisions"], behaviour_calibration={k: dict(slope=v["behaviour"]["calib_slope"], spread_pts=v["spread_pts"]) for k, v in OPE["behaviour_calibration"].items()},
-                    ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"]),
+                    ban_effect_slope=OPE.get("ban_effect_slope"), matches=OPE["matches"], cohorts=OPE.get("cohorts")),
            recalibration=SUM.get("recalibration"), draft_calibration={k: v for k, v in SUM.get("draft_calibration", {}).items() if k in ("lam_g", "delta")})
 # Season 10 matches per model map in the data bundle: the pages leave out maps the model has barely seen
 if os.path.exists(f"{DATA}/maps.parquet"):

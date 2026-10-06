@@ -350,6 +350,14 @@
   const RN = ["vanguard", "duelist", "strategist"];
   const sum = a => a.reduce((x, y) => x + y, 0), mean = a => sum(a) / a.length, IDX = new Map(NAMES.map((n, i) => [n, i]));
   const nm = h => SHORT[NAMES[h]] || NAMES[h];
+  // v9: how many real games had a ban at this position in this rank band (the notebook's evidence, from the real-outcome model's
+  // training span): enough to check it (200+), thin (20-199) or none. The note never hides a ban; it says when real games cannot check it.
+  const EVID = LAY.evidence || null;
+  const evid = (h, e) => { if (!EVID) return null; const bd = E.band(META.tiers[st.tier]), n = EVID.real_bans[e][bd][h]; return { n, f: EVID.flags[EVID.flag[e][bd][h]] }; };
+  const evidN = n => n < 20 ? "under 20" : fmt(n);
+  const evidTip = (h, e) => { const v = evid(h, e); return v ? `<br>real games with this ban here: ${evidN(v.n)}` : ""; };
+  const evidNote = (h, e) => { const v = evid(h, e); if (!v || v.f === "identified") return "";
+    return `<p class="small evid">${v.f === "thin" ? `Only ${evidN(v.n)}` : "Fewer than 20"} real games had ${esc(NAMES[h])} banned at this point at your rank, so real results ${v.f === "thin" ? "can only roughly check" : "cannot check"} this ban.</p>`; };
   const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
   let tipEl = null, tipText = "", tipW = 0, tipH = 0;         // the tooltip is filled and measured once per element, then only moved
   document.addEventListener("mousemove", ev => {
@@ -385,7 +393,7 @@
       if (!items.some(i => i.h === best)) items.push({ h: best, v: R.V[best] });
       items.sort((a, b) => (b.h === best) - (a.h === best) || b.v - a.v);
       for (const it of items) { const h = it.h, rare = !R.supported.has(h); it.r = h === best ? rb : rs; it.hl = h === best; it.rare = rare;
-        it.tip = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">${spreadTxt(R.spread(h))}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`; }
+        it.tip = `<b>${esc(NAMES[h])}</b> ${pp(it.v)}<br><span class="d">${spreadTxt(R.spread(h))}<br>typical teams ban it now: ${R.pe[h] < .001 ? "under 0.1%" : pct1(R.pe[h])}${evidTip(h, R.e)}${rare ? "<br>too rare for the advice to pick" : ""}</span><br>click to ban`; }
       const sb = R.spread(best); vs = items.map(i => i.v).concat([sb.lo, sb.hi]); zeroLab = "a typical ban"; axLab = "points against a typical ban →";
     } else {
       const T = THEM, d = h => T.mu[h] - T.base, ok = !isNaN(d(T.cands[0])), top = T.cands.slice().sort((a, b) => T.pe[b] - T.pe[a]).slice(0, 22), pmax = T.pe[top[0]] || 1;
@@ -793,7 +801,7 @@
       if (!LB) html += `<h2 class="hh"><span>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</span>${chartsBtn()}</h2>`;
       if (!LB) html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
-      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}<div class="det">`;
+      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}${evidNote(pair ? pair.a : R.best, e)}<div class="det">`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
         then the best ban once it is made. The other squares score both bans together, for comparison.</p>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
@@ -975,7 +983,14 @@
   function renderMethod() {
     const R = REP, C = R.checks, d = C.drafts, W = R.world_model || {}, lob = W.lobbies || 400000, pool = W.stand_in_pool;
     const v83 = !!R.estimator_checks, drq = q => v83 ? q.doubly_robust : q.doubly_robust_capped, simGain = (C.policy.students_vs_players || C.policy.optimal_vs_players).gain_pts;
-    const allZero = R.ope.decisions.every(q => drq(q).lo_pts <= 0 && drq(q).hi_pts >= 0), bc = R.ope.behaviour_calibration;
+    // the declared primary estimate per own ban (v8.7 on: the real-outcome nuisance on never-scored matches), else as before
+    const pe = q => q.primary_estimates ? q.primary_estimates.doubly_robust : drq(q);
+    const allZero = R.ope.decisions.every(q => pe(q).lo_pts <= 0 && pe(q).hi_pts >= 0), bc = R.ope.behaviour_calibration;
+    const nNew = R.ope.cohorts && R.ope.decisions[0].primary_estimates && R.ope.decisions[0].primary_estimates.cohort === "never_scored" ? R.ope.cohorts.never_scored : 0;
+    const opeSig = R.ope.decisions.map((q, k) => ({ k, v: pe(q) })).filter(o => o.v.lo_pts > 0 || o.v.hi_pts < 0), ordn = ["first", "second", "third"];
+    const opeTxt = allZero ? "In real games that edge is too small to confirm yet: with the matches we have, every interval includes zero."
+      : `In real games${nNew ? ` (${fmt(nNew)} matches no earlier version was scored on)` : ""} ` + opeSig.map(o => `the advice's ${ordn[o.k]} ban did ${o.v.mean_pts < 0 ? "worse" : "better"} than the bans players made, by ${Math.abs(o.v.mean_pts).toFixed(1)} points `
+        + `(${Math.min(Math.abs(o.v.lo_pts), Math.abs(o.v.hi_pts)).toFixed(1)} to ${Math.max(Math.abs(o.v.lo_pts), Math.abs(o.v.hi_pts)).toFixed(1)})`).join(", and ") + (opeSig.length < R.ope.decisions.length ? "; the others are too close to call." : ".");
     const slopes = Object.values(bc).map(v => v.slope), sLo = Math.min(...slopes).toFixed(2), sHi = Math.max(...slopes).toFixed(2);
     const ag = C.agreement_by_shown ? Object.values(C.agreement_by_shown).filter(v => v.student_same_advice !== undefined) : [], nAg = sum(ag.map(v => v.lobbies));
     const same = E.S && nAg ? sum(ag.map(v => v.lobbies * v.student_same_advice)) / nAg : null;
@@ -994,7 +1009,7 @@
       <p>Every part was chosen on earlier matches and then scored once on ${fmt(R.splits.test.n)} later ones. Simulated drafts look like real teams: 2-2-2 in ${pct(d.two_two_two.model)}
       of teams (real ${pct(d.two_two_two.real)}), and a player whose main is banned stays in role ${pct(d.role_stay_when_forced.model)} of the time (real ${pct(d.role_stay_when_forced.real)}).
       ${same !== null ? `The page gives the same advice as the full model on ${pct(same)} of the turns tested. ` : ""}Inside the simulation, following the advice beats banning the way
-      players do by about ${simGain.toFixed(1)} points of win chance. ${R.ope_note ? esc(R.ope_note) : allZero ? "In real games that edge is too small to confirm yet: with the matches we have, every interval includes zero." : "In real games the intervals are still wide."}</p>
+      players do by about ${simGain.toFixed(1)} points of win chance. ${R.ope_note ? esc(R.ope_note) : esc(opeTxt)}</p>
       <h2>Limits</h2>
       <ul class="small">
         <li>Fitted on PC ranked Season 10 matches from ${fitDates}, mostly Diamond to Celestial. Few lobbies average above 5,000.</li>

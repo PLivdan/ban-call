@@ -15,16 +15,21 @@ const H = E.H, O = E.O, out = []; let bad = 0; const log = s => { console.log(s)
 // ---- 1. parity
 const PAR = JSON.parse(fs.readFileSync(`${MD}/parity_v8.json`, "utf8")); let worstL = 0, worstX = 0;
 const members = [["optimal", 0], ["optimal", 1], ["optimal", 2], ["behaviour", 0], ["robust", 0]];
+// v9: the input ends with the registered block (the user's own slot); the page has no registration and leaves it at zero, so the
+// page's input is compared with the notebook's outside it, and turns with a registered slot are left to the notebook (counted)
+const REGO = O.registered !== undefined ? O.registered : E.FD; let regCases = 0;
 for (const c of PAR.cases) {
   const x = new Float64Array(E.FD); for (const [j, v] of c.input_nonzero) x[j] = v;
   const at = (blk, n) => { const o = []; for (let k = 0; k < n; k++) if (x[O[blk] + k]) o.push(k); return o; };
   const s = { m: at("map", E.NM)[0], r0: x[O.rank_z] * L.rank_sd + L.rank_mean, firstUs: x[O.we_ban_first] === 1, bans: c.bans, you: (at("your_hero", H)[0] ?? -1), mates: at("teammates_heroes", H) };
-  const mine = E.input(s, c.position); for (let j = 0; j < E.FD; j++) worstX = Math.max(worstX, Math.abs(mine[j] - x[j]));
+  const mine = E.input(s, c.position); for (let j = 0; j < REGO; j++) worstX = Math.max(worstX, Math.abs(mine[j] - x[j]));
+  for (let j = REGO; j < E.FD; j++) if (x[j]) { regCases++; break; }
   if (E.band(s.r0) !== at("band", E.NB)[0]) { bad++; log(`  band mismatch in a parity case: ${E.band(s.r0)} against ${at("band", E.NB)[0]}`); }
   if (E.S) E.outputs(c.position, x).forEach((v, k) => { worstL = Math.max(worstL, Math.abs(v - c.outputs[k])); });
   else members.forEach(([ch, m], k) => { worstL = Math.max(worstL, Math.abs(E.logit(c.position, ch, m, x) - c.logits[k])); });
 }
-log(`value networks: ${PAR.cases.length} parity cases x ${E.S ? "the student's 3 outputs" : "5 members"}, largest output difference ${worstL.toExponential(2)}; page input against the notebook's ${worstX.toExponential(2)}`);
+log(`value networks: ${PAR.cases.length} parity cases x ${E.S ? "the student's 3 outputs" : "5 members"}, largest output difference ${worstL.toExponential(2)}; page input against the notebook's ${worstX.toExponential(2)}`
+  + (REGO < E.FD ? ` (outside the registered block; ${regCases} cases have a registered slot, their outputs checked on the notebook's input)` : ""));
 if (worstL > 2e-4 || worstX > 1e-5) { bad++; log("  FAIL"); }
 // ---- 2. ban model
 const REF = JSON.parse(fs.readFileSync("tools/reports/check_v8_ban.json", "utf8")); let worstP = 0;
@@ -36,15 +41,15 @@ for (const c of REF.cases) {
 log(`ban model: ${REF.cases.length} states against the notebook's formula with the fitted parameters, largest probability difference ${worstP.toExponential(2)} (export rounding ${REF.export_rounding_max.toExponential(2)})`);
 if (worstP > 1e-4) { bad++; log("  FAIL"); }
 if (PAR.turns) {                                           // v8.3: whole turns, the notebook's float16 students and exported tables
-  let wm = 0, ws = 0, wp = 0, same = 0, ours = 0;
+  let wm = 0, ws = 0, wp = 0, same = 0, ours = 0, regT = 0;
   for (const t of PAR.turns) {
-    const s = t.state;
+    const s = t.state; if (s.registered && s.registered.length) { regT++; continue; }   // v9: the page has no registration
     if (t.ours) {
       const R = E.ourTurn(s); ours++; if (R.best === t.best) same++; else log(`  turn at position ${t.position}: the page advises ${L.heroes[R.best]}, the notebook ${L.heroes[t.best]}`);
       t.cands.forEach((h, k) => { wm = Math.max(wm, Math.abs(R.mu[h] - t.mu[k])); ws = Math.max(ws, Math.abs(R.sd[h] - t.sd[k])); wp = Math.max(wp, Math.abs(R.pe[h] - t.pe[k])); });
     } else { const T = E.theirTurn(s); t.cands.forEach((h, k) => { wp = Math.max(wp, Math.abs(T.pe[h] - t.pe[k])); }); }
   }
-  log(`whole turns: ${PAR.turns.length} (${ours} ours), same advice ${same} of ${ours}; largest difference in value ${wm.toExponential(2)}, spread ${ws.toExponential(2)}, ban probability ${wp.toExponential(2)}`);
+  log(`whole turns: ${PAR.turns.length - regT} (${ours} ours${regT ? `; ${regT} with a registered slot left out, the page has no registration` : ""}), same advice ${same} of ${ours}; largest difference in value ${wm.toExponential(2)}, spread ${ws.toExponential(2)}, ban probability ${wp.toExponential(2)}`);
   if (same < ours || wm > 1e-4 || ws > 1e-4 || wp > 1e-4) { bad++; log("  FAIL"); }
 }
 // ---- 3. the advice on random lobbies
