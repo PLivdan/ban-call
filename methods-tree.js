@@ -517,16 +517,17 @@
   function render(t) { CUR.render(t); const c = chapter(t); if (c !== shownStep) { shownStep = c; $("gtMline").innerHTML = `${STEP[c][0]}<span class="what">${STEP[c][1]}</span>`; } }
   const ICON = { play: `<svg viewBox="0 0 14 14"><path d="M2 1 L13 7 L2 13 Z"/></svg>`, pause: `<svg viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>` };
   function player(pp, chEl, chapters, dur, draw0) {
-    let t = 0, playing = false, last = 0;
+    let t = 0, playing = false, last = 0, raf = 0;                  // raf: the pending frame, so a pause and resume never leaves two loops
     chEl.innerHTML = chapters.map((c, i) => `<button data-i="${i}"><span class="track"><span class="fill"></span></span><b>${c[1]}</b>${c[2]}</button>`).join("");
     const btns = [...chEl.querySelectorAll("button")], fills = btns.map(b => b.querySelector(".fill"));
     const paint = () => { draw0(Math.min(t, dur)); btns.forEach((b, i) => { const a = chapters[i][0], z = i + 1 < chapters.length ? chapters[i + 1][0] : dur;
       b.classList.toggle("on", t >= a && (t < z || i === btns.length - 1)); fills[i].style.width = `${100 * cl((t - a) / (z - a))}%`; }); };
-    const frame = now => { if (!playing) return; t += Math.min(.05, (now - last) / 1000); last = now;
+    const frame = now => { raf = 0; if (!playing) return; t += Math.min(.05, (now - last) / 1000); last = now;
       if (t >= dur) { t = dur; playing = false; setIcon(); paint(); return; }
-      paint(); requestAnimationFrame(frame); };
+      paint(); raf = requestAnimationFrame(frame); };
     const setIcon = () => { pp.innerHTML = playing ? ICON.pause : ICON.play; pp.setAttribute("aria-label", playing ? "Pause" : t >= dur ? "Play again" : "Play"); };
-    const toggle = () => { playing = !playing; if (playing && t >= dur) t = 0; setIcon(); if (playing) { last = performance.now(); requestAnimationFrame(frame); } };
+    const toggle = () => { playing = !playing; if (playing && t >= dur) t = 0; setIcon(); if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (playing) { last = performance.now(); raf = requestAnimationFrame(frame); } };
     btns.forEach(b => b.onclick = () => { t = chapters[+b.dataset.i][0]; if (!playing) toggle(); paint(); });
     pp.onclick = toggle; setIcon(); paint();
     return { start: () => { if (!playing) toggle(); }, pause: () => { if (playing) toggle(); }, seek: x => { if (playing) toggle(); t = Math.min(x, dur); setIcon(); paint(); },

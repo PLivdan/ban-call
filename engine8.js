@@ -280,9 +280,15 @@
     /* Pairs scored together, for comparison with the advice (not the advice itself): after each of the top supported first bans
        x, every second ban y that is supported at the state after x (all legal ones when none is), from network e + 2. */
     pairs(s, R, nFirst = 6, bothOrders = false) {
+      const g = this.pairsGen(s, R, nFirst, bothOrders); let r = g.next(); while (!r.done) r = g.next(); return r.value;
+    }
+    /* The same pairs, one first ban per step (a generator), so the page can let the browser breathe between them: about a sixth of
+       the work each. pairs() runs it to the end. */
+    *pairsGen(s, R, nFirst = 6, bothOrders = false) {
       const e = R.e, H = this.H, sc = R.score, bd = this.band(s.r0), pool1 = R.supported.size ? R.cands.filter(h => R.supported.has(h)) : R.cands;
       const first = pool1.slice().sort((a, b) => sc(b) - sc(a)).slice(0, nFirst), out = [];
-      for (const x of first) {
+      for (const [fi, x] of first.entries()) {
+        if (fi) yield null;
         const s2 = Object.assign({}, s, { bans: s.bans.concat([x]) }), cands = R.cands.filter(h => h !== x), VV = this.values(s2, e + 1, cands, true); if (!VV) return null;
         const al2 = new Uint8Array(H); for (const h of cands) al2[h] = 1; const pe2 = this.banProbs(s2, e + 1, al2), sup2 = cands.filter(h => this.supportOK(e + 1, bd, h, pe2));
         const lx = this.LAM ? this.LAM * Math.log(Math.max(R.pe[x], 1e-30)) : 0;

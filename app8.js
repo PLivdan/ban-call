@@ -26,9 +26,18 @@
     let buf;
     if (!r.body || !r.body.getReader) buf = await r.arrayBuffer();
     else {
-      const rd = r.body.getReader(), parts = []; let got = 0;
-      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; if (label) status(`${label} ${Math.round(100 * got / bytes)}%`); }
-      const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } buf = out.buffer;
+      const rd = r.body.getReader(); let got = 0;
+      // the release gives the size, so chunks go straight into one buffer (no second full copy while loading); a file longer than
+      // promised falls back to collecting the chunks, and the size check below refuses it either way
+      let out = bytes !== undefined ? new Uint8Array(bytes) : null, parts = out ? null : [];
+      for (;;) {
+        const { done, value } = await rd.read(); if (done) break;
+        if (out && got + value.length > out.length) { parts = [out.subarray(0, got)]; out = null; }
+        if (out) out.set(value, got); else parts.push(value);
+        got += value.length; if (label && bytes) status(`${label} ${Math.round(100 * got / bytes)}%`);
+      }
+      if (parts) { const all = new Uint8Array(got); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } buf = all.buffer; }
+      else buf = got === out.length ? out.buffer : out.slice(0, got).buffer;
     }
     if (bytes !== undefined && buf.byteLength !== bytes) throw new Error(`${url}: ${buf.byteLength} bytes, the release says ${bytes}`);
     if (sha && self.crypto && crypto.subtle) {
@@ -576,7 +585,7 @@
   let compPool = [], COMP = null, compId = 0, COMP_LAST = null;   // COMP_LAST: the last lobby's drafts, shown on their seats while a new lobby's first batch runs
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans, st.them]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=51c113b46b"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=3ddf38470a"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -596,10 +605,11 @@
     let plan = null; if (LB && st.bans.length < 6) { const pth = E.path(lobby()) || []; plan = {}; for (const x of pth) if (x.us) plan[x.e] = x.h; }
     COMP = { key, id: ++compId, st: Object.assign(lobby(), { mates6: [1, 2, 3, 4, 5].map(shownOf) }), next: 0, pending: 0, done: false, failed: false,
              us: new Float64Array(H), them: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, splits: { us: {}, them: {} }, swap: {}, plan };
+    for (const w of compPool) if (w.busy) w.postMessage({ type: "cancel", below: COMP.id });   // a worker on the old lobby stops at its next run and frees itself
     compDispatch();
   }
   function compMsg(w, d) {
-    if (!d.done && !d.error) return;                                            // only finished jobs and errors count
+    if (!d.done && !d.error) return;                                            // only finished jobs and errors count (and obsolete ones that stopped early)
     w.busy = false; const C = COMP;
     if (C && d.id === C.id && !C.failed) {
       if (d.error) { compFail(); return; }
@@ -717,7 +727,7 @@
     if (!LB || !IDEAL_ON) return; const key = compKey(); if (IDEAL && IDEAL.key === key) return;
     IDEAL = { key, id: ++idealId, done: false, failed: false }; renderIdeal();
     if (!idealW) {
-      idealW = new Worker("sim8-worker.js?v=51c113b46b");
+      idealW = new Worker("sim8-worker.js?v=3ddf38470a");
       idealW.onmessage = ev => { const d = ev.data; if (!IDEAL || d.id !== IDEAL.id) return;
         if (d.error) IDEAL.failed = true; else if (d.done) Object.assign(IDEAL, d.ideal, { done: true }); else return; renderIdeal(); };
       idealW.onerror = () => { idealW.terminate(); idealW = null; if (IDEAL) { IDEAL.failed = true; renderIdeal(); } };
@@ -853,7 +863,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=51c113b46b");
+      flowW = new Worker("sim8-worker.js?v=3ddf38470a");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -905,8 +915,16 @@
         rest(); renderBans(); renderAdvice();
         if (RES && turnCount() === 2) setTimeout(() => {
           if (my !== pending) return;
-          const SQ = E.sequence(s, RES), P = E.pairs(s, RES, 6, true) || [];   // the advice first; the other pairs for comparison
-          PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice();
+          // the advice first; the other pairs for comparison, one first ban at a time with a break between, so the page never freezes
+          // for the whole search (a newer lobby state drops it)
+          const SQ = E.sequence(s, RES), g = E.pairsGen(s, RES, 6, true);
+          const step = () => {
+            if (my !== pending) return;
+            const r = g.next(); if (!r.done) { setTimeout(step, 0); return; }
+            const P = r.value || [];
+            PAIRS = SQ ? E.onAdviceScale([SQ].concat(P.filter(p => !(p.a === SQ.a && p.b === SQ.b))), SQ) : P; renderBans(); renderRoster(); renderAdvice();
+          };
+          setTimeout(step, 0);
         }, 30);
       }, still.matches ? 0 : 700);
     }, 15);
@@ -943,7 +961,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=51c113b46b");
+      endW = new Worker("sim8-worker.js?v=3ddf38470a");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }
@@ -973,7 +991,7 @@
     clearTimeout(treeTimer); if (!figNear || !METHODS) return;
     treeTimer = setTimeout(() => { if (!figNear || !METHODS) return; treeKey = key; const id = ++treeId;
       if (!treeW) {
-        treeW = new Worker("sim8-worker.js?v=51c113b46b");
+        treeW = new Worker("sim8-worker.js?v=3ddf38470a");
         treeW.onmessage = ev => { const m = ev.data; if (m.id !== treeId || !(m.done || m.error)) return;
           if (m.tree) { try { GameTree.load(treeConvert(m.tree)); } catch (e) { console.error(e); } } else if (m.error) { console.error(m.error); treeKey = null; } };
         treeW.onerror = () => { treeW.terminate(); treeW = null; treeKey = null; };

@@ -22,8 +22,10 @@
       const A = {};
       for (const a of meta.arrays) {
         const n = a.shape.reduce((p, q) => p * q, 1);
-        if (a.dtype === "float16") { const u = new Uint16Array(buffer, a.offset, n), o = new Float64Array(n); for (let i = 0; i < n; i++) o[i] = f16(u[i]); A[a.name] = o; }
-        else if (a.dtype === "float32") A[a.name] = Float64Array.from(new Float32Array(buffer, a.offset, n));
+        // the model's tables are read only and every float16 or float32 value is exact in a Float32Array (half the memory of
+        // Float64); arithmetic still runs in double, so results are unchanged
+        if (a.dtype === "float16") { const u = new Uint16Array(buffer, a.offset, n), o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = f16(u[i]); A[a.name] = o; }
+        else if (a.dtype === "float32") A[a.name] = Float32Array.from(new Float32Array(buffer, a.offset, n));
         else A[a.name] = Int32Array.from(new Int32Array(buffer, a.offset, n));
         A[a.name].shape = a.shape;
         if (a.dtype !== "int32") for (let i = 0; i < A[a.name].length; i++) if (!Number.isFinite(A[a.name][i])) throw new Error(`simulator array ${a.name}: a value is not finite`);

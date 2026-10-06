@@ -11,7 +11,7 @@
 importScripts("sim8.js" + self.location.search, "engine8.js" + self.location.search);   // the page stamps this worker's address; the scripts share the stamp
 const DRAWS = 32;
 let SIM = null, E8 = null, loading = null, BASE0 = "", VQ0 = "", LAY0 = null;
-const draws = new Map(), probs = new Map(), latest = {}; let lobbyNow = null;   // latest[type]: the newest flow or ideal job (an older one stops early)
+const draws = new Map(), probs = new Map(), latest = {}; let lobbyNow = null, cancelBelow = 0;   // cancelBelow: values jobs with a smaller id are obsolete   // latest[type]: the newest flow or ideal job (an older one stops early)
 async function load(base, v) {
   const q = v ? `?v=${v}` : "";
   const [meta, bin, lay, ban] = await Promise.all([fetch(`${base}model8/sim_v8.json${q}`).then(r => r.json()), fetch(`${base}model8/sim_v8.bin${q}`).then(r => r.arrayBuffer()),
@@ -163,6 +163,7 @@ async function treeJob(d) {
 
 onmessage = async ev => {
   const d = ev.data; if (d.type === "flow" || d.type === "ideal" || d.type === "tree") latest[d.type] = d.id;
+  if (d.type === "cancel") { cancelBelow = Math.max(cancelBelow, d.below); return; }   // the page moved to a newer lobby
   try {
     if (!SIM) { loading = loading || load(d.base || "", d.v).catch(e => { loading = null; throw e; }); await loading; }   // a failed load is tried again on the next job
     if (d.type === "warm") { postMessage({ id: d.id, done: true }); return; }       // the page loads the model before the first lobby
@@ -202,7 +203,9 @@ onmessage = async ev => {
     const vals = {}, acc = { us: new Float64Array(H), them: new Float64Array(H), av: new Float64Array(H), slots: new Float64Array(6 * H), nu: 0, nt: 0, runs: 0, roles: SIM.ROLE, splits: { us: {}, them: {} } };
     const seen = (s.them6 || []).map((h, j) => [h, j]).filter(([h]) => h >= 0), swap = {}; for (const [, j] of seen) swap[j] = new Float64Array(H);   // their entered seats: likely switches
     for (const c of d.cands) vals[String(c)] = {};
-    for (const j of d.runs) {
+    for (const [t, j] of d.runs.entries()) {
+      // every second run, let a cancel message in; an obsolete batch stops and reports itself, so the page frees this worker
+      if (t && t % 2 === 0) { await new Promise(r => setTimeout(r, 0)); if (d.id < cancelBelow) { postMessage({ id: d.id, done: true, stale: true }); return; } }
       const D = drawFor(L, s, j % DRAWS);
       for (const c of d.cands) {
         const pre = c === "typ" ? s.bans : s.bans.concat(Array.isArray(c) ? c : [c]), B = SIM.complete(L, D, pre, j, opv);
