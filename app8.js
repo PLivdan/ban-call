@@ -356,6 +356,18 @@
   const evid = (h, e) => { if (!EVID) return null; const bd = E.band(META.tiers[st.tier]), n = EVID.real_bans[e][bd][h]; return { n, f: EVID.flags[EVID.flag[e][bd][h]] }; };
   const evidN = n => n < 20 ? "under 20" : fmt(n);
   const evidTip = (h, e) => { const v = evid(h, e); return v ? `<br>real games with this ban here: ${evidN(v.n)}` : ""; };
+  // v9.1: the run's real-game check of our first ban (the primary estimate, capped, on the never-scored matches), shown under the
+  // board at our first own ban, with the run date
+  const realCheck = (() => {
+    const q = REP.ope && REP.ope.decisions && REP.ope.decisions[0], p = q && q.primary_estimates, c = p && p.doubly_robust_capped, rs = REP.splits && REP.splits.reserved;
+    if (!c || !rs || !REP.ope.cohorts || !REP.ope.cohorts.never_scored) return "";
+    const dd = u => { const t = new Date(u.replace(" ", "T") + "Z"); return `${t.getUTCDate()} ${"Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[t.getUTCMonth()]}`; };
+    const n = Math.round(REP.ope.cohorts.never_scored / 1000), se = (c.hi_pts - c.lo_pts) / 3.92, m = c.mean_pts;
+    const run = /^(\d{4})(\d{2})(\d{2})_/.exec(LAY.run), rd = run ? dd(`${run[1]}-${run[2]}-${run[3]} 00:00`) : LAY.run;
+    const verdict = c.lo_pts > 0 || c.hi_pts < 0 ? `${Math.abs(m).toFixed(1)} ± ${se.toFixed(1)} pts ${m < 0 ? "worse" : "better"} than` : `within ${se.toFixed(1)} pts of`;
+    return `<p class="small" style="text-align:center;margin:8px auto 0;max-width:820px">Real-game check (${n}k matches, ${dd(rs.first_utc)}-${dd(rs.last_utc)}): this advice tested ${verdict} players' own first bans. Model fitted ${rd}.</p>`;
+  })();
+  const firstOwn = e => { for (let i = 0; i < e; i++) if (ours(i)) return false; return true; };
   const tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
   let tipEl = null, tipText = "", tipW = 0, tipH = 0;         // the tooltip is filled and measured once per element, then only moved
   document.addEventListener("mousemove", ev => {
@@ -799,7 +811,7 @@
       if (!LB) html += `<h2 class="hh"><span>Your ban #${e + 1}${cnt === 2 ? ` and #${e + 2}` : ""}</span>${chartsBtn()}</h2>`;
       if (!LB) html += pair ? `<p class="head">Ban <span class="u">${esc(NAMES[pair.a])}</span>, then <span class="u">${esc(NAMES[pair.b])}</span> <span class="n u">${pp(pair.V)}</span> ${hs("the best ban, then the best ban after it; against a typical first ban followed by the best second ban")}</p>`
         : `<p class="head">Ban <span class="u">${esc(NAMES[R.best])}</span> <span class="n u">${pp(R.V[R.best])}</span> ${hs(runner === undefined ? "" : clr ? `clear of ${esc(nm(runner))}` : `close call with ${esc(nm(runner))}`)}</p>`;
-      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}<div class="det">`;
+      html += `<div class="fig8" id="boardSlot"></div>${LB ? boardLegend(false) : ""}${firstOwn(e) ? realCheck : ""}<div class="det">`;
       if (cnt === 2) html += `<h2>Your two bans</h2>` + (PAIRS && PAIRS.length ? `<div class="fig8">${pairGrid(PAIRS, W)}</div><p class="small">The outlined square is the advice: the best first ban,
         then the best ban once it is made. The other squares score both bans together, for comparison.</p>` : `<p class="small">Scoring pairs&hellip;</p>`);
       const h0 = pair ? pair.a : R.best; html += `<div id="sfSlot">${sfHtml(h0, W)}</div>`; if (CHARTS) flowStart(h0);
