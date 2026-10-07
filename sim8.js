@@ -139,6 +139,8 @@
         const mn = MAIN[p]; v -= legal[mn] ? KV[p] * (h !== mn ? 1 : 0) : KF[p];
         for (let j = i + 1; j < 6; j++) v += S[h * H + pk[j]];
       }
+      // v9.2 (SWO): the swap options the bans take away, each player's swap-in share times the banned hero's option value
+      const SWP = A["pool.SWP"], SWO = A["G.swo"]; if (SWP && SWO) for (let h = 0; h < H; h++) if (!legal[h] && SWO[h] !== 0) { let x = 0; for (let i = 0; i < 6; i++) x += SWP[pl[i] * H + h]; v -= x * SWO[h]; }
       v += A["G.sh"][cnt[0] * 7 + cnt[1]];
       const T = A["G.TRI"], t3 = A["G.t3"]; for (let k = 0; k < this.K3; k++) if (X[T[3 * k]] && X[T[3 * k + 1]] && X[T[3 * k + 2]]) v += t3[k];
       return v;

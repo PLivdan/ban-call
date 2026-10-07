@@ -585,7 +585,7 @@
   let compPool = [], COMP = null, compId = 0, COMP_LAST = null;   // COMP_LAST: the last lobby's drafts, shown on their seats while a new lobby's first batch runs
   const compKey = () => JSON.stringify([st.tier, st.map, st.first, [0, 1, 2, 3, 4, 5].map(shownOf), st.bans, st.them]);
   function compWorkers() {
-    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=3ddf38470a"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
+    while (compPool.length < CW) { const w = new Worker("sim8-worker.js?v=092b91b008"); w.busy = true; w.onmessage = ev => compMsg(w, ev.data); w.onerror = () => compFail(); compPool.push(w);
       w.postMessage({ id: 0, v: LAY.run, type: "warm" }); }                       // load the model now, not on the first click
   }
   function compDispatch() {
@@ -727,7 +727,7 @@
     if (!LB || !IDEAL_ON) return; const key = compKey(); if (IDEAL && IDEAL.key === key) return;
     IDEAL = { key, id: ++idealId, done: false, failed: false }; renderIdeal();
     if (!idealW) {
-      idealW = new Worker("sim8-worker.js?v=3ddf38470a");
+      idealW = new Worker("sim8-worker.js?v=092b91b008");
       idealW.onmessage = ev => { const d = ev.data; if (!IDEAL || d.id !== IDEAL.id) return;
         if (d.error) IDEAL.failed = true; else if (d.done) Object.assign(IDEAL, d.ideal, { done: true }); else return; renderIdeal(); };
       idealW.onerror = () => { idealW.terminate(); idealW = null; if (IDEAL) { IDEAL.failed = true; renderIdeal(); } };
@@ -863,7 +863,7 @@
     const key = compKey() + "|" + h; if (FL && FL.key === key) return;
     FL = { key, h, id: ++flowId, done: false, failed: false };
     if (!flowW) {
-      flowW = new Worker("sim8-worker.js?v=3ddf38470a");
+      flowW = new Worker("sim8-worker.js?v=092b91b008");
       const fill = () => { const el = $("sfSlot"); if (el && FL && adviceBan() === FL.h) el.innerHTML = sfHtml(FL.h, figW()); };
       flowW.onmessage = ev => { const d = ev.data; if (!FL || d.id !== FL.id) return;
         if (d.error) FL.failed = true; else if (d.done) Object.assign(FL, d.flow, { done: true }); else return; fill(); };
@@ -961,7 +961,7 @@
     if (!MethodFigs.ending) return;
     const id = ++endId;
     if (!endW) {
-      endW = new Worker("sim8-worker.js?v=3ddf38470a");
+      endW = new Worker("sim8-worker.js?v=092b91b008");
       endW.onmessage = ev => { const m = ev.data; if (m.id !== endId || !(m.done || m.error)) return; MethodFigs.ending(m.error ? { failed: true } : m.ending); };
       endW.onerror = () => { endW.terminate(); endW = null; MethodFigs.ending({ failed: true }); };
     }
@@ -991,7 +991,7 @@
     clearTimeout(treeTimer); if (!figNear || !METHODS) return;
     treeTimer = setTimeout(() => { if (!figNear || !METHODS) return; treeKey = key; const id = ++treeId;
       if (!treeW) {
-        treeW = new Worker("sim8-worker.js?v=3ddf38470a");
+        treeW = new Worker("sim8-worker.js?v=092b91b008");
         treeW.onmessage = ev => { const m = ev.data; if (m.id !== treeId || !(m.done || m.error)) return;
           if (m.tree) { try { GameTree.load(treeConvert(m.tree)); } catch (e) { console.error(e); } } else if (m.error) { console.error(m.error); treeKey = null; } };
         treeW.onerror = () => { treeW.terminate(); treeW = null; treeKey = null; };
